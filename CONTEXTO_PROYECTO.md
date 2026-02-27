@@ -299,7 +299,51 @@ En cada chat nuevo Claude tiene acceso a los siguientes conectores que puede usa
 
 ---
 
-## 14. NOTAS IMPORTANTES PARA FUTUROS CHATS
+## 14. SEGURIDAD — VARIABLES SENSIBLES Y GITIGNORE
+
+### Regla absoluta
+**Nunca subir al repo ningún archivo que contenga credenciales, API keys, contraseñas o datos de conexión.** El repo es público. Cualquier dato sensible que se suba queda expuesto permanentemente aunque después se borre (git guarda el historial).
+
+### Dónde viven las variables sensibles (solo local y en el servidor)
+Las credenciales existen únicamente en dos lugares físicos, nunca en el repo:
+
+| Lugar | Archivo | ¿Se sube al repo? |
+|---|---|---|
+| Local XAMPP | `C:/xampp81/htdocs/menu_qr_3d/api/config.php` | ❌ Ignorado por .gitignore |
+| Servidor cPanel | `/public_html/api/config.php` | ❌ Solo existe en el servidor |
+
+### Qué contiene config.php (el archivo sensible — nunca al repo)
+```php
+<?php
+// ESTE ARCHIVO NO SE SUBE AL REPO
+define('DB_HOST',      'localhost');
+define('DB_NAME',      'usuario_menudb');
+define('DB_USER',      'usuario_db');
+define('DB_PASS',      'password_real');
+define('MESHY_API_KEY','msy_xxxxxxxxxxxxxxxx');
+define('ADMIN_TOKEN',  'token_seguro_generado');
+define('BASE_URL',     'https://tudominio.com');
+define('UPLOADS_PATH', $_SERVER['DOCUMENT_ROOT'] . '/uploads/');
+define('UPLOADS_URL',  BASE_URL . '/uploads/');
+```
+
+### Qué SÍ se sube al repo (plantilla sin valores)
+El repo contiene `api/config.example.php` con los mismos campos pero vacíos. Al clonar o desplegar, se copia ese archivo, se renombra a `config.php` y se llenan los valores reales.
+
+### Archivos protegidos por .gitignore
+El `.gitignore` en la raíz del repo bloquea:
+- `api/config.php` — credenciales de BD, API keys, tokens
+- `api/.env` — por si en el futuro se migra a dotenv
+- `uploads/` — archivos subidos por usuarios (fotos, modelos .glb)
+- `node_modules/`
+- `dist/` — el build de Vue se sube por FTP directo, no por git
+- `.DS_Store`, `Thumbs.db`
+
+**Regla para Claude:** Antes de crear o editar cualquier archivo PHP que contenga credenciales, verificar que ese archivo esté listado en `.gitignore`. Si no lo está, agregarlo antes de continuar.
+
+---
+
+## 15. NOTAS IMPORTANTES PARA FUTUROS CHATS
 
 - El proyecto se llama `menu_qr_3d`
 - El desarrollador maneja Vue.js, PHP nativo, JS. No necesita explicaciones básicas.
