@@ -318,3 +318,9 @@ function db(): PDO {
 - Para limpiar sesiones vencidas manualmente: `DELETE FROM sesiones_admin WHERE expira_en < NOW();`
 - Los archivos `.glb` pueden pesar 3-10MB. Monitorear el espacio en disco del cPanel.
 - Si se necesita regenerar un modelo 3D: poner `productos.tiene_ar = 0`, `modelo_glb_path = NULL`, crear nuevo registro en `meshy_jobs`.
+
+## 10. REPOSITORIO
+
+Todo el código de este proyecto vive en: https://github.com/alexis-gd/menu_qr_3d
+
+El script SQL completo de esta sección debe mantenerse actualizado en el repo como `database/schema.sql` conforme evolucione el esquema. Cualquier alteración de tablas se documenta aquí antes de ejecutarse en producción.

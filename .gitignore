@@ -1,0 +1,83 @@
+# =============================================================
+# menu_qr_3d — .gitignore
+# REPO PÚBLICO: nunca exponer credenciales ni archivos sensibles
+# =============================================================
+
+# -------------------------------------------------------
+# ARCHIVOS SENSIBLES — CREDENCIALES Y CONFIGURACIÓN LOCAL
+# Estos archivos existen solo en local y en el servidor cPanel
+# Para configurar: copiar config.example.php → config.php
+# -------------------------------------------------------
+api/config.php
+api/.env
+.env
+.env.local
+.env.*.local
+
+# -------------------------------------------------------
+# UPLOADS — Archivos generados por usuarios
+# Las fotos y modelos .glb se transfieren por FTP al servidor
+# No tienen lugar en el control de versiones
+# -------------------------------------------------------
+uploads/
+public_html/uploads/
+
+# -------------------------------------------------------
+# BUILD DE VUE — El dist se sube por FTP directo al cPanel
+# No se versiona el build, solo el código fuente
+# -------------------------------------------------------
+dist/
+dist-ssr/
+
+# -------------------------------------------------------
+# DEPENDENCIAS NODE
+# -------------------------------------------------------
+node_modules/
+.npm
+
+# -------------------------------------------------------
+# LOGS Y TEMPORALES
+# -------------------------------------------------------
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+cron/*.log
+api/logs/
+*.tmp
+*.temp
+
+# -------------------------------------------------------
+# SISTEMA OPERATIVO
+# -------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# -------------------------------------------------------
+# IDEs Y EDITORES
+# -------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# -------------------------------------------------------
+# VITE / VUE
+# -------------------------------------------------------
+*.local
+.vite/
+vite.config.js.timestamp-*
+
+# -------------------------------------------------------
+# PHP
+# -------------------------------------------------------
+*.phar
+vendor/
+composer.lock

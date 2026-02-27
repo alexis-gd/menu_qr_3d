@@ -274,7 +274,32 @@ Todos bajo `/api/index.php` con parámetro `?route=`:
 
 ---
 
-## 13. NOTAS IMPORTANTES PARA FUTUROS CHATS
+## 13. REPOSITORIO Y HERRAMIENTAS DISPONIBLES EN CADA CHAT
+
+### Repositorio GitHub
+- **URL:** https://github.com/alexis-gd/menu_qr_3d
+- **Visibilidad:** Público
+- **Rama principal:** `master`
+- El repo ya contiene los archivos de contexto (`CONTEXTO_PROYECTO.md` y `CONTEXTO_BASE_DE_DATOS.md`)
+- Todo el código del proyecto se sube aquí conforme se desarrolla
+- **Clonar:** `git clone https://github.com/alexis-gd/menu_qr_3d.git`
+
+### Conectores / Herramientas activas en Claude
+En cada chat nuevo Claude tiene acceso a los siguientes conectores que puede usar directamente:
+
+| Herramienta | Para qué usarla en este proyecto |
+|---|---|
+| **GitHub** | Leer archivos del repo, crear/editar archivos, hacer commits, abrir PRs |
+| **Filesystem** | Leer/escribir archivos locales del desarrollador (proyecto Vue, PHP local) |
+| **Claude in Chrome** | Navegar y probar la app en el navegador, depurar errores visuales |
+
+**Flujo de trabajo con GitHub:** Cuando se creen archivos nuevos (PHP, Vue, SQL, etc.) se suben directamente al repo via el conector de GitHub. No es necesario copiar y pegar manualmente.
+
+**Flujo de trabajo con Filesystem:** Para acceder a archivos locales del proyecto en XAMPP o en la carpeta del proyecto Vue antes de subirlos.
+
+---
+
+## 14. NOTAS IMPORTANTES PARA FUTUROS CHATS
 
 - El proyecto se llama `menu_qr_3d`
 - El desarrollador maneja Vue.js, PHP nativo, JS. No necesita explicaciones básicas.
