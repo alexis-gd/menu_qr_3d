@@ -17,7 +17,16 @@ export function useApi() {
     error.value = null
 
     try {
-      const url = '/api/?' + new URLSearchParams({ route, ...params })
+      // Si requiere auth, agrega el token como parámetro query (temporal workaround)
+      const queryParams = { route, ...params }
+      if (includeAuth) {
+        const token = localStorage.getItem('admin_token')
+        if (token) {
+          queryParams.token = token
+        }
+      }
+      
+      const url = '/api/?' + new URLSearchParams(queryParams)
       const headers = Object.assign({ 'Content-Type': 'application/json' }, includeAuth ? authHeader() : {})
       const opts = { method, headers }
       if (body != null) opts.body = JSON.stringify(body)
