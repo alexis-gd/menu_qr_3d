@@ -16,14 +16,34 @@ function json_response($data, $code = 200)
 
 /**
  * Extrae el token de autenticación (Bearer) del header Authorization.
+ * Busca en múltiples fuentes (getallheaders, $_SERVER, etc).
  *
  * @return string|null
  */
 function get_bearer_token()
 {
-    $headers = getallheaders();
-    if (!empty($headers['Authorization'])) {
-        if (preg_match('/Bearer\s+(.*)$/i', $headers['Authorization'], $matches)) {
+    $auth = null;
+    
+    // Intenta getallheaders() primero
+    if (function_exists('getallheaders')) {
+        $headers = getallheaders();
+        if (!empty($headers['Authorization'])) {
+            $auth = $headers['Authorization'];
+        }
+    }
+    
+    // Si no, intenta $_SERVER
+    if (!$auth && !empty($_SERVER['HTTP_AUTHORIZATION'])) {
+        $auth = $_SERVER['HTTP_AUTHORIZATION'];
+    }
+    
+    // Si aún no, intenta alternativa
+    if (!$auth && !empty($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
+        $auth = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
+    }
+    
+    if ($auth) {
+        if (preg_match('/Bearer\s+(.*)$/i', $auth, $matches)) {
             return trim($matches[1]);
         }
     }
