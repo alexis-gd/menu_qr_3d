@@ -36,7 +36,11 @@ const submit = async () => {
     error.value = err.message || 'Error al iniciar sesión'
   }
 }
-</script>
+
+// Si ya está logeado, navegar al dashboard
+if (localStorage.getItem('admin_token')) {
+  router.replace('/admin/restaurantes')
+}</script>
 
 <style scoped>
 .login-page { display:flex; align-items:center; justify-content:center; min-height:70vh; }

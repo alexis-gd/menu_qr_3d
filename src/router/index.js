@@ -27,4 +27,20 @@ const router = createRouter({
   routes
 })
 
+// Protección de rutas admin
+router.beforeEach((to, from, next) => {
+  const token = localStorage.getItem('admin_token')
+  // si no hay token y la ruta comienza con /admin (excepto login), redirige a login
+  if (to.path.startsWith('/admin') && to.path !== '/admin') {
+    if (!token) {
+      return next({ path: '/admin' })
+    }
+  }
+  // si hay token y va a login, redirige al dashboard restaurantes
+  if (to.path === '/admin' && token) {
+    return next({ path: '/admin/restaurantes' })
+  }
+  next()
+})
+
 export default router
