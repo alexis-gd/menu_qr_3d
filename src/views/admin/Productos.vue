@@ -41,7 +41,12 @@
             <td>{{ catMap[prod.categoria_id] || '' }}</td>
             <td>${{ prod.precio.toFixed(2) }}</td>
             <td>
+              <span v-if="prod.tiene_ar" class="badge-ar">3D listo</span>
+              <span v-else class="badge-status">{{ meshStatus[prod.id] || 'pendiente' }}</span>
+            </td>
+            <td>
               <button @click="eliminar(prod.id)">Eliminar</button>
+              <button v-if="!prod.tiene_ar" @click="checkStatus(prod.id)" class="btn-mini">Ver estado</button>
               <input type="file" multiple @change="subirFotos(prod.id,$event)" />
             </td>
           </tr>
@@ -62,6 +67,7 @@ const restauranteId = route.params.id
 const categorias = ref([])
 const productos = ref([])
 const catMap = ref({})
+const meshStatus = ref({})
 const nuevaCategoria = ref('')
 const form = ref({ categoria_id: '', nombre: '', precio: 0, descripcion: '' })
 const error = ref(null)
@@ -84,6 +90,10 @@ async function loadProductos() {
   try {
     const res = await get('productos', { restaurante_id: restauranteId })
     productos.value = res.productos || []
+    // populate mesh status map from returned products
+    productos.value.forEach(p => {
+      meshStatus.value[p.id] = p.mesh_status || null
+    })
   } catch (err) {
     error.value = err.message
   } finally {
@@ -111,6 +121,18 @@ async function crearProducto() {
     await post('productos', { ...form.value })
     form.value = { categoria_id: '', nombre: '', precio: 0, descripcion: '' }
     await loadProductos()
+  } catch (err) {
+    error.value = err.message
+  }
+}
+
+async function checkStatus(id) {
+  try {
+    const res = await get('job-status', { producto_id: id })
+    meshStatus.value[id] = res.job.status
+    if (res.job.status === 'succeeded') {
+      await loadProductos()
+    }
   } catch (err) {
     error.value = err.message
   }
@@ -162,4 +184,7 @@ table { width:100%; border-collapse:collapse }
 th,td { text-align:left; padding:8px; border-bottom:1px solid #ddd }
 .error { color:#d32f2f; margin-top:12px }
 .cargando { font-style:italic }
+.badge-ar { background:#4caf50; color:white; padding:2px 6px; border-radius:4px; font-size:0.8rem; }
+.badge-status { background:#ffb300; color:white; padding:2px 6px; border-radius:4px; font-size:0.8rem; }
+.btn-mini { background:#2196f3; color:white; border:none; padding:4px 8px; border-radius:4px; font-size:0.8rem; margin-right:4px; }
 </style>

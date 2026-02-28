@@ -102,6 +102,177 @@ switch ($route) {
         json_response(['error' => 'Método no soportado'], 405);
         break;
 
+    case 'categorias':
+        require_auth();
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            $restaurante_id = $_GET['restaurante_id'] ?? null;
+            if (!$restaurante_id) {
+                json_response(['error' => 'restaurante_id requerido'], 400);
+            }
+            $stmt = $pdo->prepare('SELECT * FROM categorias WHERE restaurante_id = :rid AND activo = 1 ORDER BY orden');
+            $stmt->execute([':rid' => $restaurante_id]);
+            $rows = $stmt->fetchAll();
+            json_response(['categorias' => $rows]);
+        }
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $body = json_decode(file_get_contents('php://input'), true) ?: [];
+            $restaurante_id = $body['restaurante_id'] ?? null;
+            $nombre = $body['nombre'] ?? null;
+            $icono = $body['icono'] ?? null;
+            $orden = $body['orden'] ?? 0;
+            if (!$restaurante_id || !$nombre) {
+                json_response(['error' => 'restaurante_id y nombre requeridos'], 400);
+            }
+            $stmt = $pdo->prepare('INSERT INTO categorias (restaurante_id,nombre,icono,orden,activo) VALUES (:rid,:n,:i,:o,1)');
+            $stmt->execute([':rid'=>$restaurante_id,':n'=>$nombre,':i'=>$icono,':o'=>$orden]);
+            json_response(['id'=>$pdo->lastInsertId()],201);
+        }
+        json_response(['error'=>'Método no soportado'],405);
+        break;
+
+    case 'productos':
+        require_auth();
+        // GET
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            $restaurante_id = $_GET['restaurante_id'] ?? null;
+            if (!$restaurante_id) {
+                json_response(['error' => 'restaurante_id requerido'], 400);
+            }
+            $stmt = $pdo->prepare(
+                'SELECT p.* FROM productos p
+                 JOIN categorias c ON p.categoria_id = c.id
+                 WHERE c.restaurante_id = :rid AND p.activo = 1
+                 ORDER BY p.orden'
+            );
+            $stmt->execute([':rid' => $restaurante_id]);
+            $products = $stmt->fetchAll();
+            // attach last mesh job status
+            foreach ($products as &$prod) {
+                if (!$prod['tiene_ar']) {
+                    $j = $pdo->prepare('SELECT status FROM meshy_jobs WHERE producto_id=:pid ORDER BY created_at DESC LIMIT 1');
+                    $j->execute([':pid'=>$prod['id']]);
+                    $row = $j->fetch();
+                    $prod['mesh_status'] = $row['status'] ?? null;
+                } else {
+                    $prod['mesh_status'] = 'succeeded';
+                }
+            }
+            json_response(['productos' => $products]);
+        }
+        // POST crear
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $body = json_decode(file_get_contents('php://input'), true) ?: [];
+            $categoria_id = $body['categoria_id'] ?? null;
+            $nombre = $body['nombre'] ?? null;
+            $descripcion = $body['descripcion'] ?? null;
+            $precio = $body['precio'] ?? 0;
+            $es_destacado = $body['es_destacado'] ? 1 : 0;
+            $disponible = isset($body['disponible']) ? ($body['disponible'] ? 1 : 0) : 1;
+            if (!$categoria_id || !$nombre) {
+                json_response(['error'=>'categoria_id y nombre requeridos'],400);
+            }
+            $stmt = $pdo->prepare('INSERT INTO productos (categoria_id,nombre,descripcion,precio,es_destacado,disponible,activo) VALUES (:cid,:n,:d,:p,:ed,:disp,1)');
+            $stmt->execute([':cid'=>$categoria_id,':n'=>$nombre,':d'=>$descripcion,':p'=>$precio,':ed'=>$es_destacado,':disp'=>$disponible]);
+            json_response(['id'=>$pdo->lastInsertId()],201);
+        }
+        // PUT actualizar
+        if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
+            parse_str(file_get_contents('php://input'), $body);
+            $id = $_GET['id'] ?? null;
+            if (!$id) {
+                json_response(['error'=>'id es requerido'],400);
+            }
+            $fields = [];
+            $params = [':id'=>$id];
+            foreach (['categoria_id','nombre','descripcion','precio','es_destacado','disponible','orden'] as $f) {
+                if (isset($body[$f])) {
+                    $fields[] = "$f = :$f";
+                    $params[":$f"] = $body[$f];
+                }
+            }
+            if ($fields) {
+                $sql = 'UPDATE productos SET '.implode(',', $fields)." WHERE id = :id";
+                $pdo->prepare($sql)->execute($params);
+            }
+            json_response(['success'=>true]);
+        }
+        // DELETE lógico
+        if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+            $id = $_GET['id'] ?? null;
+            if (!$id) json_response(['error'=>'id requerido'],400);
+            $pdo->prepare('UPDATE productos SET activo=0 WHERE id=:id')->execute([':id'=>$id]);
+            json_response(['success'=>true]);
+        }
+        json_response(['error'=>'Método no soportado'],405);
+        break;
+
+    case 'job-status':
+        require_auth();
+        $pid = $_GET['producto_id'] ?? null;
+        if (!$pid) {
+            json_response(['error'=>'producto_id requerido'],400);
+        }
+        $stmt = $pdo->prepare('SELECT * FROM meshy_jobs WHERE producto_id=:pid ORDER BY created_at DESC LIMIT 1');
+        $stmt->execute([':pid'=>$pid]);
+        $job = $stmt->fetch();
+        json_response(['job'=>$job]);
+        break;
+
+    case 'upload-fotos':
+        require_auth();
+        // Espera: producto_id y archivos en $_FILES['fotos']
+        $producto_id = $_POST['producto_id'] ?? null;
+        if (!$producto_id) {
+            json_response(['error'=>'producto_id requerido'],400);
+        }
+        if (!isset($_FILES['fotos'])) {
+            json_response(['error'=>'No se enviaron fotos'],400);
+        }
+        $dir = __DIR__ . '/../uploads/fotos/' . intval($producto_id);
+        if (!is_dir($dir)) mkdir($dir, 0755, true);
+        $saved = [];
+        $urls = [];
+        foreach ($_FILES['fotos']['tmp_name'] as $idx => $tmp) {
+            $name = basename($_FILES['fotos']['name'][$idx]);
+            $dest = "$dir/$name";
+            if (move_uploaded_file($tmp, $dest)) {
+                // insertar registro
+                $rel = "uploads/fotos/$producto_id/$name";
+                $url = BASE_URL . '/' . $rel;
+                $pdo->prepare('INSERT INTO fotos_producto (producto_id, ruta, url_publica, orden) VALUES (:pid,:ruta,:url,0)')
+                    ->execute([':pid'=>$producto_id,':ruta'=>$rel,':url'=>$url]);
+                $saved[] = $url;
+                $urls[] = $url;
+            }
+        }
+        // Disparar job a Meshy sólo si hay URLs
+        if ($urls) {
+            $payload = json_encode(['images' => $urls]);
+            $ch = curl_init('https://api.meshy.ai/openapi/v1/image-to-3d');
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . MESHY_API_KEY
+            ]);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+            $resp = curl_exec($ch);
+            $err = curl_error($ch);
+            curl_close($ch);
+
+            if ($resp !== false) {
+                $data = json_decode($resp, true);
+                if (isset($data['task_id'])) {
+                    $stmt = $pdo->prepare('INSERT INTO meshy_jobs (producto_id, meshy_task_id, status) VALUES (:pid, :tid, "pending")');
+                    $stmt->execute([':pid'=>$producto_id, ':tid'=>$data['task_id']]);
+                }
+            }
+        }
+
+        json_response(['uploaded'=>$saved]);
+        break;
+
+
     default:
         http_response_code(404);
         echo json_encode(['error' => 'Ruta no encontrada']);

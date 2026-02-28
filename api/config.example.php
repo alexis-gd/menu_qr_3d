@@ -11,6 +11,12 @@ define('DB_PASS', '');
 // donde se aloja el frontend, por ejemplo "https://misitio.com/menu".
 define('BASE_URL', 'http://menu.local');
 
+// --- Meshy API ------------------------------------------------------------
+// Necesitas registrarte en https://meshy.ai y obtener una API key.
+// Se usará para generar modelos 3D a partir de imágenes.
+define('MESHY_API_KEY', 'pon_aqui_tu_api_key');
+
+
 // Token estático para autenticación de administrador. Se puede dejar por defecto
 // y cambiar más tarde (no es seguro, es solo para la fase inicial).
 define('ADMIN_TOKEN', 'mi_token_secreto_cambia_esto');
