@@ -26,7 +26,7 @@ switch ($route) {
                             'nombre' => 'Tacos al pastor',
                             'descripcion' => 'Tacos tradicionales con piña y cebolla.',
                             'precio' => 99.90,
-                            'foto_principal' => BASE_URL . '/menu/imgs/taco.jpg',
+                            'foto_principal' => BASE_URL . '/imgs/taco.jpg',
                             'tiene_ar' => 0,
                         ],
                     ],
