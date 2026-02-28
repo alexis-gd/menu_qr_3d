@@ -14,6 +14,9 @@
           <strong>{{ r.nombre }}</strong>
           <div class="meta">/{{ r.slug }} — {{ r.descripcion }}</div>
         </div>
+        <div class="acciones">
+          <router-link :to="`/admin/restaurantes/${r.id}/productos`" class="btn-mini">Productos</router-link>
+        </div>
       </div>
     </div>
 
