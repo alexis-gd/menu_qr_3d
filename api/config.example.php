@@ -3,19 +3,19 @@
 
 // --- Base de datos ----------------------------------------------------------
 define('DB_HOST', 'localhost');
-define('DB_NAME', 'menu_qr_3d');
+define('DB_NAME', 'nodosmxc_menu_qr_3d');
 define('DB_USER', 'root');
 define('DB_PASS', '');
 
-// URL base del proyecto (sin slash final). En producción será el dominio público
-// donde se aloja el frontend, por ejemplo "https://misitio.com/menu".
-define('BASE_URL', 'http://menu.local');
+// URL base del proyecto (sin slash final).
+// En desarrollo local con Vite dev server usar: http://localhost:5173
+// En producción cambiar a: https://tudominio.com/menu (o similar)
+define('BASE_URL', 'http://localhost:5173');
 
 // --- Meshy API ------------------------------------------------------------
 // Necesitas registrarte en https://meshy.ai y obtener una API key.
 // Se usará para generar modelos 3D a partir de imágenes.
 define('MESHY_API_KEY', 'pon_aqui_tu_api_key');
-
 
 // Token estático para autenticación de administrador. Se puede dejar por defecto
 // y cambiar más tarde (no es seguro, es solo para la fase inicial).

@@ -24,9 +24,13 @@ function get_bearer_token()
 {
     $auth = null;
     
+    // DEBUG: ver estructura de $_SERVER
+    error_log('DEBUG $_SERVER keys: ' . json_encode(array_keys($_SERVER)));
+    
     // Intenta getallheaders() primero
     if (function_exists('getallheaders')) {
         $headers = getallheaders();
+        error_log('DEBUG getallheaders: ' . json_encode($headers));
         if (!empty($headers['Authorization'])) {
             $auth = $headers['Authorization'];
         }
@@ -34,13 +38,17 @@ function get_bearer_token()
     
     // Si no, intenta $_SERVER
     if (!$auth && !empty($_SERVER['HTTP_AUTHORIZATION'])) {
+        error_log('DEBUG HTTP_AUTHORIZATION found');
         $auth = $_SERVER['HTTP_AUTHORIZATION'];
     }
     
     // Si aún no, intenta alternativa
     if (!$auth && !empty($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
+        error_log('DEBUG REDIRECT_HTTP_AUTHORIZATION found');
         $auth = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
     }
+    
+    error_log('DEBUG final auth: ' . $auth);
     
     if ($auth) {
         if (preg_match('/Bearer\s+(.*)$/i', $auth, $matches)) {
@@ -57,7 +65,15 @@ function get_bearer_token()
 function require_auth()
 {
     $token = get_bearer_token();
-    if ($token !== ADMIN_TOKEN) {
-        json_response(['error' => 'No autorizado'], 401);
+    
+    // TEMPORAL: permitir token por query string para debug
+    if (!$token && !empty($_GET['token'])) {
+        $token = $_GET['token'];
+    }
+    
+    $expected = ADMIN_TOKEN;
+    
+    if ($token !== $expected) {
+        json_response(['error' => 'No autorizado', 'token_received' => $token], 401);
     }
 }
