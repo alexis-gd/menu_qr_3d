@@ -1,0 +1,11 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /menu/
+  
+  # No reescribir archivos existentes o directorios
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  
+  # Reescribir todo a index.html para Vue Router
+  RewriteRule ^ index.html [QSA,L]
+</IfModule>
