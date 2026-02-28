@@ -4,6 +4,48 @@
 
 ---
 
+## ✅ CHECKLIST DE DESARROLLO
+
+### Fases Completadas
+- [x] **Fase 1** — Backend y BD: config.php, router, endpoints menú dummy
+- [x] **Fase 2** — Frontend menú cliente: Vue 3 + Vite, componentes, build
+- [x] **Fase 3** — Panel admin: login, CRUD restaurantes/categorias/productos, protección de rutas
+- [x] **Fase 4** — Meshy integration: upload-fotos→Meshy, job-status, cron script
+
+### Funcionalidades Implementadas
+- [x] API endpoints: `menu`, `login`, `restaurantes`, `categorias`, `productos`, `upload-fotos`, `job-status`
+- [x] CRUD completo de productos (create, read, update, delete)
+- [x] Subida de múltiples fotos por producto
+- [x] Meshy API call al subir fotos
+- [x] Estado de conversión 3D con badges ("pending", "processing", "succeeded")
+- [x] Botón "Ver estado" para polling manual de job-status
+- [x] Autenticación simple (token estático en localStorage)
+- [x] Protección de rutas admin con beforeEach guard
+
+### Bugs/Workarounds Conocidos
+- ⚠️ **Auth headers no llegan** — Token se pasa por query string (INSEGURO, temporal)
+  - Afecta: `src/composables/useApi.js`, `api/helpers.php`
+  - Solución: Investigar Apache/Vite proxy headers o usar cookies HttpOnly
+
+### Funcionalidades Pendientes (Fase 5+)
+- [ ] **QR & Mesas** — Generar QR por mesa, tabla de mesas, endpoint en BD
+- [ ] **Validación de formularios** — Cliente + servidor, feedback visual
+- [ ] **Cron registrado en cPanel** — Script existe pero no está en scheduler
+- [ ] **Model-Viewer en modal** — Mostrar 3D rotable cuando `tiene_ar = 1`
+- [ ] **Feedback visual mejorado** — Loaders, toasts, mejor UX en errores
+- [ ] **Meshy API key configurado** — Aún en placeholder "pon_aqui_tu_api_key"
+
+### Testing Local
+- ✅ Base de datos: MySQL tablas creadas (db/init.sql)
+- ✅ Usuario de prueba: katche4@gmail.com / katch123
+- ✅ Login funciona
+- ✅ CRUD restaurantes/productos funciona
+- ✅ Subida de fotos funciona (guardan en /uploads/fotos/)
+- ⚠️ Meshy API sin key (jobs quedan en "pending")
+- ⚠️ Cron no registrado (no descarga automáticamente .glb)
+
+---
+
 ## 1. QUÉ ES ESTE PROYECTO
 
 Menú digital para restaurantes que se abre al escanear un QR desde la mesa.
