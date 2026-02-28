@@ -23,37 +23,24 @@ function json_response($data, $code = 200)
 function get_bearer_token()
 {
     $auth = null;
-    
-    // DEBUG: ver estructura de $_SERVER
-    error_log('DEBUG $_SERVER keys: ' . json_encode(array_keys($_SERVER)));
-    
-    // Intenta getallheaders() primero
+
     if (function_exists('getallheaders')) {
         $headers = getallheaders();
-        error_log('DEBUG getallheaders: ' . json_encode($headers));
         if (!empty($headers['Authorization'])) {
             $auth = $headers['Authorization'];
         }
     }
-    
-    // Si no, intenta $_SERVER
+
     if (!$auth && !empty($_SERVER['HTTP_AUTHORIZATION'])) {
-        error_log('DEBUG HTTP_AUTHORIZATION found');
         $auth = $_SERVER['HTTP_AUTHORIZATION'];
     }
-    
-    // Si aún no, intenta alternativa
+
     if (!$auth && !empty($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
-        error_log('DEBUG REDIRECT_HTTP_AUTHORIZATION found');
         $auth = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
     }
-    
-    error_log('DEBUG final auth: ' . $auth);
-    
-    if ($auth) {
-        if (preg_match('/Bearer\s+(.*)$/i', $auth, $matches)) {
-            return trim($matches[1]);
-        }
+
+    if ($auth && preg_match('/Bearer\s+(.*)$/i', $auth, $matches)) {
+        return trim($matches[1]);
     }
     return null;
 }
@@ -74,6 +61,6 @@ function require_auth()
     $expected = ADMIN_TOKEN;
     
     if ($token !== $expected) {
-        json_response(['error' => 'No autorizado', 'token_received' => $token], 401);
+        json_response(['error' => 'No autorizado'], 401);
     }
 }

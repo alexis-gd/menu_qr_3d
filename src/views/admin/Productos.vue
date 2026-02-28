@@ -39,15 +39,21 @@
           <tr v-for="prod in productos" :key="prod.id">
             <td>{{ prod.nombre }}</td>
             <td>{{ catMap[prod.categoria_id] || '' }}</td>
-            <td>${{ prod.precio.toFixed(2) }}</td>
+            <td>${{ Number(prod.precio).toFixed(2) }}</td>
             <td>
               <span v-if="prod.tiene_ar" class="badge-ar">3D listo</span>
-              <span v-else class="badge-status">{{ meshStatus[prod.id] || 'pendiente' }}</span>
+              <span v-else class="badge-sin-ar">Sin modelo</span>
             </td>
-            <td>
-              <button @click="eliminar(prod.id)">Eliminar</button>
-              <button v-if="!prod.tiene_ar" @click="checkStatus(prod.id)" class="btn-mini">Ver estado</button>
-              <input type="file" multiple @change="subirFotos(prod.id,$event)" />
+            <td class="acciones-col">
+              <button @click="eliminar(prod.id)" class="btn-danger">Eliminar</button>
+              <label class="btn-mini btn-upload" :title="'Subir fotos del platillo'">
+                Fotos
+                <input type="file" multiple accept="image/*" @change="subirFotos(prod.id, $event)" hidden />
+              </label>
+              <label v-if="!prod.tiene_ar" class="btn-mini btn-glb" title="Sube el .glb generado en meshy.ai">
+                Subir 3D (.glb)
+                <input type="file" accept=".glb" @change="subirGlb(prod.id, $event)" hidden />
+              </label>
             </td>
           </tr>
         </tbody>
@@ -67,7 +73,6 @@ const restauranteId = route.params.id
 const categorias = ref([])
 const productos = ref([])
 const catMap = ref({})
-const meshStatus = ref({})
 const nuevaCategoria = ref('')
 const form = ref({ categoria_id: '', nombre: '', precio: 0, descripcion: '' })
 const error = ref(null)
@@ -90,10 +95,6 @@ async function loadProductos() {
   try {
     const res = await get('productos', { restaurante_id: restauranteId })
     productos.value = res.productos || []
-    // populate mesh status map from returned products
-    productos.value.forEach(p => {
-      meshStatus.value[p.id] = p.mesh_status || null
-    })
   } catch (err) {
     error.value = err.message
   } finally {
@@ -126,18 +127,6 @@ async function crearProducto() {
   }
 }
 
-async function checkStatus(id) {
-  try {
-    const res = await get('job-status', { producto_id: id })
-    meshStatus.value[id] = res.job.status
-    if (res.job.status === 'succeeded') {
-      await loadProductos()
-    }
-  } catch (err) {
-    error.value = err.message
-  }
-}
-
 async function eliminar(id) {
   try {
     await del('productos', { id })
@@ -157,12 +146,31 @@ async function subirFotos(prodId, event) {
   }
   try {
     const token = localStorage.getItem('admin_token')
-    const res = await fetch(`/api/?route=upload-fotos`, {
+    const res = await fetch(`/api/?route=upload-fotos&token=${token}`, {
       method: 'POST',
-      headers: { Authorization: 'Bearer ' + token },
       body: formData
     })
-    if (!res.ok) throw new Error('Error upload')
+    if (!res.ok) throw new Error('Error al subir fotos')
+    await loadProductos()
+  } catch (err) {
+    error.value = err.message
+  }
+}
+
+async function subirGlb(prodId, event) {
+  const file = event.target.files[0]
+  if (!file) return
+  const formData = new FormData()
+  formData.append('producto_id', prodId)
+  formData.append('modelo', file)
+  try {
+    const token = localStorage.getItem('admin_token')
+    const res = await fetch(`/api/?route=upload-glb&token=${token}`, {
+      method: 'POST',
+      body: formData
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Error al subir el modelo')
     await loadProductos()
   } catch (err) {
     error.value = err.message
@@ -185,6 +193,10 @@ th,td { text-align:left; padding:8px; border-bottom:1px solid #ddd }
 .error { color:#d32f2f; margin-top:12px }
 .cargando { font-style:italic }
 .badge-ar { background:#4caf50; color:white; padding:2px 6px; border-radius:4px; font-size:0.8rem; }
-.badge-status { background:#ffb300; color:white; padding:2px 6px; border-radius:4px; font-size:0.8rem; }
-.btn-mini { background:#2196f3; color:white; border:none; padding:4px 8px; border-radius:4px; font-size:0.8rem; margin-right:4px; }
+.badge-sin-ar { background:#bdbdbd; color:white; padding:2px 6px; border-radius:4px; font-size:0.8rem; }
+.acciones-col { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.btn-danger { background:#e53935; color:white; border:none; padding:4px 8px; border-radius:4px; font-size:0.8rem; cursor:pointer; }
+.btn-mini { border:none; padding:4px 8px; border-radius:4px; font-size:0.8rem; cursor:pointer; }
+.btn-upload { background:#2196f3; color:white; }
+.btn-glb { background:#7b1fa2; color:white; }
 </style>

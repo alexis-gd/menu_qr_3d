@@ -249,6 +249,17 @@ WHERE r.slug = :slug AND r.activo = 1
 ORDER BY c.orden ASC, p.orden ASC, p.nombre ASC;
 ```
 
+### Mesas activas de un restaurante
+```sql
+SELECT m.id, m.numero, m.qr_generado,
+       r.slug AS restaurante_slug, r.nombre AS restaurante_nombre
+FROM mesas m
+JOIN restaurantes r ON r.id = m.restaurante_id
+WHERE m.restaurante_id = :rid AND m.activo = 1
+ORDER BY CAST(m.numero AS UNSIGNED), m.numero;
+-- Ordenamiento inteligente: Mesa 1,2,10 antes que "Terraza","VIP"
+```
+
 ### Jobs pendientes para el cron
 ```sql
 SELECT id, producto_id, meshy_task_id, intentos
@@ -278,9 +289,14 @@ LIMIT 1;
 ## 7. REGLAS DE NEGOCIO EN BD
 
 - Un producto puede tener **múltiples intentos de conversión** en `meshy_jobs`. El cron solo procesa los que están en `pending` o `processing`.
-- `productos.tiene_ar = 1` solo se setea cuando el cron descarga exitosamente el `.glb`.
-- `productos.modelo_glb_path` es una **ruta relativa** (ej: `modelos/modelo_42_1710000000.glb`). La URL absoluta se construye en PHP concatenando `BASE_URL . '/uploads/' . $ruta`.
-- `fotos_producto.url_publica` es la URL absoluta porque Meshy API la necesita así para descargar las imágenes.
+- **`productos.tiene_ar = 1`** se setea al subir un `.glb` válido (endpoint `upload-glb`) o cuando el cron descarga exitosamente el `.glb` de Meshy.
+- **`productos.modelo_glb_path`** es solo el **nombre del archivo** (ej: `modelo_1_1234.glb`). URL completa: `UPLOADS_URL . 'modelos/' . $modelo_glb_path`.
+- **`productos.foto_principal`** es relativo a `/uploads/` (ej: `fotos/1/foto_1_0_1234.jpg`). URL completa: `UPLOADS_URL . $foto_principal`. Se asigna automáticamente al subir la primera foto.
+- **`fotos_producto.ruta`** es relativo al webroot (ej: `uploads/fotos/1/foto.jpg`). Solo para referencia interna.
+- `fotos_producto.url_publica` es URL absoluta (históricamente para Meshy API, ahora solo referencia).
+- Borrado siempre lógico (`activo = 0`). Nunca DELETE en producción.
+- `mesas.numero` es VARCHAR — permite "1", "VIP", "Terraza-2". Unique por restaurante.
+- La URL del QR de una mesa: `{BASE_URL}/menu/?r={restaurante.slug}&mesa={mesa.numero}`
 - Las sesiones expiran en 8 horas. El cron también puede limpiar sesiones viejas si se quiere.
 - Borrado siempre es lógico (`activo = 0`). No se hace DELETE en producción.
 

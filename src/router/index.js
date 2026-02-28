@@ -3,14 +3,14 @@ import MenuPublico from '../views/MenuPublico.vue'
 import AdminLogin from '../views/admin/Login.vue'
 import AdminRestaurantes from '../views/admin/Restaurantes.vue'
 import AdminProductos from '../views/admin/Productos.vue'
+import AdminMesas from '../views/admin/Mesas.vue'
 
 const routes = [
   {
     path: '/',
     name: 'MenuPublico',
     component: MenuPublico
-  }
-  ,
+  },
   {
     path: '/admin',
     name: 'AdminLogin',
@@ -25,6 +25,11 @@ const routes = [
     path: '/admin/restaurantes/:id/productos',
     name: 'AdminProductos',
     component: AdminProductos
+  },
+  {
+    path: '/admin/restaurantes/:id/mesas',
+    name: 'AdminMesas',
+    component: AdminMesas
   }
 ]
 
@@ -34,7 +39,7 @@ const router = createRouter({
 })
 
 // Protección de rutas admin
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem('admin_token')
   // si no hay token y la ruta comienza con /admin (excepto login), redirige a login
   if (to.path.startsWith('/admin') && to.path !== '/admin') {

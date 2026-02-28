@@ -16,6 +16,7 @@
         </div>
         <div class="acciones">
           <router-link :to="`/admin/restaurantes/${r.id}/productos`" class="btn-mini">Productos</router-link>
+          <router-link :to="`/admin/restaurantes/${r.id}/mesas`" class="btn-mini btn-mesas">Mesas / QR</router-link>
         </div>
       </div>
     </div>
@@ -50,7 +51,7 @@ async function crear() {
     return
   }
   try {
-    const res = await post('restaurantes', {
+    await post('restaurantes', {
       nombre: form.value.nombre,
       slug: form.value.slug,
       descripcion: form.value.descripcion
@@ -72,5 +73,8 @@ onMounted(load)
 .nuevo button { background:#FF6B35; color:white; border:none; padding:8px 16px; border-radius:6px }
 .lista .item { padding:12px; background:#fff; border-radius:8px; margin-bottom:8px; box-shadow:0 4px 10px rgba(0,0,0,0.04) }
 .meta { color:#666; font-size:0.9rem }
+.acciones { display:flex; gap:8px; margin-top:8px }
+.btn-mini { background:#FF6B35; color:white; padding:5px 12px; border-radius:6px; font-size:0.85rem; text-decoration:none }
+.btn-mesas { background:#1976d2 }
 .error { color:#d32f2f; margin-top:12px }
 </style>

@@ -10,39 +10,62 @@
 - [x] **Fase 1** — Backend y BD: config.php, router, endpoints menú dummy
 - [x] **Fase 2** — Frontend menú cliente: Vue 3 + Vite, componentes, build
 - [x] **Fase 3** — Panel admin: login, CRUD restaurantes/categorias/productos, protección de rutas
-- [x] **Fase 4** — Meshy integration: upload-fotos→Meshy, job-status, cron script
+- [x] **Fase 4** — Integración 3D: upload-fotos, upload-glb manual, model-viewer en modal, cron script
+- [x] **Fase 5** — QR & Mesas: endpoint mesas, admin Mesas.vue, QR por mesa, badge de mesa en menú
 
 ### Funcionalidades Implementadas
-- [x] API endpoints: `menu`, `login`, `restaurantes`, `categorias`, `productos`, `upload-fotos`, `job-status`
-- [x] CRUD completo de productos (create, read, update, delete)
-- [x] Subida de múltiples fotos por producto
-- [x] Meshy API call al subir fotos
-- [x] Estado de conversión 3D con badges ("pending", "processing", "succeeded")
-- [x] Botón "Ver estado" para polling manual de job-status
-- [x] Autenticación simple (token estático en localStorage)
+- [x] API endpoints: `menu`, `login`, `restaurantes`, `categorias`, `productos`, `mesas`, `upload-fotos`, `upload-glb`, `job-status`
+- [x] CRUD completo de productos (create, read, update, delete lógico)
+- [x] Subida de múltiples fotos por producto + actualiza `foto_principal` automáticamente
+- [x] Subida manual de .glb validado por magic bytes (`glTF`) desde admin
+- [x] Model-Viewer en modal con AR nativo (webxr + quick-look) cuando `tiene_ar = 1`
+- [x] CRUD mesas por restaurante, QR generado en browser con lib `qrcode` (npm)
+- [x] QR descargable como PNG; URL = `{origin}/menu/?r={slug}&mesa={numero}`
+- [x] Badge "Mesa X" en header del menú público cuando URL incluye `?mesa=`
+- [x] Autenticación simple (token estático en localStorage + query string)
 - [x] Protección de rutas admin con beforeEach guard
+- [x] CORS habilitado en `/uploads/` vía `.htaccess` (necesario para model-viewer en dev)
+
+### Decisión: Flujo 3D sin Meshy API
+La API de Meshy requiere plan Pro ($20/mes) para acceso programático. Se adoptó **flujo semi-manual (Opción B)**:
+1. Admin genera el .glb en meshy.ai (web) o TRELLIS.2 (Hugging Face Space, gratis)
+2. Descarga el .glb manualmente
+3. Sube el .glb desde el panel admin → botón "Subir 3D (.glb)" en la tabla de productos
+4. El sistema valida magic bytes y actualiza `tiene_ar = 1` automáticamente
+- El cron `check_meshy_jobs.php` sigue existente pero no es necesario para este flujo
+
+### Paths críticos de archivos
+- `foto_principal` en BD → relativo a `/uploads/`, ej: `fotos/1/foto_1_0_1234.jpg`
+  - URL completa en API: `UPLOADS_URL . $foto_principal` = `http://menu.local/uploads/fotos/1/...`
+- `modelo_glb_path` en BD → solo nombre del archivo, ej: `modelo_1_1234.glb`
+  - URL completa en API: `UPLOADS_URL . 'modelos/' . $modelo_glb_path`
+- `fotos_producto.ruta` → relativo a webroot, ej: `uploads/fotos/1/foto.jpg`
 
 ### Bugs/Workarounds Conocidos
 - ⚠️ **Auth headers no llegan** — Token se pasa por query string (INSEGURO, temporal)
   - Afecta: `src/composables/useApi.js`, `api/helpers.php`
-  - Solución: Investigar Apache/Vite proxy headers o usar cookies HttpOnly
+  - Solución pendiente: cookies HttpOnly o configurar Apache para pasar headers
 
-### Funcionalidades Pendientes (Fase 5+)
-- [ ] **QR & Mesas** — Generar QR por mesa, tabla de mesas, endpoint en BD
-- [ ] **Validación de formularios** — Cliente + servidor, feedback visual
-- [ ] **Cron registrado en cPanel** — Script existe pero no está en scheduler
-- [ ] **Model-Viewer en modal** — Mostrar 3D rotable cuando `tiene_ar = 1`
-- [ ] **Feedback visual mejorado** — Loaders, toasts, mejor UX en errores
-- [ ] **Meshy API key configurado** — Aún en placeholder "pon_aqui_tu_api_key"
+### Funcionalidades Pendientes
+- [ ] **Validación de formularios** — Cliente + servidor, feedback visual (precio positivo, slug sin espacios)
+- [ ] **Feedback visual mejorado** — Loaders en botones, toasts de éxito/error
+- [ ] **Thumbnail de foto en admin** — Mostrar foto_principal en la tabla de productos del admin
+- [ ] **Cron registrado en cPanel** — Script existe (`cron/check_meshy_jobs.php`) pero no está en scheduler
+- [ ] **Auth por cookies** — Reemplazar token en query string por cookies HttpOnly
+- [ ] **Meshy API key** — Aún en placeholder; configurar cuando se tenga acceso al plan API
 
 ### Testing Local
-- ✅ Base de datos: MySQL tablas creadas (db/init.sql)
+- ✅ Base de datos: MySQL tablas creadas
 - ✅ Usuario de prueba: katche4@gmail.com / katch123
 - ✅ Login funciona
-- ✅ CRUD restaurantes/productos funciona
-- ✅ Subida de fotos funciona (guardan en /uploads/fotos/)
-- ⚠️ Meshy API sin key (jobs quedan en "pending")
-- ⚠️ Cron no registrado (no descarga automáticamente .glb)
+- ✅ CRUD restaurantes/productos/mesas funciona
+- ✅ Subida de fotos funciona (guardan en `/uploads/fotos/` y actualiza `foto_principal`)
+- ✅ Subida de .glb funciona (guardan en `/uploads/modelos/` y actualiza `tiene_ar = 1`)
+- ✅ Model-Viewer muestra .glb en el modal del menú público
+- ✅ QR generados correctamente, descarga PNG funciona
+- ✅ Badge de mesa visible en menú público con `?mesa=N`
+- ⚠️ Meshy API sin key (no aplica al flujo semi-manual actual)
+- ⚠️ Cron no registrado en cPanel (no necesario para flujo semi-manual)
 
 ---
 
@@ -215,11 +238,18 @@ Todos bajo `/api/index.php` con parámetro `?route=`:
 | POST | `/api/?route=login` | Login admin | No |
 | GET | `/api/?route=restaurantes` | Lista restaurantes | Sí |
 | POST | `/api/?route=restaurantes` | Crear restaurante | Sí |
+| GET | `/api/?route=categorias&restaurante_id={id}` | Lista categorías | Sí |
+| POST | `/api/?route=categorias` | Crear categoría | Sí |
 | GET | `/api/?route=productos&restaurante_id={id}` | Lista productos | Sí |
 | POST | `/api/?route=productos` | Crear producto | Sí |
 | PUT | `/api/?route=productos&id={id}` | Editar producto | Sí |
-| POST | `/api/?route=upload-fotos` | Subir fotos + llamar Meshy | Sí |
-| GET | `/api/?route=job-status&producto_id={id}` | Estado conversión 3D | Sí |
+| DELETE | `/api/?route=productos&id={id}` | Eliminar producto (lógico) | Sí |
+| GET | `/api/?route=mesas&restaurante_id={id}` | Lista mesas + slug del restaurante | Sí |
+| POST | `/api/?route=mesas` | Crear mesa `{restaurante_id, numero}` | Sí |
+| DELETE | `/api/?route=mesas&id={id}` | Eliminar mesa (lógico) | Sí |
+| POST | `/api/?route=upload-fotos` | Subir fotos, actualiza `foto_principal` | Sí |
+| POST | `/api/?route=upload-glb` | Subir .glb validado, `tiene_ar=1` | Sí |
+| GET | `/api/?route=job-status&producto_id={id}` | Estado conversión 3D (Meshy) | Sí |
 
 ---
 

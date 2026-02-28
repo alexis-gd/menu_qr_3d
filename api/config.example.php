@@ -7,10 +7,14 @@ define('DB_NAME', 'nodosmxc_menu_qr_3d');
 define('DB_USER', 'root');
 define('DB_PASS', '');
 
-// URL base del proyecto (sin slash final).
-// En desarrollo local con Vite dev server usar: http://localhost:5173
-// En producción cambiar a: https://tudominio.com/menu (o similar)
-define('BASE_URL', 'http://localhost:5173');
+// URL base del servidor PHP/Apache (sin slash final).
+// En desarrollo local con XAMPP usar: http://menu.local
+// En producción cambiar a: https://tudominio.com
+define('BASE_URL', 'http://menu.local');
+
+// URL pública de la carpeta uploads (sin slash final).
+// Se deriva de BASE_URL; cambiar si uploads está en otra ubicación.
+define('UPLOADS_URL', BASE_URL . '/uploads/');
 
 // --- Meshy API ------------------------------------------------------------
 // Necesitas registrarte en https://meshy.ai y obtener una API key.

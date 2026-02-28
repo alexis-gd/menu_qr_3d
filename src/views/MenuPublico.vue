@@ -3,6 +3,7 @@
     <header class="header">
       <h1>{{ restaurante?.nombre || 'Cargando...' }}</h1>
       <p v-if="restaurante?.descripcion" class="descripcion">{{ restaurante.descripcion }}</p>
+      <p v-if="mesaNumero" class="mesa-badge">Mesa {{ mesaNumero }}</p>
     </header>
 
     <div v-if="loading" class="loading">
@@ -37,20 +38,26 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useApi } from '../composables/useApi.js'
 import ProductoCard from '../components/ProductoCard.vue'
 import ProductoModal from '../components/ProductoModal.vue'
 
+const route = useRoute()
 const { get, loading, error } = useApi()
 const restaurante = ref(null)
 const categorias = ref([])
 const productoSeleccionado = ref(null)
+const mesaNumero = route.query.mesa || null
 
 onMounted(async () => {
+  const slug = route.query.r
+  if (!slug) {
+    error.value = 'No se especificó el restaurante. Escanea el código QR de tu mesa.'
+    return
+  }
   try {
-    const data = await get('menu', {
-      restaurante: 'demo'
-    })
+    const data = await get('menu', { restaurante: slug }, false)
     restaurante.value = data.restaurante
     categorias.value = data.categorias || []
   } catch (err) {
@@ -89,6 +96,17 @@ const abrirModal = (producto) => {
   opacity: 0.95;
   max-width: 500px;
   margin: 0 auto;
+}
+
+.mesa-badge {
+  display: inline-block;
+  margin-top: 12px;
+  background: rgba(255,255,255,0.25);
+  padding: 4px 14px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
 }
 
 .loading,

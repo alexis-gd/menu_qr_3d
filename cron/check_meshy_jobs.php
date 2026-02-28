@@ -9,7 +9,7 @@ require_once __DIR__ . '/../api/helpers.php';
 
 $pdo->exec("SET NAMES utf8mb4");
 
-$stmt = $pdo->prepare("SELECT * FROM meshy_jobs WHERE status IN ('pending','processing') ORDER BY intentos ASC LIMIT 10");
+$stmt = $pdo->prepare("SELECT * FROM meshy_jobs WHERE status IN ('pending','processing') AND intentos < 30 ORDER BY intentos ASC LIMIT 10");
 $stmt->execute();
 $jobs = $stmt->fetchAll();
 

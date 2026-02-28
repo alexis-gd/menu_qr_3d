@@ -10,30 +10,79 @@ $route = $_GET['route'] ?? '';
 
 switch ($route) {
     case 'menu':
-        // Endpoint público que devuelve el menú.
-        // En fase 1 devolvemos datos dummy.
-        $dummy = [
-            'restaurante' => 'Demo Restaurant',
-            'slug' => 'demo',
-            'categorias' => [
-                [
-                    'id' => 1,
-                    'nombre' => 'Entradas',
-                    'orden' => 0,
-                    'productos' => [
-                        [
-                            'id' => 1,
-                            'nombre' => 'Tacos al pastor',
-                            'descripcion' => 'Tacos tradicionales con piña y cebolla.',
-                            'precio' => 99.90,
-                            'foto_principal' => BASE_URL . '/imgs/taco.jpg',
-                            'tiene_ar' => 0,
-                        ],
-                    ],
-                ],
-            ],
+        $slug = $_GET['restaurante'] ?? null;
+        if (!$slug) {
+            json_response(['error' => 'restaurante requerido'], 400);
+        }
+
+        $stmt = $pdo->prepare(
+            'SELECT
+                r.nombre AS restaurante_nombre,
+                r.descripcion AS restaurante_descripcion,
+                r.logo_url,
+                r.color_primario,
+                c.id AS cat_id,
+                c.nombre AS cat_nombre,
+                c.icono AS cat_icono,
+                c.orden AS cat_orden,
+                p.id AS prod_id,
+                p.nombre AS prod_nombre,
+                p.descripcion AS prod_descripcion,
+                p.precio,
+                p.foto_principal,
+                p.modelo_glb_path,
+                p.tiene_ar,
+                p.es_destacado,
+                p.disponible
+             FROM restaurantes r
+             JOIN categorias c ON c.restaurante_id = r.id AND c.activo = 1
+             JOIN productos p ON p.categoria_id = c.id AND p.activo = 1
+             WHERE r.slug = :slug AND r.activo = 1
+             ORDER BY c.orden ASC, p.orden ASC, p.nombre ASC'
+        );
+        $stmt->execute([':slug' => $slug]);
+        $rows = $stmt->fetchAll();
+
+        if (!$rows) {
+            json_response(['error' => 'Restaurante no encontrado'], 404);
+        }
+
+        $restauranteData = [
+            'nombre'      => $rows[0]['restaurante_nombre'],
+            'descripcion' => $rows[0]['restaurante_descripcion'],
+            'logo_url'    => $rows[0]['logo_url'] ? UPLOADS_URL . $rows[0]['logo_url'] : null,
+            'color_primario' => $rows[0]['color_primario'],
         ];
-        json_response($dummy);
+
+        $categoriasMap = [];
+        foreach ($rows as $row) {
+            $catId = $row['cat_id'];
+            if (!isset($categoriasMap[$catId])) {
+                $categoriasMap[$catId] = [
+                    'id'       => $catId,
+                    'nombre'   => $row['cat_nombre'],
+                    'icono'    => $row['cat_icono'],
+                    'orden'    => $row['cat_orden'],
+                    'productos' => [],
+                ];
+            }
+            $categoriasMap[$catId]['productos'][] = [
+                'id'              => $row['prod_id'],
+                'nombre'          => $row['prod_nombre'],
+                'descripcion'     => $row['prod_descripcion'],
+                'precio'          => (float) $row['precio'],
+                'foto_principal'  => $row['foto_principal'] ? UPLOADS_URL . $row['foto_principal'] : null,
+                'modelo_glb_url'  => $row['modelo_glb_path'] ? UPLOADS_URL . 'modelos/' . $row['modelo_glb_path'] : null,
+                'tiene_ar'        => (bool) $row['tiene_ar'],
+                'es_destacado'    => (bool) $row['es_destacado'],
+                'disponible'      => (bool) $row['disponible'],
+            ];
+        }
+
+        json_response([
+            'restaurante' => $restauranteData,
+            'categorias'  => array_values($categoriasMap),
+        ]);
         break;
 
     case 'login':
@@ -146,17 +195,13 @@ switch ($route) {
             );
             $stmt->execute([':rid' => $restaurante_id]);
             $products = $stmt->fetchAll();
-            // attach last mesh job status
             foreach ($products as &$prod) {
-                if (!$prod['tiene_ar']) {
-                    $j = $pdo->prepare('SELECT status FROM meshy_jobs WHERE producto_id=:pid ORDER BY created_at DESC LIMIT 1');
-                    $j->execute([':pid'=>$prod['id']]);
-                    $row = $j->fetch();
-                    $prod['mesh_status'] = $row['status'] ?? null;
-                } else {
-                    $prod['mesh_status'] = 'succeeded';
-                }
+                $prod['precio']       = (float) $prod['precio'];
+                $prod['tiene_ar']     = (bool)  $prod['tiene_ar'];
+                $prod['es_destacado'] = (bool)  $prod['es_destacado'];
+                $prod['disponible']   = (bool)  $prod['disponible'];
             }
+            unset($prod);
             json_response(['productos' => $products]);
         }
         // POST crear
@@ -166,7 +211,7 @@ switch ($route) {
             $nombre = $body['nombre'] ?? null;
             $descripcion = $body['descripcion'] ?? null;
             $precio = $body['precio'] ?? 0;
-            $es_destacado = $body['es_destacado'] ? 1 : 0;
+            $es_destacado = !empty($body['es_destacado']) ? 1 : 0;
             $disponible = isset($body['disponible']) ? ($body['disponible'] ? 1 : 0) : 1;
             if (!$categoria_id || !$nombre) {
                 json_response(['error'=>'categoria_id y nombre requeridos'],400);
@@ -177,7 +222,7 @@ switch ($route) {
         }
         // PUT actualizar
         if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
-            parse_str(file_get_contents('php://input'), $body);
+            $body = json_decode(file_get_contents('php://input'), true) ?: [];
             $id = $_GET['id'] ?? null;
             if (!$id) {
                 json_response(['error'=>'id es requerido'],400);
@@ -230,48 +275,138 @@ switch ($route) {
         }
         $dir = __DIR__ . '/../uploads/fotos/' . intval($producto_id);
         if (!is_dir($dir)) mkdir($dir, 0755, true);
+
+        $allowed_mime = ['image/jpeg', 'image/png', 'image/webp'];
+        $allowed_ext  = ['jpg', 'jpeg', 'png', 'webp'];
+
         $saved = [];
         $urls = [];
         foreach ($_FILES['fotos']['tmp_name'] as $idx => $tmp) {
-            $name = basename($_FILES['fotos']['name'][$idx]);
-            $dest = "$dir/$name";
+            // Validar MIME real (no el que manda el cliente)
+            $mime = mime_content_type($tmp);
+            if (!in_array($mime, $allowed_mime, true)) {
+                continue; // ignorar archivo inválido silenciosamente
+            }
+
+            // Construir nombre seguro: solo ID, índice y extensión permitida
+            $original_ext = strtolower(pathinfo($_FILES['fotos']['name'][$idx], PATHINFO_EXTENSION));
+            if (!in_array($original_ext, $allowed_ext, true)) {
+                continue;
+            }
+            $safe_name = sprintf('foto_%d_%d_%d.%s', intval($producto_id), $idx, time(), $original_ext);
+
+            $dest = "$dir/$safe_name";
             if (move_uploaded_file($tmp, $dest)) {
-                // insertar registro
-                $rel = "uploads/fotos/$producto_id/$name";
-                $url = BASE_URL . '/' . $rel;
+                $foto_rel = "fotos/$producto_id/$safe_name";  // relativo a /uploads/
+                $ruta_rel = "uploads/fotos/$producto_id/$safe_name"; // relativo a webroot
+                $url = BASE_URL . '/' . $ruta_rel;
                 $pdo->prepare('INSERT INTO fotos_producto (producto_id, ruta, url_publica, orden) VALUES (:pid,:ruta,:url,0)')
-                    ->execute([':pid'=>$producto_id,':ruta'=>$rel,':url'=>$url]);
-                $saved[] = $url;
-                $urls[] = $url;
-            }
-        }
-        // Disparar job a Meshy sólo si hay URLs
-        if ($urls) {
-            $payload = json_encode(['images' => $urls]);
-            $ch = curl_init('https://api.meshy.ai/openapi/v1/image-to-3d');
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Content-Type: application/json',
-                'Authorization: Bearer ' . MESHY_API_KEY
-            ]);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-            $resp = curl_exec($ch);
-            $err = curl_error($ch);
-            curl_close($ch);
-
-            if ($resp !== false) {
-                $data = json_decode($resp, true);
-                if (isset($data['task_id'])) {
-                    $stmt = $pdo->prepare('INSERT INTO meshy_jobs (producto_id, meshy_task_id, status) VALUES (:pid, :tid, "pending")');
-                    $stmt->execute([':pid'=>$producto_id, ':tid'=>$data['task_id']]);
+                    ->execute([':pid'=>$producto_id,':ruta'=>$ruta_rel,':url'=>$url]);
+                // Asignar como foto_principal si el producto aún no tiene una
+                if (empty($saved)) {
+                    $pdo->prepare('UPDATE productos SET foto_principal = :path WHERE id = :pid AND (foto_principal IS NULL OR foto_principal = "")')
+                        ->execute([':path' => $foto_rel, ':pid' => intval($producto_id)]);
                 }
+                $saved[] = $url;
             }
         }
-
-        json_response(['uploaded'=>$saved]);
+        json_response(['uploaded' => $saved]);
         break;
 
+    case 'mesas':
+        require_auth();
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            $restaurante_id = $_GET['restaurante_id'] ?? null;
+            if (!$restaurante_id) {
+                json_response(['error' => 'restaurante_id requerido'], 400);
+            }
+            $stmt = $pdo->prepare(
+                'SELECT m.id, m.numero, m.qr_generado,
+                        r.slug AS restaurante_slug, r.nombre AS restaurante_nombre
+                 FROM mesas m
+                 JOIN restaurantes r ON r.id = m.restaurante_id
+                 WHERE m.restaurante_id = :rid AND m.activo = 1
+                 ORDER BY CAST(m.numero AS UNSIGNED), m.numero'
+            );
+            $stmt->execute([':rid' => $restaurante_id]);
+            $rows = $stmt->fetchAll();
+            $slug   = $rows ? $rows[0]['restaurante_slug']   : '';
+            $nombre = $rows ? $rows[0]['restaurante_nombre'] : '';
+            $mesas  = array_map(fn($r) => [
+                'id'          => $r['id'],
+                'numero'      => $r['numero'],
+                'qr_generado' => (bool) $r['qr_generado'],
+            ], $rows);
+            json_response([
+                'mesas'              => $mesas,
+                'restaurante_slug'   => $slug,
+                'restaurante_nombre' => $nombre,
+            ]);
+        }
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $body = json_decode(file_get_contents('php://input'), true) ?: [];
+            $restaurante_id = $body['restaurante_id'] ?? null;
+            $numero = trim($body['numero'] ?? '');
+            if (!$restaurante_id || $numero === '') {
+                json_response(['error' => 'restaurante_id y numero requeridos'], 400);
+            }
+            try {
+                $stmt = $pdo->prepare('INSERT INTO mesas (restaurante_id, numero) VALUES (:rid, :num)');
+                $stmt->execute([':rid' => $restaurante_id, ':num' => $numero]);
+                json_response(['id' => $pdo->lastInsertId()], 201);
+            } catch (PDOException $e) {
+                json_response(['error' => 'El número de mesa ya existe en este restaurante'], 409);
+            }
+        }
+        if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+            $id = $_GET['id'] ?? null;
+            if (!$id) json_response(['error' => 'id requerido'], 400);
+            $pdo->prepare('UPDATE mesas SET activo = 0 WHERE id = :id')->execute([':id' => $id]);
+            json_response(['ok' => true]);
+        }
+        json_response(['error' => 'Método no soportado'], 405);
+        break;
+
+    case 'upload-glb':
+        require_auth();
+        $producto_id = $_POST['producto_id'] ?? null;
+        if (!$producto_id) {
+            json_response(['error' => 'producto_id requerido'], 400);
+        }
+        if (!isset($_FILES['modelo']) || $_FILES['modelo']['error'] !== UPLOAD_ERR_OK) {
+            json_response(['error' => 'No se recibió el archivo o hubo un error al subirlo'], 400);
+        }
+
+        $tmp = $_FILES['modelo']['tmp_name'];
+
+        // Validar que sea un GLB real leyendo los magic bytes ("glTF")
+        $handle = fopen($tmp, 'rb');
+        $magic  = fread($handle, 4);
+        fclose($handle);
+        if ($magic !== 'glTF') {
+            json_response(['error' => 'El archivo no es un GLB válido'], 400);
+        }
+
+        $ext = strtolower(pathinfo($_FILES['modelo']['name'], PATHINFO_EXTENSION));
+        if ($ext !== 'glb') {
+            json_response(['error' => 'Solo se aceptan archivos .glb'], 400);
+        }
+
+        $modelDir = __DIR__ . '/../uploads/modelos';
+        if (!is_dir($modelDir)) mkdir($modelDir, 0755, true);
+
+        $filename = sprintf('modelo_%d_%d.glb', intval($producto_id), time());
+        $dest     = $modelDir . '/' . $filename;
+
+        if (!move_uploaded_file($tmp, $dest)) {
+            json_response(['error' => 'Error al guardar el archivo en el servidor'], 500);
+        }
+
+        $pdo->prepare('UPDATE productos SET modelo_glb_path = :path, tiene_ar = 1 WHERE id = :pid')
+            ->execute([':path' => $filename, ':pid' => intval($producto_id)]);
+
+        json_response(['success' => true, 'modelo_glb_url' => UPLOADS_URL . 'modelos/' . $filename]);
+        break;
 
     default:
         http_response_code(404);

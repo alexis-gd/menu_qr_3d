@@ -7,7 +7,7 @@
         <div class="modal-imagen">
           <ModelViewer3D
             v-if="producto.tiene_ar"
-            :modelo-url="producto.modelo_glb_path"
+            :modelo-url="producto.modelo_glb_url"
           />
           <img
             v-else
@@ -27,10 +27,7 @@
           </div>
 
           <div v-if="producto.tiene_ar" class="acciones">
-            <button class="btn-primary" @click="verEnAR">
-              📱 Ver en tu mesa (AR)
-            </button>
-            <p class="info-ar">Disponible en Android Chrome e iOS Safari</p>
+            <p class="info-ar">Rota el modelo con el dedo • Disponible en Android e iOS</p>
           </div>
 
           <div v-else class="sin-ar">
@@ -54,10 +51,6 @@ defineProps({
 })
 
 defineEmits(['close'])
-
-const verEnAR = () => {
-  alert('Funcionalidad AR en desarrollo. Pronto disponible.')
-}
 </script>
 
 <style scoped>

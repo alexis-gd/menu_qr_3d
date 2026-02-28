@@ -6,6 +6,9 @@
     camera-controls
     auto-rotate
     shadow-intensity="1"
+    ar
+    ar-modes="webxr scene-viewer quick-look"
+    ar-button-label="Ver en tu mesa"
   ></model-viewer>
 </template>
 
@@ -24,7 +27,7 @@ onMounted(() => {
   // Este script puede estar en dist/index.html o en una CDN pública en producción.
   if (!customElements.get('model-viewer')) {
     const script = document.createElement('script')
-    script.src = 'https://cdn.jsdelivr.net/npm/@google/model-viewer'
+    script.src = 'https://cdn.jsdelivr.net/npm/@google/model-viewer@4.0.0/dist/model-viewer.min.js'
     script.type = 'module'
     document.head.appendChild(script)
   }
