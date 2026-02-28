@@ -1,0 +1,36 @@
+<?php
+// Copiar este archivo a config.php y rellenar con valores reales en local/servidor.
+
+// --- Base de datos ----------------------------------------------------------
+define('DB_HOST', 'localhost');
+define('DB_NAME', 'menu_qr_3d');
+define('DB_USER', 'root');
+define('DB_PASS', '');
+
+// URL base del proyecto (sin slash final). En producción será el dominio público
+// donde se aloja el frontend, por ejemplo "https://misitio.com/menu".
+define('BASE_URL', 'http://menu.local');
+
+// Token estático para autenticación de administrador. Se puede dejar por defecto
+// y cambiar más tarde (no es seguro, es solo para la fase inicial).
+define('ADMIN_TOKEN', 'mi_token_secreto_cambia_esto');
+
+// ---------------------------------------------------------------------------
+// Conexión PDO genérica. La variable $pdo queda disponible globalmente.
+// Las excepciones se muestran crudamente porque sólo es para desarrollo/local.
+// ---------------------------------------------------------------------------
+try {
+    $pdo = new PDO(
+        sprintf('mysql:host=%s;dbname=%s;charset=utf8mb4', DB_HOST, DB_NAME),
+        DB_USER,
+        DB_PASS,
+        [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        ]
+    );
+} catch (Exception $e) {
+    header('Content-Type: application/json; charset=utf-8', true, 500);
+    echo json_encode(['error' => 'No se pudo conectar a la base de datos', 'message' => $e->getMessage()]);
+    exit;
+}
