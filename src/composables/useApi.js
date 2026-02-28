@@ -3,29 +3,28 @@
  */
 import { ref } from 'vue'
 
+function authHeader() {
+  const token = localStorage.getItem('admin_token')
+  return token ? { Authorization: 'Bearer ' + token } : {}
+}
+
 export function useApi() {
   const loading = ref(false)
   const error = ref(null)
 
-  /**
-   * Realiza un GET a /api/?route=...
-   * @param {string} route - Nombre de la ruta sin /api/?route=
-   * @param {object} params - Parámetros adicionales para la query string
-   * @returns {Promise}
-   */
-  async function get(route, params = {}) {
+  async function request(method, route, body = null, params = {}, includeAuth = true) {
     loading.value = true
     error.value = null
 
     try {
-      const queryParams = new URLSearchParams({ route, ...params })
-      const response = await fetch(`/api/?${queryParams}`)
+      const url = '/api/?' + new URLSearchParams({ route, ...params })
+      const headers = Object.assign({ 'Content-Type': 'application/json' }, includeAuth ? authHeader() : {})
+      const opts = { method, headers }
+      if (body != null) opts.body = JSON.stringify(body)
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
-      }
-
-      const data = await response.json()
+      const res = await fetch(url, opts)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
       loading.value = false
       return data
     } catch (err) {
@@ -35,9 +34,21 @@ export function useApi() {
     }
   }
 
-  return {
-    loading,
-    error,
-    get
+  function get(route, params = {}, includeAuth = true) {
+    return request('GET', route, null, params, includeAuth)
   }
+
+  function post(route, body = {}, includeAuth = true) {
+    return request('POST', route, body, {}, includeAuth)
+  }
+
+  function put(route, body = {}, includeAuth = true) {
+    return request('PUT', route, body, {}, includeAuth)
+  }
+
+  function del(route, params = {}, includeAuth = true) {
+    return request('DELETE', route, null, params, includeAuth)
+  }
+
+  return { loading, error, get, post, put, del }
 }
