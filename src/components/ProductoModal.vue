@@ -1,38 +1,57 @@
 <template>
   <div class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal-contenido">
-      <button class="btn-close" @click="$emit('close')" aria-label="Cerrar">✕</button>
+    <div class="modal-panel">
+      <!-- Botón cerrar -->
+      <button class="btn-close" @click="$emit('close')" aria-label="Cerrar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
 
-      <div class="modal-grid">
-        <div class="modal-imagen">
-          <ModelViewer3D
-            v-if="producto.tiene_ar"
-            :modelo-url="producto.modelo_glb_url"
-          />
-          <img
-            v-else
-            :src="producto.foto_principal"
-            :alt="producto.nombre"
-            class="foto-fallback"
-          />
+      <!-- Sección visual (3D o foto) -->
+      <div class="modal-visual">
+        <ModelViewer3D
+          v-if="producto.tiene_ar"
+          :modelo-url="producto.modelo_glb_url"
+        />
+        <img
+          v-else-if="producto.foto_principal"
+          :src="producto.foto_principal"
+          :alt="producto.nombre"
+          class="modal-foto"
+        />
+        <div v-else class="modal-placeholder">
+          <span>🍽️</span>
         </div>
 
-        <div class="modal-info">
-          <h2>{{ producto.nombre }}</h2>
-          <p class="descripcion-completa">{{ producto.descripcion }}</p>
+        <!-- Indicador de 3D -->
+        <div v-if="producto.tiene_ar" class="hint-3d">
+          <span>🔄 Arrastra para rotar</span>
+        </div>
+      </div>
 
-          <div class="precio-section">
+      <!-- Información del platillo -->
+      <div class="modal-info">
+        <div class="modal-header-info">
+          <h2 class="modal-nombre">{{ producto.nombre }}</h2>
+          <span v-if="producto.tiene_ar" class="pill-3d">3D/AR disponible</span>
+        </div>
+
+        <p v-if="producto.descripcion" class="modal-desc">{{ producto.descripcion }}</p>
+
+        <div class="modal-precio-row">
+          <div class="precio-bloque">
             <span class="precio-label">Precio</span>
-            <span class="precio-valor">${{ producto.precio.toFixed(2) }}</span>
+            <span class="precio-valor">${{ Number(producto.precio).toFixed(2) }}</span>
           </div>
+          <div v-if="producto.es_destacado" class="dest-badge">⭐ Destacado</div>
+        </div>
 
-          <div v-if="producto.tiene_ar" class="acciones">
-            <p class="info-ar">Rota el modelo con el dedo • Disponible en Android e iOS</p>
-          </div>
-
-          <div v-else class="sin-ar">
-            <p>Modelo 3D no disponible aún. Pronto lo tendrás.</p>
-          </div>
+        <div v-if="producto.tiene_ar" class="ar-info">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+          <span>Modelo 3D interactivo · Rota, acerca y aleja · AR en móvil</span>
         </div>
       </div>
     </div>
@@ -40,211 +59,240 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits } from 'vue'
 import ModelViewer3D from './ModelViewer3D.vue'
 
 defineProps({
-  producto: {
-    type: Object,
-    required: true
-  }
+  producto: { type: Object, required: true }
 })
 
 defineEmits(['close'])
 </script>
 
 <style scoped>
+/* ── Overlay ── */
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
   z-index: 1000;
-  padding: 20px;
+  padding: 0;
   animation: fadeIn 0.2s ease-out;
+  backdrop-filter: blur(2px);
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
-.modal-contenido {
-  background: white;
-  border-radius: 16px;
-  width: 100%;
-  max-width: 900px;
-  max-height: 90vh;
-  overflow-y: auto;
+/* ── Panel del modal ── */
+.modal-panel {
   position: relative;
-  animation: slideUp 0.3s ease-out;
+  background: var(--card-bg, #fff);
+  border-radius: 24px 24px 0 0;
+  width: 100%;
+  max-width: 640px;
+  max-height: 92vh;
+  overflow-y: auto;
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes slideUp {
-  from {
-    transform: translateY(30px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+  from { transform: translateY(40px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
 }
 
+/* Scrollbar estilizado */
+.modal-panel::-webkit-scrollbar { width: 4px; }
+.modal-panel::-webkit-scrollbar-thumb {
+  background: var(--divider, #ddd);
+  border-radius: 2px;
+}
+
+/* ── Cerrar ── */
 .btn-close {
   position: absolute;
   top: 16px;
   right: 16px;
-  background: rgba(0, 0, 0, 0.1);
-  border: none;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
+  background: rgba(0,0,0,0.08);
+  border: none;
   cursor: pointer;
-  font-size: 1.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.2s ease;
+  color: var(--text-main, #333);
   z-index: 10;
+  transition: background 0.2s;
 }
 
 .btn-close:hover {
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0,0,0,0.15);
 }
 
-.modal-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 30px;
-  padding: 40px;
-}
-
-.modal-imagen {
+/* ── Visual (3D / foto) ── */
+.modal-visual {
+  position: relative;
   width: 100%;
-  aspect-ratio: 1;
-  background: #f5f5f5;
-  border-radius: 12px;
+  height: 300px;
+  background: var(--accent-light, #f5f5f5);
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
-.foto-fallback {
+.modal-foto {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.modal-info {
+.modal-placeholder {
+  width: 100%;
+  height: 100%;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 5rem;
+  opacity: 0.2;
 }
 
-.modal-info h2 {
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: #333;
+.hint-3d {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ── Info ── */
+.modal-info {
+  padding: 20px 20px 32px;
+}
+
+.modal-header-info {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 12px;
 }
 
-.descripcion-completa {
-  font-size: 1rem;
-  color: #666;
-  line-height: 1.6;
-  margin-bottom: 24px;
+.modal-nombre {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text-main, #222);
+  line-height: 1.2;
+  letter-spacing: -0.3px;
+  flex: 1;
 }
 
-.precio-section {
-  background: #f5f5f5;
-  padding: 16px;
-  border-radius: 8px;
-  margin-bottom: 24px;
+.pill-3d {
+  flex-shrink: 0;
+  display: inline-block;
+  background: var(--accent, #FF6B35);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  margin-top: 4px;
+}
+
+.modal-desc {
+  font-size: 0.95rem;
+  color: var(--text-sub, #777);
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+/* ── Precio ── */
+.modal-precio-row {
   display: flex;
-  align-items: baseline;
-  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--accent-light, #f8f8f8);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+
+.precio-bloque {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .precio-label {
-  font-size: 0.95rem;
-  color: #999;
-  font-weight: 500;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-sub, #aaa);
+  font-weight: 600;
 }
 
 .precio-valor {
   font-size: 2rem;
+  font-weight: 800;
+  color: var(--accent, #FF6B35);
+  line-height: 1;
+  letter-spacing: -0.5px;
+}
+
+.dest-badge {
+  background: rgba(255, 193, 7, 0.18);
+  color: #856304;
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-size: 0.82rem;
   font-weight: 700;
-  color: #FF6B35;
 }
 
-.acciones {
+/* ── AR info ── */
+.ar-info {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-sub, #aaa);
+  font-size: 0.8rem;
+  line-height: 1.4;
 }
 
-.btn-primary {
-  background: #FF6B35;
-  color: white;
-  border: none;
-  padding: 14px 24px;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.3s ease;
+.ar-info svg {
+  flex-shrink: 0;
+  stroke: var(--accent, #FF6B35);
 }
 
-.btn-primary:hover {
-  background: #E55A2B;
-}
-
-.info-ar {
-  font-size: 0.85rem;
-  color: #999;
-  text-align: center;
-}
-
-.sin-ar {
-  background: #fff3e0;
-  border-left: 4px solid #FF9800;
-  padding: 16px;
-  border-radius: 4px;
-}
-
-.sin-ar p {
-  color: #E65100;
-  font-size: 0.95rem;
-}
-
-@media (max-width: 700px) {
-  .modal-grid {
-    grid-template-columns: 1fr;
-    gap: 20px;
+/* ── Responsive desktop ── */
+@media (min-width: 640px) {
+  .modal-overlay {
+    align-items: center;
     padding: 20px;
   }
 
-  .modal-imagen {
-    aspect-ratio: auto;
-    height: 300px;
+  .modal-panel {
+    border-radius: 20px;
+    max-height: 88vh;
   }
 
-  .modal-info h2 {
-    font-size: 1.4rem;
+  .modal-visual {
+    height: 340px;
+    border-radius: 20px 20px 0 0;
   }
 
-  .precio-valor {
-    font-size: 1.5rem;
+  .modal-nombre {
+    font-size: 1.7rem;
   }
 }
 </style>

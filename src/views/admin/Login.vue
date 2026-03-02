@@ -1,14 +1,25 @@
 <template>
   <div class="login-page">
-    <div class="login-box">
-      <h2>Admin Login</h2>
-      <form @submit.prevent="submit">
-        <label>Email</label>
-        <input v-model="email" type="email" required />
-        <label>Contraseña</label>
-        <input v-model="password" type="password" required />
-        <button type="submit">Entrar</button>
-        <p v-if="error" class="error">{{ error }}</p>
+    <div class="login-card">
+      <div class="login-brand">
+        <span class="brand-icon">🍽️</span>
+        <h1>Panel Admin</h1>
+        <p>Gestiona el menú de tu restaurante</p>
+      </div>
+
+      <form @submit.prevent="submit" class="login-form">
+        <div class="field-group">
+          <label>Correo electrónico</label>
+          <input v-model="email" type="email" placeholder="admin@restaurante.com" required />
+        </div>
+        <div class="field-group">
+          <label>Contraseña</label>
+          <input v-model="password" type="password" placeholder="••••••••" required />
+        </div>
+        <button type="submit" class="btn-login" :disabled="cargando">
+          {{ cargando ? 'Entrando...' : 'Entrar al panel' }}
+        </button>
+        <p v-if="errorMsg" class="error-msg">{{ errorMsg }}</p>
       </form>
     </div>
   </div>
@@ -21,33 +32,137 @@ import { useApi } from '../../composables/useApi.js'
 
 const email = ref('')
 const password = ref('')
-const error = ref(null)
+const errorMsg = ref(null)
+const cargando = ref(false)
 const router = useRouter()
 const { post } = useApi()
 
 const submit = async () => {
-  error.value = null
+  errorMsg.value = null
+  cargando.value = true
   try {
     const res = await post('login', { email: email.value, password: password.value }, false)
-    const token = res.token
-    localStorage.setItem('admin_token', token)
-    router.push('/admin/restaurantes')
+    localStorage.setItem('admin_token', res.token)
+    router.push('/admin/dashboard')
   } catch (err) {
-    error.value = err.message || 'Error al iniciar sesión'
+    errorMsg.value = err.message || 'Credenciales incorrectas'
+  } finally {
+    cargando.value = false
   }
 }
 
-// Si ya está logeado, navegar al dashboard
 if (localStorage.getItem('admin_token')) {
-  router.replace('/admin/restaurantes')
-}</script>
+  router.replace('/admin/dashboard')
+}
+</script>
 
 <style scoped>
-.login-page { display:flex; align-items:center; justify-content:center; min-height:70vh; }
-.login-box { background:white; padding:24px; border-radius:8px; width:320px; box-shadow:0 8px 20px rgba(0,0,0,0.08);} 
-.login-box h2 { margin-bottom:12px }
-.login-box label { display:block; margin-top:8px; font-size:0.9rem }
-.login-box input { width:100%; padding:8px; margin-top:6px; border-radius:6px; border:1px solid #ddd }
-button { margin-top:12px; width:100%; padding:10px; background:#FF6B35; color:white; border:none; border-radius:6px; font-weight:700 }
-.error { color:#d32f2f; margin-top:8px }
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  padding: 20px;
+}
+
+.login-card {
+  background: #fff;
+  border-radius: 20px;
+  padding: 48px 40px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
+}
+
+.login-brand {
+  text-align: center;
+  margin-bottom: 36px;
+}
+
+.brand-icon {
+  font-size: 2.8rem;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.login-brand h1 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 6px;
+}
+
+.login-brand p {
+  font-size: 0.9rem;
+  color: #888;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-group label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #444;
+  letter-spacing: 0.3px;
+}
+
+.field-group input {
+  padding: 12px 16px;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+  outline: none;
+  background: #fafafa;
+}
+
+.field-group input:focus {
+  border-color: #FF6B35;
+  background: #fff;
+}
+
+.btn-login {
+  padding: 14px;
+  background: linear-gradient(135deg, #FF6B35 0%, #f7931e 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+  letter-spacing: 0.3px;
+}
+
+.btn-login:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.btn-login:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error-msg {
+  background: #ffebee;
+  color: #c62828;
+  border: 1px solid #ef9a9a;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  text-align: center;
+  margin: 0;
+}
 </style>

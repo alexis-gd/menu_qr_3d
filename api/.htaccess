@@ -1,0 +1,16 @@
+# Seguridad básica para el directorio API
+Options -Indexes
+DirectoryIndex index.php
+
+# Negar acceso directo a config.php
+<Files "config.php">
+    Order allow,deny
+    Deny from all
+</Files>
+
+# Solo se sirve index.php; cualquier otra ruta cae al mismo
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>

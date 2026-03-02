@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import MenuPublico from '../views/MenuPublico.vue'
 import AdminLogin from '../views/admin/Login.vue'
+import AdminDashboard from '../views/admin/Dashboard.vue'
 import AdminRestaurantes from '../views/admin/Restaurantes.vue'
 import AdminProductos from '../views/admin/Productos.vue'
 import AdminMesas from '../views/admin/Mesas.vue'
@@ -15,6 +16,11 @@ const routes = [
     path: '/admin',
     name: 'AdminLogin',
     component: AdminLogin
+  },
+  {
+    path: '/admin/dashboard',
+    name: 'AdminDashboard',
+    component: AdminDashboard
   },
   {
     path: '/admin/restaurantes',
@@ -41,15 +47,13 @@ const router = createRouter({
 // Protección de rutas admin
 router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem('admin_token')
-  // si no hay token y la ruta comienza con /admin (excepto login), redirige a login
   if (to.path.startsWith('/admin') && to.path !== '/admin') {
     if (!token) {
       return next({ path: '/admin' })
     }
   }
-  // si hay token y va a login, redirige al dashboard restaurantes
   if (to.path === '/admin' && token) {
-    return next({ path: '/admin/restaurantes' })
+    return next({ path: '/admin/dashboard' })
   }
   next()
 })

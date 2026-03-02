@@ -26,7 +26,7 @@ export function useApi() {
         }
       }
       
-      const url = '/api/?' + new URLSearchParams(queryParams)
+      const url = import.meta.env.BASE_URL + 'api/?' + new URLSearchParams(queryParams)
       const headers = Object.assign({ 'Content-Type': 'application/json' }, includeAuth ? authHeader() : {})
       const opts = { method, headers }
       if (body != null) opts.body = JSON.stringify(body)
@@ -51,8 +51,8 @@ export function useApi() {
     return request('POST', route, body, {}, includeAuth)
   }
 
-  function put(route, body = {}, includeAuth = true) {
-    return request('PUT', route, body, {}, includeAuth)
+  function put(route, body = {}, params = {}, includeAuth = true) {
+    return request('PUT', route, body, params, includeAuth)
   }
 
   function del(route, params = {}, includeAuth = true) {

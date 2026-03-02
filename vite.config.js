@@ -7,10 +7,15 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': {
+      '/menu/api': {
         target: 'http://menu.local',
         changeOrigin: true,
-        rewrite: (path) => path
+        rewrite: (path) => path.replace(/^\/menu/, '')
+      },
+      '/menu/uploads': {
+        target: 'http://menu.local',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/menu/, '')
       }
     }
   }

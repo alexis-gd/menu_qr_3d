@@ -9,10 +9,12 @@
 # Para configurar: copiar config.example.php → config.php
 # -------------------------------------------------------
 api/config.php
+api/env.php
 api/.env
 .env
 .env.local
 .env.*.local
+DEPLOY.md
 
 # -------------------------------------------------------
 # UPLOADS — Archivos generados por usuarios

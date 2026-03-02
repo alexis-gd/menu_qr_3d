@@ -21,6 +21,7 @@ switch ($route) {
                 r.descripcion AS restaurante_descripcion,
                 r.logo_url,
                 r.color_primario,
+                r.tema,
                 c.id AS cat_id,
                 c.nombre AS cat_nombre,
                 c.icono AS cat_icono,
@@ -48,10 +49,11 @@ switch ($route) {
         }
 
         $restauranteData = [
-            'nombre'      => $rows[0]['restaurante_nombre'],
-            'descripcion' => $rows[0]['restaurante_descripcion'],
-            'logo_url'    => $rows[0]['logo_url'] ? UPLOADS_URL . $rows[0]['logo_url'] : null,
+            'nombre'         => $rows[0]['restaurante_nombre'],
+            'descripcion'    => $rows[0]['restaurante_descripcion'],
+            'logo_url'       => $rows[0]['logo_url'] ? UPLOADS_URL . $rows[0]['logo_url'] : null,
             'color_primario' => $rows[0]['color_primario'],
+            'tema'           => $rows[0]['tema'] ?? 'calido',
         ];
 
         $categoriasMap = [];
@@ -116,7 +118,7 @@ switch ($route) {
         // GET: lista restaurantes (auth requerida)
         if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             require_auth();
-            $stmt = $pdo->prepare('SELECT id, slug, nombre, descripcion, logo_url, color_primario FROM restaurantes WHERE activo = 1 ORDER BY nombre');
+            $stmt = $pdo->prepare('SELECT id, slug, nombre, descripcion, logo_url, color_primario, tema FROM restaurantes WHERE activo = 1 ORDER BY nombre');
             $stmt->execute();
             $rows = $stmt->fetchAll();
             json_response(['restaurantes' => $rows]);
@@ -135,7 +137,6 @@ switch ($route) {
             }
 
             $stmt = $pdo->prepare('INSERT INTO restaurantes (usuario_id, slug, nombre, descripcion, activo) VALUES (:usuario_id, :slug, :nombre, :descripcion, 1)');
-            // Por ahora usamos usuario_id = 1 por simplicidad
             $stmt->execute([
                 ':usuario_id' => 1,
                 ':slug' => $slug,
@@ -145,6 +146,30 @@ switch ($route) {
 
             $id = $pdo->lastInsertId();
             json_response(['id' => (int)$id], 201);
+        }
+
+        // PUT: actualizar datos del restaurante (nombre, descripcion, tema, color_primario)
+        if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
+            require_auth();
+            $id = $_GET['id'] ?? null;
+            if (!$id) {
+                json_response(['error' => 'id requerido'], 400);
+            }
+            $body = json_decode(file_get_contents('php://input'), true) ?: [];
+            $allowed = ['nombre', 'descripcion', 'tema', 'color_primario'];
+            $fields = [];
+            $params = [':id' => (int)$id];
+            foreach ($allowed as $f) {
+                if (isset($body[$f])) {
+                    $fields[] = "$f = :$f";
+                    $params[":$f"] = $body[$f];
+                }
+            }
+            if ($fields) {
+                $pdo->prepare('UPDATE restaurantes SET ' . implode(',', $fields) . ' WHERE id = :id')
+                    ->execute($params);
+            }
+            json_response(['success' => true]);
         }
 
         // Otros métodos no soportados
@@ -176,6 +201,30 @@ switch ($route) {
             $stmt->execute([':rid'=>$restaurante_id,':n'=>$nombre,':i'=>$icono,':o'=>$orden]);
             json_response(['id'=>$pdo->lastInsertId()],201);
         }
+        if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
+            $id = $_GET['id'] ?? null;
+            if (!$id) json_response(['error'=>'id requerido'],400);
+            $body = json_decode(file_get_contents('php://input'), true) ?: [];
+            $fields = [];
+            $params = [':id' => (int)$id];
+            foreach (['nombre', 'icono', 'orden'] as $f) {
+                if (isset($body[$f])) {
+                    $fields[] = "$f = :$f";
+                    $params[":$f"] = $body[$f];
+                }
+            }
+            if ($fields) {
+                $pdo->prepare('UPDATE categorias SET ' . implode(',', $fields) . ' WHERE id = :id')
+                    ->execute($params);
+            }
+            json_response(['success'=>true]);
+        }
+        if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+            $id = $_GET['id'] ?? null;
+            if (!$id) json_response(['error'=>'id requerido'],400);
+            $pdo->prepare('UPDATE categorias SET activo=0 WHERE id=:id')->execute([':id'=>$id]);
+            json_response(['success'=>true]);
+        }
         json_response(['error'=>'Método no soportado'],405);
         break;
 
@@ -196,10 +245,11 @@ switch ($route) {
             $stmt->execute([':rid' => $restaurante_id]);
             $products = $stmt->fetchAll();
             foreach ($products as &$prod) {
-                $prod['precio']       = (float) $prod['precio'];
-                $prod['tiene_ar']     = (bool)  $prod['tiene_ar'];
-                $prod['es_destacado'] = (bool)  $prod['es_destacado'];
-                $prod['disponible']   = (bool)  $prod['disponible'];
+                $prod['precio']          = (float) $prod['precio'];
+                $prod['tiene_ar']        = (bool)  $prod['tiene_ar'];
+                $prod['es_destacado']    = (bool)  $prod['es_destacado'];
+                $prod['disponible']      = (bool)  $prod['disponible'];
+                $prod['foto_principal']  = $prod['foto_principal'] ? UPLOADS_URL . $prod['foto_principal'] : null;
             }
             unset($prod);
             json_response(['productos' => $products]);

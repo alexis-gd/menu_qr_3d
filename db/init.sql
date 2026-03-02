@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS restaurantes (
   descripcion     TEXT,
   logo_url        VARCHAR(500),
   color_primario  VARCHAR(7)    DEFAULT '#FF6B35',
+  tema            VARCHAR(20)   NOT NULL DEFAULT 'calido',
   activo          TINYINT(1)    NOT NULL DEFAULT 1,
   created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

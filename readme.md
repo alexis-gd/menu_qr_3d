@@ -1,0 +1,1 @@
+"Estoy trabajando en el proyecto menu_qr_3d. Lee estos dos archivos de contexto antes de continuar: CONTEXTO_BASE_DE_DATOS.md, CONTEXTO_PROYECTO.md"
