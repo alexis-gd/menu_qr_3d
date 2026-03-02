@@ -28,6 +28,11 @@
         <div v-if="producto.tiene_ar" class="hint-3d">
           <span>🔄 Arrastra para rotar</span>
         </div>
+
+        <!-- Flecha hacia el botón AR -->
+        <div v-if="producto.tiene_ar" class="hint-ar-arrow">
+          Toca el botón para verlo en tu espacio real ↓
+        </div>
       </div>
 
       <!-- Información del platillo -->
@@ -162,10 +167,10 @@ defineEmits(['close'])
 
 .hint-3d {
   position: absolute;
-  bottom: 12px;
+  top: 12px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0,0,0,0.55);
+  background: rgba(0,0,0,0.45);
   color: #fff;
   padding: 5px 12px;
   border-radius: 20px;
@@ -173,6 +178,19 @@ defineEmits(['close'])
   font-weight: 600;
   white-space: nowrap;
   pointer-events: none;
+}
+
+.hint-ar-arrow {
+  position: absolute;
+  bottom: 62px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255,255,255,0.85);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
 }
 
 /* ── Info ── */

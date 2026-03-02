@@ -17,7 +17,13 @@
       <header class="menu-header">
         <div class="header-inner">
           <div class="header-info">
-            <h1 class="rest-nombre">{{ restaurante?.nombre }}</h1>
+            <img
+              v-if="restaurante?.logo_url"
+              :src="restaurante.logo_url"
+              :alt="restaurante.nombre"
+              class="header-logo"
+            />
+            <!-- <h1 class="rest-nombre">{{ restaurante?.nombre }}</h1> -->
             <p v-if="restaurante?.descripcion" class="rest-desc">{{ restaurante.descripcion }}</p>
           </div>
           <div v-if="mesaNumero" class="mesa-chip">
@@ -265,6 +271,31 @@ const abrirModal = (producto) => {
   --mesa-text: #fff;
 }
 
+/* Tema: Rosa (romántico, suave) */
+.tema-rosa {
+  --header-bg: linear-gradient(145deg, #FF8276 0%, #ea8c84 50%, #EA9087 100%);
+  --header-text: #ffffff;
+  --header-sub: rgba(255,255,255,0.82);
+  --page-bg: #FFEFEF;
+  --card-bg: #ffffff;
+  --card-border: #ffd0cc;
+  --text-main: #5a2030;
+  --text-sub: #a06070;
+  --accent: #FF8276;
+  --accent-light: #ffe8e6;
+  --cat-nav-bg: #ffffff;
+  --cat-nav-shadow: 0 2px 8px rgba(255,130,118,0.12);
+  --cat-nav-text: #a06070;
+  --cat-nav-active-bg: #FF8276;
+  --cat-nav-active-text: #fff;
+  --section-title: #5a2030;
+  --divider: #ffd0cc;
+  --footer-bg: #fff;
+  --footer-text: #d0a0a0;
+  --mesa-bg: rgba(255,255,255,0.25);
+  --mesa-text: #fff;
+}
+
 /* ═══════════════════════════════════════
    ESTILOS GENERALES
 ═══════════════════════════════════════ */
@@ -313,18 +344,6 @@ const abrirModal = (producto) => {
   overflow: hidden;
 }
 
-/* Efecto decorativo sutil */
-.menu-header::after {
-  content: '';
-  position: absolute;
-  bottom: -20px;
-  left: -5%;
-  right: -5%;
-  height: 40px;
-  background: var(--page-bg);
-  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
-}
-
 .header-inner {
   max-width: 680px;
   margin: 0 auto;
@@ -338,6 +357,18 @@ const abrirModal = (producto) => {
 
 .header-info {
   flex: 1;
+  text-align: center;
+}
+
+.header-logo {
+  display: block;
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin: 0 auto 14px;
+  border: 3px solid rgba(255,255,255,0.6);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
 }
 
 .rest-nombre {
@@ -353,6 +384,7 @@ const abrirModal = (producto) => {
   color: var(--header-sub);
   line-height: 1.4;
   max-width: 380px;
+  display: inline;
 }
 
 .mesa-chip {
@@ -464,6 +496,14 @@ const abrirModal = (producto) => {
   gap: 10px;
 }
 
+@media (min-width: 768px) {
+  .productos-lista {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+}
+
 /* ── Footer ── */
 .menu-footer {
   background: var(--footer-bg);
@@ -482,6 +522,13 @@ const abrirModal = (producto) => {
 
   .menu-contenido {
     padding: 24px 24px 40px;
+  }
+}
+
+@media (min-width: 768px) {
+  .menu-contenido {
+    max-width: 1100px;
+    padding: 24px 32px 48px;
   }
 }
 </style>

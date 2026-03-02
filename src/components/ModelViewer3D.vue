@@ -8,8 +8,15 @@
     shadow-intensity="1"
     ar
     ar-modes="webxr scene-viewer quick-look"
-    ar-button-label="Ver en tu mesa"
-  ></model-viewer>
+  >
+    <button slot="ar-button" class="ar-btn">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="5" y="2" width="14" height="20" rx="2"/>
+        <circle cx="12" cy="17" r="1"/>
+      </svg>
+      Ver en tu mesa (AR)
+    </button>
+  </model-viewer>
 </template>
 
 <script setup>
@@ -39,5 +46,31 @@ onMounted(() => {
   width: 100%;
   height: 100%;
   background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
+}
+
+.ar-btn {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--accent, #FF6B35);
+  color: #fff;
+  border: none;
+  padding: 12px 22px;
+  border-radius: 28px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+  animation: ar-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes ar-pulse {
+  0%, 100% { box-shadow: 0 4px 18px rgba(0,0,0,0.25); }
+  50%       { box-shadow: 0 4px 28px rgba(255,107,53,0.55), 0 0 0 6px rgba(255,107,53,0.15); }
 }
 </style>

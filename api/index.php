@@ -118,9 +118,13 @@ switch ($route) {
         // GET: lista restaurantes (auth requerida)
         if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             require_auth();
-            $stmt = $pdo->prepare('SELECT id, slug, nombre, descripcion, logo_url, color_primario, tema FROM restaurantes WHERE activo = 1 ORDER BY nombre');
+            $stmt = $pdo->prepare('SELECT id, slug, nombre, descripcion, logo_url, color_primario, tema, qr_frase, qr_frase_activa, qr_wifi_nombre, qr_wifi_clave, qr_wifi_activo FROM restaurantes WHERE activo = 1 ORDER BY nombre');
             $stmt->execute();
             $rows = $stmt->fetchAll();
+            foreach ($rows as &$r) {
+                $r['logo_url'] = $r['logo_url'] ? UPLOADS_URL . $r['logo_url'] : null;
+            }
+            unset($r);
             json_response(['restaurantes' => $rows]);
         }
 
@@ -156,7 +160,7 @@ switch ($route) {
                 json_response(['error' => 'id requerido'], 400);
             }
             $body = json_decode(file_get_contents('php://input'), true) ?: [];
-            $allowed = ['nombre', 'descripcion', 'tema', 'color_primario'];
+            $allowed = ['nombre', 'descripcion', 'tema', 'color_primario', 'qr_frase', 'qr_frase_activa', 'qr_wifi_nombre', 'qr_wifi_clave', 'qr_wifi_activo'];
             $fields = [];
             $params = [':id' => (int)$id];
             foreach ($allowed as $f) {
@@ -363,6 +367,42 @@ switch ($route) {
         json_response(['uploaded' => $saved]);
         break;
 
+    case 'upload-logo':
+        require_auth();
+        $restaurante_id = $_POST['restaurante_id'] ?? null;
+        if (!$restaurante_id) {
+            json_response(['error' => 'restaurante_id requerido'], 400);
+        }
+        if (empty($_FILES['logo']['tmp_name'])) {
+            json_response(['error' => 'No se envió el logo'], 400);
+        }
+        $allowed_mime = ['image/jpeg', 'image/png', 'image/webp'];
+        $allowed_ext  = ['jpg', 'jpeg', 'png', 'webp'];
+        $tmp  = $_FILES['logo']['tmp_name'];
+        $mime = mime_content_type($tmp);
+        if (!in_array($mime, $allowed_mime, true)) {
+            json_response(['error' => 'Formato no permitido. Usa JPG, PNG o WebP.'], 400);
+        }
+        $original_ext = strtolower(pathinfo($_FILES['logo']['name'], PATHINFO_EXTENSION));
+        if (!in_array($original_ext, $allowed_ext, true)) {
+            json_response(['error' => 'Extensión no permitida.'], 400);
+        }
+        if ($_FILES['logo']['size'] > 2 * 1024 * 1024) {
+            json_response(['error' => 'El logo supera los 2 MB.'], 400);
+        }
+        $dir = __DIR__ . '/../uploads/logos/';
+        if (!is_dir($dir)) mkdir($dir, 0755, true);
+        $filename = sprintf('logo_%d_%d.%s', intval($restaurante_id), time(), $original_ext);
+        $dest = $dir . $filename;
+        if (!move_uploaded_file($tmp, $dest)) {
+            json_response(['error' => 'Error al guardar el archivo.'], 500);
+        }
+        $logo_rel = 'logos/' . $filename;
+        $pdo->prepare('UPDATE restaurantes SET logo_url = :logo WHERE id = :id')
+            ->execute([':logo' => $logo_rel, ':id' => intval($restaurante_id)]);
+        json_response(['success' => true, 'logo_url' => UPLOADS_URL . $logo_rel]);
+        break;
+
     case 'mesas':
         require_auth();
         if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -372,7 +412,8 @@ switch ($route) {
             }
             $stmt = $pdo->prepare(
                 'SELECT m.id, m.numero, m.qr_generado,
-                        r.slug AS restaurante_slug, r.nombre AS restaurante_nombre
+                        r.slug AS restaurante_slug, r.nombre AS restaurante_nombre,
+                        r.color_primario, r.tema
                  FROM mesas m
                  JOIN restaurantes r ON r.id = m.restaurante_id
                  WHERE m.restaurante_id = :rid AND m.activo = 1
@@ -382,6 +423,8 @@ switch ($route) {
             $rows = $stmt->fetchAll();
             $slug   = $rows ? $rows[0]['restaurante_slug']   : '';
             $nombre = $rows ? $rows[0]['restaurante_nombre'] : '';
+            $color  = $rows ? $rows[0]['color_primario']     : '#FF6B35';
+            $tema   = $rows ? ($rows[0]['tema'] ?? 'calido') : 'calido';
             $mesas  = array_map(fn($r) => [
                 'id'          => $r['id'],
                 'numero'      => $r['numero'],
@@ -391,6 +434,8 @@ switch ($route) {
                 'mesas'              => $mesas,
                 'restaurante_slug'   => $slug,
                 'restaurante_nombre' => $nombre,
+                'restaurante_color'  => $color,
+                'restaurante_tema'   => $tema,
             ]);
         }
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {

@@ -49,13 +49,27 @@ CREATE TABLE IF NOT EXISTS restaurantes (
   slug            VARCHAR(100)  NOT NULL UNIQUE,  -- para URL del QR: ?r=slug
   nombre          VARCHAR(200)  NOT NULL,
   descripcion     TEXT,
-  logo_url        VARCHAR(500),                   -- ruta relativa en /uploads/
+  logo_url        VARCHAR(500),                   -- ruta relativa en /uploads/logos/, ej: logos/logo_1_1234.jpg
   color_primario  VARCHAR(7)    DEFAULT '#FF6B35', -- color hex para UI del menú
+  tema            VARCHAR(50)   DEFAULT 'calido',  -- tema visual: calido|fresco|elegante|rapida|rosa
+  qr_frase        VARCHAR(255)  DEFAULT 'Delicioso desde el primer vistazo', -- frase bajo el QR
+  qr_frase_activa TINYINT(1)    NOT NULL DEFAULT 1,  -- mostrar/ocultar la frase
+  qr_wifi_nombre  VARCHAR(100),                   -- nombre de red WiFi del restaurante
+  qr_wifi_clave   VARCHAR(100),                   -- contraseña WiFi
+  qr_wifi_activo  TINYINT(1)    NOT NULL DEFAULT 0, -- mostrar sección WiFi en la card QR
   activo          TINYINT(1)    NOT NULL DEFAULT 1,
   created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Si ya existe la tabla (BD en producción), agregar columnas con ALTER:
+-- ALTER TABLE restaurantes ADD COLUMN tema VARCHAR(50) DEFAULT 'calido' AFTER color_primario;
+-- ALTER TABLE restaurantes ADD COLUMN qr_frase VARCHAR(255) DEFAULT 'Delicioso desde el primer vistazo' AFTER tema;
+-- ALTER TABLE restaurantes ADD COLUMN qr_frase_activa TINYINT(1) NOT NULL DEFAULT 1 AFTER qr_frase;
+-- ALTER TABLE restaurantes ADD COLUMN qr_wifi_nombre VARCHAR(100) AFTER qr_frase_activa;
+-- ALTER TABLE restaurantes ADD COLUMN qr_wifi_clave VARCHAR(100) AFTER qr_wifi_nombre;
+-- ALTER TABLE restaurantes ADD COLUMN qr_wifi_activo TINYINT(1) NOT NULL DEFAULT 0 AFTER qr_wifi_clave;
 
 -- ------------------------------------------------------------
 -- TABLA: mesas

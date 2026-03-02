@@ -1,9 +1,10 @@
 <template>
-  <div class="admin-panel">
+  <div class="admin-panel" :style="{ '--accent': temaActualData.accent }">
     <!-- ═══ Header ═══ -->
     <header class="panel-header">
       <div class="header-left">
-        <span class="header-icon">🍽️</span>
+        <img v-if="restaurante?.logo_url" :src="restaurante.logo_url" class="header-logo-img" alt="logo" />
+        <span v-else class="header-icon">🍽️</span>
         <div>
           <h1 class="header-title">{{ restaurante?.nombre || 'Mi Restaurante' }}</h1>
           <span class="header-sub">Panel de administración</span>
@@ -222,7 +223,7 @@
               <p>Sin categorías todavía.</p>
             </div>
             <div v-else class="cat-lista">
-              <div v-for="cat in categorias" :key="cat.id" class="cat-item">
+              <div v-for="(cat, idx) in categorias" :key="cat.id" class="cat-item">
                 <!-- Modo edición -->
                 <div v-if="catEditando === cat.id" class="cat-edit-form">
                   <div class="emoji-wrap">
@@ -251,6 +252,10 @@
                   <span class="cat-emoji">{{ cat.icono || '📋' }}</span>
                   <span class="cat-nombre">{{ cat.nombre }}</span>
                   <span class="cat-count">{{ conteoProductos(cat.id) }} platillo(s)</span>
+                  <div class="cat-ord-btns">
+                    <button @click="moverCategoria(idx, -1)" class="btn-ord" :disabled="idx === 0" title="Subir">▲</button>
+                    <button @click="moverCategoria(idx, 1)" class="btn-ord" :disabled="idx === categorias.length - 1" title="Bajar">▼</button>
+                  </div>
                   <button @click="iniciarEdicionCategoria(cat)" class="btn-icon btn-edit" title="Editar">✏️</button>
                   <button @click="eliminarCategoria(cat.id)" class="btn-icon btn-del" title="Eliminar">🗑</button>
                 </template>
@@ -277,6 +282,29 @@
             <div class="field field-full">
               <label>Descripción</label>
               <textarea v-model="formRest.descripcion" rows="2" placeholder="Descripción breve para el menú"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Logo del restaurante -->
+        <div class="card">
+          <div class="card-header">
+            <h2>Logo del restaurante</h2>
+          </div>
+          <div class="card-body">
+            <p class="helper-text">Sube el logo que aparecerá en el menú.</p>
+            <div class="logo-upload-row">
+              <div class="logo-preview-wrap">
+                <img v-if="restaurante?.logo_url" :src="restaurante.logo_url" class="logo-preview-img" alt="Logo actual" />
+                <div v-else class="logo-preview-empty">🍽️</div>
+              </div>
+              <div class="logo-upload-actions">
+                <label class="btn-upload-logo" :class="{ loading: logoSubiendo }">
+                  <input type="file" accept="image/jpeg,image/png,image/webp" @change="uploadLogo" :disabled="logoSubiendo" style="display:none" />
+                  {{ logoSubiendo ? 'Subiendo...' : '📂 Subir logo' }}
+                </label>
+                <span class="logo-hint">JPG, PNG o WebP · máx. 2 MB</span>
+              </div>
             </div>
           </div>
         </div>
@@ -313,9 +341,6 @@
                 </div>
               </div>
             </div>
-            <button @click="guardarRestaurante" class="btn-primary" style="margin-top:16px" :disabled="guardando">
-              {{ guardando ? 'Guardando...' : 'Guardar cambios' }}
-            </button>
           </div>
         </div>
 
@@ -324,27 +349,104 @@
           <div class="card-header">
             <h2>🔲 Código QR del menú</h2>
           </div>
-          <div class="card-body qr-section">
-            <p class="helper-text">Imprime este QR y colócalo en tus mesas. Tus clientes lo escanean para ver el menú.</p>
+          <div class="card-body qr-dashboard-body">
+            <p class="helper-text">Imprime esta tarjeta y colócala en tus mesas. Tus clientes escanean el QR para ver el menú.</p>
             <div class="qr-url-box">
               <code class="qr-url-text">{{ menuUrl }}</code>
               <button @click="copiarUrl" class="btn-copy">{{ copiado ? '✓ Copiado' : 'Copiar' }}</button>
             </div>
-            <div class="qr-preview-wrap">
-              <canvas ref="qrCanvasRef" class="qr-canvas"></canvas>
-              <div v-if="!qrGenerado" class="qr-loading">
-                <div class="spinner"></div>
+
+            <div class="qr-card-layout">
+              <!-- Card preview -->
+              <div class="qr-card-preview-col">
+                <p class="qr-preview-label">Vista previa</p>
+                <div class="qr-card-dm" ref="qrCardDmEl">
+                  <div class="qr-card-dm-hdr" :style="{ background: temaActualData.accent }">
+                    <div class="qr-hdr-inner">
+                      <img v-if="restaurante?.logo_url" :src="restaurante.logo_url" class="qr-hdr-logo" alt="logo" />
+                      <span v-else class="qr-hdr-emoji">🍽️</span>
+                      <span class="qr-hdr-nombre" :style="{ color: temaActualData.headerText }">{{ restaurante?.nombre }}</span>
+                    </div>
+                  </div>
+                  <div class="qr-card-dm-body">
+                    <h3 class="qr-dm-title">Escanea el menú</h3>
+                    <p v-if="formRest.qr_frase_activa" class="qr-dm-frase">"{{ formRest.qr_frase }}"</p>
+                    <div class="qr-dm-qr-wrap" :style="{ borderColor: temaActualData.accent + '33', boxShadow: `0 5px 18px ${temaActualData.accent}20` }">
+                      <img v-if="qrDataUrl" :src="qrDataUrl" class="qr-dm-img" alt="QR" />
+                      <div v-else class="qr-dm-placeholder"><div class="spinner"></div></div>
+                    </div>
+                    <div v-if="formRest.qr_wifi_activo" class="qr-dm-wifi" :style="{ color: temaActualData.accent }">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+                        <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+                        <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+                        <line x1="12" y1="20" x2="12.01" y2="20"/>
+                      </svg>
+                      <div class="qr-wifi-texts">
+                        <span class="qr-wifi-net">{{ formRest.qr_wifi_nombre || 'Nombre de red' }}</span>
+                        <span class="qr-wifi-pass">{{ formRest.qr_wifi_clave || '••••••••' }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="qr-card-dm-bar" :style="{ background: temaActualData.accent }"></div>
+                </div>
+              </div>
+
+              <!-- Controls -->
+              <div class="qr-card-controls-col">
+                <h4 class="qr-ctrl-title">Personalizar tarjeta</h4>
+
+                <div class="qr-ctrl-group">
+                  <div class="qr-ctrl-header">
+                    <span class="qr-ctrl-label">Frase motivacional</span>
+                    <label class="sw">
+                      <input type="checkbox" v-model="formRest.qr_frase_activa" />
+                      <span class="sw-track" :style="formRest.qr_frase_activa ? { background: temaActualData.accent } : {}"></span>
+                    </label>
+                  </div>
+                  <input v-if="formRest.qr_frase_activa" v-model="formRest.qr_frase" class="qr-ctrl-input" maxlength="60" placeholder="Ej: Delicioso desde el primer vistazo" />
+                </div>
+
+                <div class="qr-ctrl-group">
+                  <div class="qr-ctrl-header">
+                    <span class="qr-ctrl-label">Info WiFi</span>
+                    <label class="sw">
+                      <input type="checkbox" v-model="formRest.qr_wifi_activo" />
+                      <span class="sw-track" :style="formRest.qr_wifi_activo ? { background: temaActualData.accent } : {}"></span>
+                    </label>
+                  </div>
+                  <template v-if="formRest.qr_wifi_activo">
+                    <input v-model="formRest.qr_wifi_nombre" class="qr-ctrl-input" placeholder="Nombre de red" />
+                    <input v-model="formRest.qr_wifi_clave" class="qr-ctrl-input" placeholder="Contraseña" />
+                  </template>
+                </div>
+
+                <div class="qr-ctrl-actions">
+                  <div class="qr-quality-row">
+                    <span class="qr-ctrl-label">Calidad</span>
+                    <div class="qr-quality-btns">
+                      <button :class="['qr-q-btn', { active: escalaDescarga === 2 }]" @click="escalaDescarga = 2">Normal</button>
+                      <button :class="['qr-q-btn', { active: escalaDescarga === 3 }]" @click="escalaDescarga = 3">Alta</button>
+                    </div>
+                  </div>
+                  <button @click="descargarCard" class="btn-dl-card" :style="{ background: temaActualData.accent }" :disabled="!qrDataUrl">
+                    ⬇ Descargar tarjeta (PNG)
+                  </button>
+                  <a v-if="qrDataUrl" :href="qrDataUrl" :download="`qr-menu-${restaurante?.slug || 'menu'}.png`" class="btn-dl-solo">
+                    ⬇ Solo QR (PNG)
+                  </a>
+                </div>
               </div>
             </div>
-            <a
-              v-if="qrDataUrl"
-              :href="qrDataUrl"
-              :download="`qr-menu-${restaurante?.slug || 'menu'}.png`"
-              class="btn-download-qr"
-            >
-              ⬇ Descargar QR (PNG)
-            </a>
+
           </div>
+        </div>
+
+        <!-- Guardar cambios -->
+        <div style="padding: 0 0 24px;">
+          <button @click="guardarRestaurante" class="btn-primary" :disabled="guardando">
+            {{ guardando ? 'Guardando...' : 'Guardar cambios' }}
+          </button>
         </div>
       </div>
     </div>
@@ -365,6 +467,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApi } from '../../composables/useApi.js'
 import QRCode from 'qrcode'
+import html2canvas from 'html2canvas'
 
 const router = useRouter()
 const { get, post, put, del } = useApi()
@@ -417,10 +520,27 @@ const catEditando  = ref(null)
 const formCatEdit  = ref({})
 
 // ── QR ──
-const qrCanvasRef = ref(null)
-const qrDataUrl   = ref(null)
-const qrGenerado  = ref(false)
-const copiado     = ref(false)
+const qrCardDmEl     = ref(null)
+const escalaDescarga = ref(2)
+const qrDataUrl  = ref(null)
+const qrGenerado = ref(false)
+const copiado    = ref(false)
+
+// ── Logo ──
+const logoSubiendo = ref(false)
+
+const TEMAS_EXTRA = {
+  calido:  { decoColor: 'rgba(255,255,255,0.15)', canvasH1: '#b5451b', canvasH2: '#e8841f' },
+  oscuro:  { decoColor: 'rgba(240,192,64,0.1)',   canvasH1: '#0a0a1a', canvasH2: '#1a1a38' },
+  moderno: { decoColor: 'rgba(26,127,90,0.08)',   canvasH1: '#f0f8f4', canvasH2: '#e0f5ec' },
+  rapida:  { decoColor: 'rgba(255,255,255,0.15)', canvasH1: '#c0392b', canvasH2: '#e74c3c' },
+  rosa:    { decoColor: 'rgba(255,255,255,0.18)', canvasH1: '#FF8276', canvasH2: '#EA9087' },
+}
+
+const temaActualData = computed(() => {
+  const t = temas.find(t => t.id === formRest.value.tema) || temas[0]
+  return { ...t, ...(TEMAS_EXTRA[t.id] || TEMAS_EXTRA.calido) }
+})
 
 const menuUrl = computed(() => {
   if (!restaurante.value?.slug) return ''
@@ -437,16 +557,17 @@ const tabs = [
 
 // Temas
 const temas = [
-  { id: 'calido',  nombre: 'Cálido',   desc: 'Bistró, tacos, casero',  bg: '#fdf6f0', cardBg: '#fff', text: '#3d2c1e', accent: '#d4691e', headerBg: 'linear-gradient(135deg,#b5451b,#e8841f)', headerText: '#fff' },
+  { id: 'calido',  nombre: 'Cálido',   desc: 'Bistró, tacos, casero',  bg: '#fdf6f0', cardBg: '#fff',    text: '#3d2c1e', accent: '#d4691e', headerBg: 'linear-gradient(135deg,#b5451b,#e8841f)', headerText: '#fff' },
   { id: 'oscuro',  nombre: 'Oscuro',   desc: 'Bar, premium, elegante', bg: '#1a1a2e', cardBg: '#1e1e2e', text: '#e8e8f0', accent: '#f0c040', headerBg: 'linear-gradient(135deg,#0a0a1a,#1a1a38)', headerText: '#f0c040' },
-  { id: 'moderno', nombre: 'Moderno',  desc: 'Saludable, minimalista', bg: '#f4f4f4', cardBg: '#fff',    text: '#111111', accent: '#1a7f5a', headerBg: '#fff', headerText: '#111' },
+  { id: 'moderno', nombre: 'Moderno',  desc: 'Saludable, minimalista', bg: '#f4f4f4', cardBg: '#fff',    text: '#111111', accent: '#1a7f5a', headerBg: '#fff',                                   headerText: '#111' },
   { id: 'rapida',  nombre: 'Express',  desc: 'Rápido, cafetería',      bg: '#fffbf0', cardBg: '#fff',    text: '#1a1a1a', accent: '#d43f2e', headerBg: 'linear-gradient(135deg,#c0392b,#e74c3c)', headerText: '#fff' },
+  { id: 'rosa',    nombre: 'Rosa',     desc: 'Romántico, suave',       bg: '#FFEFEF', cardBg: '#fff',    text: '#5a2030', accent: '#FF8276', headerBg: 'linear-gradient(135deg,#FF8276,#EA9087)', headerText: '#fff' },
 ]
 
 // Formularios
 const formProd = ref({ categoria_id: '', nombre: '', precio: '', descripcion: '' })
 const formCat  = ref({ nombre: '', icono: '' })
-const formRest = ref({ nombre: '', descripcion: '', tema: 'calido' })
+const formRest = ref({ nombre: '', descripcion: '', tema: 'calido', qr_frase: 'Delicioso desde el primer vistazo', qr_frase_activa: true, qr_wifi_nombre: '', qr_wifi_clave: '', qr_wifi_activo: false })
 
 // Mapas y cómputos
 const catMap = computed(() => {
@@ -465,7 +586,7 @@ const productosOrdenados = computed(() =>
 
 const conteoProductos = (catId) => productos.value.filter(p => p.categoria_id == catId).length
 
-const thumbUrl = (ruta) => ruta ? '/uploads/' + ruta : null
+const thumbUrl = (ruta) => ruta || null
 
 // Notificación temporal
 const mostrarNotif = (texto, tipo = 'ok') => {
@@ -480,22 +601,58 @@ const logout = () => {
 
 // ── Generar QR ──
 const generarQR = async () => {
-  if (!menuUrl.value || !qrCanvasRef.value) return
+  if (!menuUrl.value) return
   try {
-    await QRCode.toCanvas(qrCanvasRef.value, menuUrl.value, {
-      width: 260,
+    qrDataUrl.value = await QRCode.toDataURL(menuUrl.value, {
+      width: 300,
       margin: 2,
       color: { dark: '#1a1a1a', light: '#ffffff' },
     })
-    qrDataUrl.value = qrCanvasRef.value.toDataURL('image/png')
     qrGenerado.value = true
   } catch {}
+}
+
+const descargarCard = async () => {
+  if (!qrCardDmEl.value || !qrDataUrl.value) return
+  const canvas = await html2canvas(qrCardDmEl.value, {
+    scale: escalaDescarga.value,
+    useCORS: true,
+    backgroundColor: null,
+    logging: false,
+  })
+  const link = document.createElement('a')
+  link.download = `tarjeta-qr-${restaurante.value?.slug || 'menu'}.png`
+  link.href = canvas.toDataURL('image/png')
+  link.click()
 }
 
 const copiarUrl = async () => {
   await navigator.clipboard.writeText(menuUrl.value)
   copiado.value = true
   setTimeout(() => { copiado.value = false }, 2000)
+}
+
+const uploadLogo = async (event) => {
+  const file = event.target.files?.[0]
+  if (!file) return
+  logoSubiendo.value = true
+  try {
+    const fd = new FormData()
+    fd.append('logo', file)
+    fd.append('restaurante_id', restauranteId.value)
+    const token = localStorage.getItem('admin_token')
+    const apiBase = import.meta.env.BASE_URL + 'api/'
+    const res = await fetch(`${apiBase}?route=upload-logo&token=${token}`, { method: 'POST', body: fd })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Error al subir el logo')
+    restaurante.value = { ...restaurante.value, logo_url: data.logo_url }
+    mostrarNotif('Logo actualizado')
+  } catch (err) {
+    mostrarNotif(err.message, 'error')
+  } finally {
+    logoSubiendo.value = false
+    event.target.value = ''
+  }
 }
 
 // Regenerar QR cuando se cambie al tab de apariencia y ya tengamos slug
@@ -574,6 +731,24 @@ const guardarEdicionCategoria = async (id) => {
   }
 }
 
+const moverCategoria = async (idx, dir) => {
+  const arr = [...categorias.value]
+  const newIdx = idx + dir
+  if (newIdx < 0 || newIdx >= arr.length) return
+  ;[arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]]
+  arr.forEach((c, i) => { c.orden = i })
+  categorias.value = arr
+  try {
+    await Promise.all([
+      put('categorias', { orden: arr[idx].orden }, { id: arr[idx].id }),
+      put('categorias', { orden: arr[newIdx].orden }, { id: arr[newIdx].id }),
+    ])
+  } catch (err) {
+    mostrarNotif(err.message, 'error')
+    await loadCategorias()
+  }
+}
+
 // ── Carga inicial ──
 onMounted(async () => {
   document.addEventListener('click', cerrarPickerGlobal)
@@ -587,7 +762,16 @@ onMounted(async () => {
     const rest = lista[0]
     restaurante.value = rest
     restauranteId.value = rest.id
-    formRest.value = { nombre: rest.nombre || '', descripcion: rest.descripcion || '', tema: rest.tema || 'calido' }
+    formRest.value = {
+      nombre: rest.nombre || '',
+      descripcion: rest.descripcion || '',
+      tema: rest.tema || 'calido',
+      qr_frase: rest.qr_frase || 'Delicioso desde el primer vistazo',
+      qr_frase_activa: Boolean(rest.qr_frase_activa ?? true),
+      qr_wifi_nombre: rest.qr_wifi_nombre || '',
+      qr_wifi_clave: rest.qr_wifi_clave || '',
+      qr_wifi_activo: Boolean(rest.qr_wifi_activo ?? false),
+    }
     await Promise.all([loadCategorias(), loadProductos()])
   } catch (err) {
     errorInicial.value = 'Error al conectar: ' + err.message
@@ -599,6 +783,18 @@ onMounted(async () => {
 onUnmounted(() => {
   document.removeEventListener('click', cerrarPickerGlobal)
 })
+
+// ── Favicon dinámico ──
+watch(() => restaurante.value?.logo_url, (url) => {
+  if (!url) return
+  let link = document.querySelector("link[rel~='icon']")
+  if (!link) {
+    link = document.createElement('link')
+    link.rel = 'icon'
+    document.head.appendChild(link)
+  }
+  link.href = url
+}, { immediate: true })
 
 // ── Categorías ──
 async function loadCategorias() {
@@ -666,7 +862,7 @@ async function subirFotos(prodId, event) {
   for (let i = 0; i < files.length; i++) fd.append('fotos[]', files[i])
   try {
     const token = localStorage.getItem('admin_token')
-    const res = await fetch(`/api/?route=upload-fotos&token=${token}`, { method: 'POST', body: fd })
+    const res = await fetch(`${import.meta.env.BASE_URL}api/?route=upload-fotos&token=${token}`, { method: 'POST', body: fd })
     if (!res.ok) throw new Error('Error al subir fotos')
     event.target.value = ''
     await loadProductos()
@@ -682,7 +878,7 @@ async function subirGlb(prodId, event) {
   fd.append('modelo', file)
   try {
     const token = localStorage.getItem('admin_token')
-    const res = await fetch(`/api/?route=upload-glb&token=${token}`, { method: 'POST', body: fd })
+    const res = await fetch(`${import.meta.env.BASE_URL}api/?route=upload-glb&token=${token}`, { method: 'POST', body: fd })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Error al subir el modelo')
     event.target.value = ''
@@ -706,6 +902,7 @@ async function guardarRestaurante() {
 <style scoped>
 /* ─── Base ─── */
 .admin-panel {
+  --accent: #FF6B35;
   min-height: 100vh;
   background: #f0f2f5;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -727,6 +924,7 @@ async function guardarRestaurante() {
 }
 .header-left { display: flex; align-items: center; gap: 12px; }
 .header-icon { font-size: 1.8rem; }
+.header-logo-img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid #f0f0f0; }
 .header-title { font-size: 1.1rem; font-weight: 700; color: #1a1a1a; margin: 0; }
 .header-sub { font-size: 0.75rem; color: #aaa; }
 .btn-logout {
@@ -768,7 +966,7 @@ async function guardarRestaurante() {
   font-weight: 600; cursor: pointer; transition: all 0.2s;
 }
 .tab-btn:hover { background: #f5f5f5; color: #333; }
-.tab-btn.active { background: #FF6B35; color: #fff; box-shadow: 0 2px 8px rgba(255,107,53,0.3); }
+.tab-btn.active { background: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
 .tab-icon { font-size: 1.05rem; }
 
 /* ─── Cards ─── */
@@ -795,12 +993,12 @@ async function guardarRestaurante() {
   padding: 10px 12px; border: 1.5px solid #e0e0e0; border-radius: 8px;
   font-size: 0.9rem; outline: none; background: #fafafa; transition: border-color 0.2s; font-family: inherit;
 }
-.field input:focus, .field select:focus, .field textarea:focus { border-color: #FF6B35; background: #fff; }
+.field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); background: #fff; }
 .field textarea { resize: vertical; min-height: 60px; }
 
 /* ─── Botones ─── */
 .btn-primary {
-  background: linear-gradient(135deg, #FF6B35 0%, #f7931e 100%);
+  background: var(--accent);
   color: #fff; border: none; padding: 10px 20px; border-radius: 8px;
   font-size: 0.9rem; font-weight: 700; cursor: pointer;
   transition: opacity 0.2s, transform 0.1s; white-space: nowrap;
@@ -868,7 +1066,7 @@ label.btn-icon { cursor: pointer; }
 .prod-info { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .prod-nombre { font-size: 0.92rem; font-weight: 700; color: #1a1a1a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prod-cat  { font-size: 0.75rem; color: #aaa; }
-.prod-precio { font-size: 0.88rem; font-weight: 700; color: #FF6B35; }
+.prod-precio { font-size: 0.88rem; font-weight: 700; color: var(--accent); }
 
 .prod-badges { flex-shrink: 0; }
 .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; }
@@ -893,7 +1091,7 @@ label.btn-icon { cursor: pointer; }
 }
 .edit-fields select:focus,
 .edit-fields input:focus,
-.edit-fields textarea:focus { border-color: #FF6B35; }
+.edit-fields textarea:focus { border-color: var(--accent); }
 .edit-fields textarea { resize: vertical; min-height: 50px; }
 .edit-actions { display: flex; gap: 8px; }
 
@@ -907,11 +1105,30 @@ label.btn-icon { cursor: pointer; }
 .cat-emoji  { font-size: 1.3rem; width: 28px; text-align: center; flex-shrink: 0; }
 .cat-nombre { flex: 1; font-weight: 600; font-size: 0.9rem; color: #333; }
 .cat-count  { font-size: 0.78rem; color: #bbb; flex-shrink: 0; }
+.cat-ord-btns { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+.btn-ord { width: 22px; height: 18px; border: 1px solid #e0e0e0; border-radius: 4px; background: #fafafa; font-size: 0.6rem; cursor: pointer; line-height: 1; padding: 0; }
+.btn-ord:hover:not(:disabled) { background: #eee; }
+.btn-ord:disabled { opacity: 0.25; cursor: default; }
 
 /* ── Edición categoría inline ── */
 .cat-edit-form { display: flex; align-items: center; gap: 8px; width: 100%; }
 .input-nombre { flex: 1; padding: 7px 10px; border: 1.5px solid #e0e0e0; border-radius: 7px; font-size: 0.9rem; outline: none; }
-.input-nombre:focus { border-color: #FF6B35; }
+.input-nombre:focus { border-color: var(--accent); }
+
+/* ─── Logo upload ─── */
+.logo-upload-row { display: flex; align-items: center; gap: 20px; }
+.logo-preview-wrap { width: 80px; height: 80px; border-radius: 12px; overflow: hidden; border: 1px solid #e0e0e0; background: #f8f8f8; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.logo-preview-img { width: 100%; height: 100%; object-fit: contain; }
+.logo-preview-empty { font-size: 2rem; }
+.logo-upload-actions { display: flex; flex-direction: column; gap: 6px; }
+.btn-upload-logo {
+  display: inline-block; padding: 8px 16px; background: #f0f0f0; border: 1.5px solid #ddd;
+  border-radius: 8px; font-size: 0.88rem; font-weight: 600; color: #333;
+  cursor: pointer; transition: background 0.15s; user-select: none;
+}
+.btn-upload-logo:hover { background: #e4e4e4; }
+.btn-upload-logo.loading { opacity: 0.6; cursor: not-allowed; }
+.logo-hint { font-size: 0.78rem; color: #aaa; }
 
 /* ─── Temas ─── */
 .helper-text { font-size: 0.85rem; color: #999; margin-bottom: 14px; }
@@ -939,27 +1156,68 @@ label.btn-icon { cursor: pointer; }
 .tema-label span   { font-size: 0.72rem; opacity: 0.65; }
 .tema-activo { color: #2e7d32 !important; font-weight: 700 !important; opacity: 1 !important; }
 
-/* ─── QR ─── */
-.qr-section { display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
+/* ─── QR Card ─── */
+.qr-dashboard-body { display: flex; flex-direction: column; gap: 16px; }
 .qr-url-box { display: flex; gap: 8px; align-items: center; background: #f5f5f5; border-radius: 8px; padding: 10px 14px; width: 100%; box-sizing: border-box; }
 .qr-url-text { font-size: 0.78rem; color: #555; flex: 1; word-break: break-all; font-family: monospace; }
 .btn-copy { background: #fff; border: 1.5px solid #ddd; color: #555; padding: 5px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.2s; flex-shrink: 0; }
-.btn-copy:hover { border-color: #FF6B35; color: #FF6B35; }
+.btn-copy:hover { border-color: var(--accent); color: var(--accent); }
 
-.qr-preview-wrap { position: relative; }
-.qr-canvas { display: block; border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
-.qr-loading {
-  position: absolute; inset: 0; background: #f5f5f5; border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-}
+.qr-card-layout { display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap; }
 
-.btn-download-qr {
-  display: inline-flex; align-items: center; gap: 8px;
-  background: #2e7d32; color: #fff; text-decoration: none;
-  padding: 11px 20px; border-radius: 8px; font-size: 0.9rem; font-weight: 700;
-  transition: background 0.2s;
-}
-.btn-download-qr:hover { background: #1b5e20; }
+/* Preview col */
+.qr-card-preview-col { display: flex; flex-direction: column; align-items: center; gap: 8px; flex-shrink: 0; }
+.qr-preview-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #aaa; margin: 0; }
+
+.qr-card-dm { width: 240px; border-radius: 20px; box-shadow: 0 14px 44px rgba(0,0,0,0.16); display: flex; flex-direction: column; overflow: hidden; background: #fff; }
+
+.qr-card-dm-hdr { height: 108px; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.qr-hdr-deco { position: absolute; border-radius: 50%; filter: blur(14px); }
+.qr-hdr-deco-1 { width: 90px; height: 90px; top: -22px; right: -22px; }
+.qr-hdr-deco-2 { width: 72px; height: 72px; bottom: -18px; left: -18px; }
+.qr-hdr-inner { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.qr-hdr-emoji { font-size: 1.8rem; line-height: 1; }
+.qr-hdr-logo { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,0.4); }
+.qr-hdr-nombre { font-size: 0.8rem; font-weight: 700; text-align: center; padding: 0 10px; }
+
+.qr-card-dm-body { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 12px 14px 10px; gap: 8px; text-align: center; }
+.qr-dm-title { margin: 0; font-size: 1rem; font-weight: 800; color: #1a1a1a; }
+.qr-dm-frase { margin: 0; font-size: 0.68rem; color: #888; font-style: italic; }
+.qr-dm-qr-wrap { border-radius: 11px; border: 2px solid; padding: 6px; background: #fff; }
+.qr-dm-img { width: 108px; height: 108px; display: block; }
+.qr-dm-placeholder { width: 108px; height: 108px; display: flex; align-items: center; justify-content: center; background: #f5f5f5; border-radius: 6px; }
+.qr-dm-wifi { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.qr-wifi-texts { display: flex; flex-direction: column; text-align: left; }
+.qr-wifi-net  { font-size: 0.68rem; font-weight: 700; }
+.qr-wifi-pass { font-size: 0.63rem; opacity: 0.65; }
+.qr-card-dm-bar { height: 9px; }
+
+/* Controls col */
+.qr-card-controls-col { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 14px; }
+.qr-ctrl-title { margin: 0; font-size: 1rem; font-weight: 700; color: #222; }
+.qr-ctrl-group { background: #f9f9f9; border: 1px solid #eee; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.qr-ctrl-header { display: flex; align-items: center; justify-content: space-between; }
+.qr-ctrl-label { font-size: 0.83rem; font-weight: 600; color: #444; }
+.qr-ctrl-input { width: 100%; box-sizing: border-box; padding: 7px 10px; border: 1px solid #e0e0e0; border-radius: 7px; font-size: 0.88rem; outline: none; }
+.qr-ctrl-input:focus { border-color: #aaa; }
+
+/* Toggle switch */
+.sw { position: relative; display: inline-flex; cursor: pointer; }
+.sw input { opacity: 0; width: 0; height: 0; position: absolute; }
+.sw-track { width: 38px; height: 20px; background: #ccc; border-radius: 10px; transition: background 0.2s; position: relative; }
+.sw-track::after { content: ''; position: absolute; width: 14px; height: 14px; background: #fff; border-radius: 50%; top: 3px; left: 3px; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+.sw input:checked ~ .sw-track::after { transform: translateX(18px); }
+
+.qr-ctrl-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.qr-quality-row { display: flex; align-items: center; justify-content: space-between; }
+.qr-quality-btns { display: flex; gap: 6px; }
+.qr-q-btn { padding: 5px 14px; border: 1px solid #ddd; border-radius: 6px; background: #f5f5f5; font-size: 0.8rem; cursor: pointer; transition: background 0.15s, color 0.15s; }
+.qr-q-btn.active { background: #222; color: #fff; border-color: #222; }
+.btn-dl-card { color: #fff; border: none; padding: 11px; border-radius: 9px; font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
+.btn-dl-card:hover { opacity: 0.88; }
+.btn-dl-card:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-dl-solo { display: inline-block; text-align: center; background: #eeeeee; color: #555; text-decoration: none; padding: 9px; border-radius: 9px; font-size: 0.85rem; font-weight: 600; transition: background 0.15s; }
+.btn-dl-solo:hover { background: #e0e0e0; }
 
 /* ─── Preview foto ─── */
 .preview-overlay {
@@ -1012,7 +1270,7 @@ label.btn-icon { cursor: pointer; }
 }
 
 .emoji-btn:hover {
-  border-color: #FF6B35;
+  border-color: var(--accent);
   background: #fff;
 }
 
@@ -1090,7 +1348,7 @@ label.btn-icon { cursor: pointer; }
 
 .emoji-opt.selected {
   background: #fff3e0;
-  outline: 2px solid #FF6B35;
+  outline: 2px solid var(--accent);
 }
 
 /* ─── Responsive ─── */

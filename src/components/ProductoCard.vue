@@ -78,13 +78,17 @@ const truncar = (texto, len) =>
   position: relative;
   width: 110px;
   min-width: 110px;
-  height: 110px;
+  min-height: 110px;
+  align-self: stretch;
   flex-shrink: 0;
   overflow: hidden;
   background: var(--accent-light, #f5f5f5);
 }
 
 .card-img {
+  display: block;
+  position: absolute;
+  top: 0; left: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -96,8 +100,8 @@ const truncar = (texto, len) =>
 }
 
 .img-placeholder {
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -217,4 +221,5 @@ const truncar = (texto, len) =>
     font-size: 0.92rem;
   }
 }
+
 </style>
