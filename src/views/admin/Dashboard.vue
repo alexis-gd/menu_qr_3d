@@ -64,7 +64,7 @@
               </div>
               <div class="field">
                 <label>Nombre del platillo *</label>
-                <input v-model="formProd.nombre" placeholder="Ej: Tacos al Pastor" />
+                <input :value="formProd.nombre" @input="formProd.nombre = ucfirst($event.target.value)" placeholder="Ej: Tacos al Pastor" />
               </div>
               <div class="field">
                 <label>Precio *</label>
@@ -72,7 +72,7 @@
               </div>
               <div class="field field-full">
                 <label>Descripción breve</label>
-                <textarea v-model="formProd.descripcion" rows="2" placeholder="Descripción opcional..."></textarea>
+                <textarea :value="formProd.descripcion" @input="formProd.descripcion = ucfirst($event.target.value)" rows="2" placeholder="Descripción opcional..."></textarea>
               </div>
               <div class="field field-full">
                 <button @click="crearProducto" class="btn-primary" :disabled="guardando">
@@ -112,9 +112,9 @@
                     <select v-model="formEdit.categoria_id">
                       <option v-for="cat in categorias" :key="cat.id" :value="cat.id">{{ cat.nombre }}</option>
                     </select>
-                    <input v-model="formEdit.nombre" placeholder="Nombre" />
+                    <input :value="formEdit.nombre" @input="formEdit.nombre = ucfirst($event.target.value)" placeholder="Nombre" />
                     <input v-model="formEdit.precio" type="number" min="0" step="0.01" placeholder="Precio" />
-                    <textarea v-model="formEdit.descripcion" rows="2" placeholder="Descripción"></textarea>
+                    <textarea :value="formEdit.descripcion" @input="formEdit.descripcion = ucfirst($event.target.value)" rows="2" placeholder="Descripción"></textarea>
                     <div class="edit-actions">
                       <button @click="guardarEdicionProducto(prod.id)" class="btn-save">✓ Guardar</button>
                       <button @click="cancelarEdicion" class="btn-cancel">✕ Cancelar</button>
@@ -183,7 +183,7 @@
             <div class="form-row">
               <div class="field" style="flex:1">
                 <label>Nombre</label>
-                <input v-model="formCat.nombre" placeholder="Ej: Entradas, Bebidas..." @keyup.enter="crearCategoria" />
+                <input :value="formCat.nombre" @input="formCat.nombre = ucfirst($event.target.value)" placeholder="Ej: Entradas, Bebidas..." @keyup.enter="crearCategoria" />
               </div>
               <div class="field">
                 <label>Ícono</label>
@@ -242,7 +242,7 @@
                       </div>
                     </div>
                   </div>
-                  <input v-model="formCatEdit.nombre" placeholder="Nombre" class="input-nombre" @keyup.enter="guardarEdicionCategoria(cat.id)" />
+                  <input :value="formCatEdit.nombre" @input="formCatEdit.nombre = ucfirst($event.target.value)" placeholder="Nombre" class="input-nombre" @keyup.enter="guardarEdicionCategoria(cat.id)" />
                   <button @click="guardarEdicionCategoria(cat.id)" class="btn-save-sm">✓</button>
                   <button @click="catEditando = null" class="btn-cancel-sm">✕</button>
                 </div>
@@ -404,7 +404,7 @@
                       <span class="sw-track" :style="formRest.qr_frase_activa ? { background: temaActualData.accent } : {}"></span>
                     </label>
                   </div>
-                  <input v-if="formRest.qr_frase_activa" v-model="formRest.qr_frase" class="qr-ctrl-input" maxlength="60" placeholder="Ej: Delicioso desde el primer vistazo" />
+                  <input v-if="formRest.qr_frase_activa" :value="formRest.qr_frase" @input="formRest.qr_frase = ucfirst($event.target.value)" class="qr-ctrl-input" maxlength="60" placeholder="Ej: Delicioso desde el primer vistazo" />
                 </div>
 
                 <div class="qr-ctrl-group">
@@ -471,6 +471,8 @@ import html2canvas from 'html2canvas'
 
 const router = useRouter()
 const { get, post, put, del } = useApi()
+
+const ucfirst = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s
 
 // ── Estado general ──
 const restaurante     = ref(null)
