@@ -64,7 +64,9 @@
               v-for="prod in cat.productos"
               :key="prod.id"
               :producto="prod"
+              :pedidos-activos="pedidosActivos"
               @click="abrirModal(prod)"
+              @agregar="agregarAlCarrito(prod, '')"
             />
           </div>
         </section>
@@ -80,7 +82,27 @@
     <ProductoModal
       v-if="productoSeleccionado"
       :producto="productoSeleccionado"
+      :pedidos-activos="pedidosActivos"
       @close="productoSeleccionado = null"
+      @agregar="({ producto, observacion }) => { agregarAlCarrito(producto, observacion); productoSeleccionado = null }"
+    />
+
+    <!-- Carrito flotante -->
+    <CarritoFlotante
+      v-if="pedidosActivos && carrito.length"
+      :carrito="carrito"
+      @abrir="mostrarCheckout = true"
+    />
+
+    <!-- Checkout -->
+    <CheckoutModal
+      v-if="mostrarCheckout"
+      :carrito="carrito"
+      :pedidos-config="pedidosConfig"
+      :mesa="mesaNumero"
+      :restaurante-id="restaurante?.id"
+      @close="mostrarCheckout = false"
+      @confirmado="onPedidoConfirmado"
     />
   </div>
 </template>
@@ -91,6 +113,8 @@ import { useRoute } from 'vue-router'
 import { useApi } from '../composables/useApi.js'
 import ProductoCard from '../components/ProductoCard.vue'
 import ProductoModal from '../components/ProductoModal.vue'
+import CarritoFlotante from '../components/CarritoFlotante.vue'
+import CheckoutModal from '../components/CheckoutModal.vue'
 
 const route = useRoute()
 const { get, loading, error } = useApi()
@@ -101,7 +125,28 @@ const productoSeleccionado = ref(null)
 const catActiva = ref(null)
 const mesaNumero = route.query.mesa || null
 
+// ── Carrito ──
+const carrito = ref([])
+const mostrarCheckout = ref(false)
+
+const pedidosActivos = computed(() => !!restaurante.value?.pedidos_activos)
+const pedidosConfig  = computed(() => restaurante.value || {})
+
 const tema = computed(() => restaurante.value?.tema || 'calido')
+
+const agregarAlCarrito = (producto, observacion = '') => {
+  const existente = carrito.value.find(i => i.producto.id === producto.id && i.observacion === observacion)
+  if (existente) {
+    existente.cantidad++
+  } else {
+    carrito.value.push({ producto, cantidad: 1, observacion })
+  }
+}
+
+const onPedidoConfirmado = () => {
+  carrito.value = []
+  mostrarCheckout.value = false
+}
 
 onMounted(async () => {
   const slug = route.query.r
@@ -413,7 +458,6 @@ const abrirModal = (producto) => {
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
-  margin-top: 12px;
 }
 
 .cat-nav::-webkit-scrollbar { display: none; }

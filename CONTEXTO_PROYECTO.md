@@ -12,6 +12,7 @@
 - [x] **Fase 3** — Panel admin: login, CRUD restaurantes/categorias/productos, protección de rutas
 - [x] **Fase 4** — Integración 3D: upload-fotos, upload-glb manual, model-viewer en modal, cron script
 - [x] **Fase 5** — QR & Mesas: endpoint mesas, admin Mesas.vue, QR por mesa, badge de mesa en menú
+- [x] **Fase 6** — Sistema de Pedidos: carrito sin sesión, checkout con WhatsApp deep link, tabs Negocio/Pedidos en admin
 
 ### Funcionalidades Implementadas
 - [x] API endpoints: `menu`, `login`, `restaurantes`, `categorias`, `productos`, `mesas`, `upload-fotos`, `upload-glb`, `upload-logo`, `job-status`
@@ -30,6 +31,8 @@
 - [x] **QR Card descargable** — diseño rico con gradiente vertical del tema, logo circular del restaurante (fallback emoji), sección WiFi (caja estilizada con nombre/clave de red), frase personalizada
 - [x] **Logo del restaurante** — upload desde admin (JPG/PNG/WebP, max 2 MB), guardado en `uploads/logos/`, URL absoluta en DB, visible en: card QR, navbar del admin, menú público (vía campo `logo_url` en API)
 - [x] **Favicon dinámico** — watch en Dashboard.vue actualiza `<link rel="icon">` con el logo del restaurante al cargar
+- [x] **Sistema de Pedidos** — toggle por restaurante (`pedidos_activos`). Carrito sin sesión en Vue `ref([])`. Checkout: tipo entrega (recoger/envío con costo configurable), datos cliente, pago (efectivo con denominación / transferencia con botones copiar por campo), observaciones por platillo. Al confirmar: POST a `/api/?route=pedidos` → abre WhatsApp con resumen pre-llenado. Admin: tab Negocio (config + compartir menú con mensaje personalizado guardado en DB) + tab Pedidos (lista con status + auto-refresh 30s). Nuevas tablas: `pedidos`, `pedido_items`. Nuevas columnas en `restaurantes`: `pedidos_activos`, `pedidos_envio_activo`, `pedidos_envio_costo`, `pedidos_whatsapp`, `pedidos_trans_clabe/cuenta/titular/banco`, `compartir_mensaje`.
+- [x] **Utilería ucfirst** — `src/utils/ucfirst.js`. Primera letra mayúscula al tipear. Patrón: `:value + @input` con `ucfirst($event.target.value)`. Usada en Dashboard (CRUD), CheckoutModal (nombre, dirección, observación) y ProductoModal (observación).
 
 ### Decisión: Flujo 3D sin Meshy API
 La API de Meshy requiere plan Pro ($20/mes) para acceso programático. Se adoptó **flujo semi-manual (Opción B)**:

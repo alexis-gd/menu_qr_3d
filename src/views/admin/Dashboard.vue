@@ -449,6 +449,165 @@
           </button>
         </div>
       </div>
+
+      <!-- ════════════════════════════════
+           TAB: NEGOCIO
+      ════════════════════════════════ -->
+      <div v-show="tabActivo === 'negocio'" class="tab-content">
+        <!-- Compartir menú -->
+        <div class="card">
+          <div class="card-header"><h2>Compartir menú</h2></div>
+          <div class="card-body">
+            <p class="helper-text">Escribe el mensaje introductorio. El nombre del restaurante y el enlace se adjuntan automáticamente.</p>
+            <textarea
+              v-model="formRest.compartir_mensaje"
+              class="compartir-textarea"
+              rows="2"
+              placeholder="¡Hola! Te comparto el menú digital de"
+            ></textarea>
+            <p class="compartir-hint">Se adjuntará: <strong>{{ restaurante?.nombre }}</strong>: {{ menuUrl }}</p>
+            <div class="compartir-actions">
+              <a :href="'https://wa.me/?text=' + encodeURIComponent(textoCompartir)"
+                 target="_blank" rel="noopener" class="btn-wa">
+                📲 Compartir por WhatsApp
+              </a>
+              <button @click="copiarUrl" class="btn-copy-link">
+                {{ copiado ? '✓ Copiado' : '🔗 Copiar' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sistema de pedidos -->
+        <div class="card">
+          <div class="card-header"><h2>Sistema de pedidos</h2></div>
+          <div class="card-body">
+            <div class="negocio-toggle-row">
+              <div>
+                <strong>Activar pedidos en el menú</strong>
+                <p class="helper-text" style="margin:4px 0 0">Los clientes podrán agregar platillos al carrito y enviarte el pedido por WhatsApp.</p>
+              </div>
+              <label class="sw">
+                <input type="checkbox" v-model="formRest.pedidos_activos" />
+                <span class="sw-track" :style="formRest.pedidos_activos ? { background: temaActualData.accent } : {}"></span>
+              </label>
+            </div>
+            <template v-if="formRest.pedidos_activos">
+              <hr class="negocio-divider" />
+              <div class="field" style="max-width:340px; margin-bottom:16px">
+                <label>Número de WhatsApp del restaurante</label>
+                <input v-model="formRest.pedidos_whatsapp" placeholder="Ej: 521XXXXXXXXXX (con código de país)" />
+                <span class="field-hint">Los clientes enviarán su pedido a este número.</span>
+              </div>
+              <div class="negocio-toggle-row">
+                <strong>Ofrecer envío a domicilio</strong>
+                <label class="sw">
+                  <input type="checkbox" v-model="formRest.pedidos_envio_activo" />
+                  <span class="sw-track" :style="formRest.pedidos_envio_activo ? { background: temaActualData.accent } : {}"></span>
+                </label>
+              </div>
+              <div v-if="formRest.pedidos_envio_activo" class="field" style="max-width:200px; margin-top:10px">
+                <label>Costo del envío ($)</label>
+                <input v-model="formRest.pedidos_envio_costo" type="number" min="0" step="0.50" placeholder="0.00" />
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Datos de transferencia -->
+        <div v-if="formRest.pedidos_activos" class="card">
+          <div class="card-header"><h2>Datos para transferencia</h2></div>
+          <div class="card-body form-grid">
+            <div class="field">
+              <label>Banco / Alias</label>
+              <input v-model="formRest.pedidos_trans_banco" placeholder="Ej: BBVA, SPIN, CoDi..." />
+            </div>
+            <div class="field">
+              <label>Titular de la cuenta</label>
+              <input v-model="formRest.pedidos_trans_titular" placeholder="Nombre completo" />
+            </div>
+            <div class="field">
+              <label>CLABE interbancaria</label>
+              <input v-model="formRest.pedidos_trans_clabe" placeholder="18 dígitos" maxlength="18" />
+            </div>
+            <div class="field">
+              <label>Número de cuenta</label>
+              <input v-model="formRest.pedidos_trans_cuenta" placeholder="Número de cuenta" />
+            </div>
+          </div>
+        </div>
+
+        <div style="padding: 0 0 24px;">
+          <button @click="guardarRestaurante" class="btn-primary" :disabled="guardando">
+            {{ guardando ? 'Guardando...' : 'Guardar cambios' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════
+           TAB: PEDIDOS
+      ════════════════════════════════ -->
+      <div v-show="tabActivo === 'pedidos'" class="tab-content">
+        <div class="card">
+          <div class="card-header">
+            <h2>Pedidos recibidos</h2>
+            <button @click="loadPedidos" class="btn-refresh">↺ Actualizar</button>
+          </div>
+          <div class="card-body no-pad">
+            <div v-if="loadingPedidos" class="loading-inline"><div class="spinner"></div></div>
+            <div v-else-if="!pedidos.length" class="empty-state" style="padding:40px">
+              <span>🛒</span>
+              <p>Sin pedidos todavía.</p>
+            </div>
+            <div v-else class="pedidos-lista">
+              <div v-for="ped in pedidos" :key="ped.id" class="pedido-card">
+                <div class="pedido-header">
+                  <div class="pedido-id">
+                    <strong>#{{ ped.numero_pedido }}</strong>
+                    <span class="pedido-hora">{{ formatHora(ped.created_at) }}</span>
+                  </div>
+                  <span :class="['pedido-status', 'status-' + ped.status]">{{ statusLabel(ped.status) }}</span>
+                </div>
+                <div class="pedido-body">
+                  <div class="pedido-cliente">
+                    <span>👤 {{ ped.nombre_cliente }}</span>
+                    <span v-if="ped.telefono">📞 {{ ped.telefono }}</span>
+                    <span v-if="ped.mesa">🪑 Mesa {{ ped.mesa }}</span>
+                  </div>
+                  <div class="pedido-entrega">
+                    <span class="pedido-tag" :class="ped.tipo_entrega === 'envio' ? 'tag-envio' : 'tag-recoger'">
+                      {{ ped.tipo_entrega === 'envio' ? '🛵 Envío a domicilio' : '🏠 Recoger en local' }}
+                    </span>
+                    <span v-if="ped.tipo_entrega === 'envio' && ped.direccion" class="pedido-dir">{{ ped.direccion }}</span>
+                    <span class="pedido-tag tag-pago">{{ ped.metodo_pago === 'transferencia' ? '🏦 Transferencia' : '💵 Efectivo' }}</span>
+                    <span v-if="ped.denominacion" class="pedido-denominacion">Con ${{ Number(ped.denominacion).toFixed(0) }}</span>
+                  </div>
+                  <div class="pedido-items-list">
+                    <div v-for="item in ped.items" :key="item.id" class="pedido-item-row">
+                      <span class="pedido-item-cant">{{ item.cantidad }}×</span>
+                      <span class="pedido-item-nombre">{{ item.nombre_producto }}</span>
+                      <span v-if="item.observacion" class="pedido-item-obs">— {{ item.observacion }}</span>
+                      <span class="pedido-item-precio">${{ Number(item.subtotal).toFixed(2) }}</span>
+                    </div>
+                  </div>
+                  <div class="pedido-totales">
+                    <span v-if="ped.costo_envio > 0">Envío: ${{ Number(ped.costo_envio).toFixed(2) }}</span>
+                    <strong>Total: ${{ Number(ped.total).toFixed(2) }}</strong>
+                  </div>
+                </div>
+                <div class="pedido-acciones">
+                  <button v-if="ped.status === 'nuevo'" @click="cambiarStatus(ped.id, 'visto')" class="btn-status btn-visto">Visto</button>
+                  <button v-if="ped.status === 'visto'" @click="cambiarStatus(ped.id, 'en_preparacion')" class="btn-status btn-prep">En preparación</button>
+                  <button v-if="ped.status === 'en_preparacion'" @click="cambiarStatus(ped.id, 'listo')" class="btn-status btn-listo">Listo ✓</button>
+                  <button v-if="ped.status === 'listo'" @click="cambiarStatus(ped.id, 'entregado')" class="btn-status btn-entregado">Entregado ✓</button>
+                  <button v-if="!['entregado','cancelado'].includes(ped.status)" @click="cambiarStatus(ped.id, 'cancelado')" class="btn-status btn-cancelar">Cancelar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <!-- ═══ Modal preview de foto ═══ -->
@@ -466,13 +625,12 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApi } from '../../composables/useApi.js'
+import { ucfirst } from '../../utils/ucfirst.js'
 import QRCode from 'qrcode'
 import html2canvas from 'html2canvas'
 
 const router = useRouter()
 const { get, post, put, del } = useApi()
-
-const ucfirst = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s
 
 // ── Estado general ──
 const restaurante     = ref(null)
@@ -555,6 +713,8 @@ const tabs = [
   { id: 'platillos',  icon: '🍽️', label: 'Platillos'  },
   { id: 'categorias', icon: '📋', label: 'Categorías' },
   { id: 'apariencia', icon: '🎨', label: 'Apariencia' },
+  { id: 'negocio',    icon: '⚙️', label: 'Negocio'    },
+  { id: 'pedidos',    icon: '🛒', label: 'Pedidos'    },
 ]
 
 // Temas
@@ -569,7 +729,23 @@ const temas = [
 // Formularios
 const formProd = ref({ categoria_id: '', nombre: '', precio: '', descripcion: '' })
 const formCat  = ref({ nombre: '', icono: '' })
-const formRest = ref({ nombre: '', descripcion: '', tema: 'calido', qr_frase: 'Delicioso desde el primer vistazo', qr_frase_activa: true, qr_wifi_nombre: '', qr_wifi_clave: '', qr_wifi_activo: false })
+const formRest = ref({ nombre: '', descripcion: '', tema: 'calido', qr_frase: 'Delicioso desde el primer vistazo', qr_frase_activa: true, qr_wifi_nombre: '', qr_wifi_clave: '', qr_wifi_activo: false, pedidos_activos: false, pedidos_envio_activo: true, pedidos_envio_costo: 0, pedidos_whatsapp: '', pedidos_trans_clabe: '', pedidos_trans_cuenta: '', pedidos_trans_titular: '', pedidos_trans_banco: '', compartir_mensaje: '' })
+
+const textoCompartir = computed(() =>
+  `${formRest.value.compartir_mensaje}\n${restaurante.value?.nombre || ''}: ${menuUrl.value}`
+)
+
+// ── Pedidos ──
+const pedidos        = ref([])
+const loadingPedidos = ref(false)
+let   pedidosInterval = null
+
+const formatHora = (ts) => {
+  const d = new Date(ts)
+  return d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) + ' · ' + d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
+}
+
+const statusLabel = (s) => ({ nuevo: 'Nuevo', visto: 'Visto', en_preparacion: 'En preparación', listo: 'Listo', entregado: 'Entregado', cancelado: 'Cancelado' })[s] || s
 
 // Mapas y cómputos
 const catMap = computed(() => {
@@ -629,7 +805,7 @@ const descargarCard = async () => {
 }
 
 const copiarUrl = async () => {
-  await navigator.clipboard.writeText(menuUrl.value)
+  await navigator.clipboard.writeText(textoCompartir.value)
   copiado.value = true
   setTimeout(() => { copiado.value = false }, 2000)
 }
@@ -657,10 +833,13 @@ const uploadLogo = async (event) => {
   }
 }
 
-// Regenerar QR cuando se cambie al tab de apariencia y ya tengamos slug
+// Regenerar QR y cargar pedidos según el tab activo
 watch(tabActivo, (tab) => {
-  if (tab === 'apariencia') {
-    setTimeout(generarQR, 100)
+  clearInterval(pedidosInterval)
+  if (tab === 'apariencia') setTimeout(generarQR, 100)
+  if (tab === 'pedidos') {
+    loadPedidos()
+    pedidosInterval = setInterval(loadPedidos, 30000)
   }
 })
 
@@ -773,6 +952,15 @@ onMounted(async () => {
       qr_wifi_nombre: rest.qr_wifi_nombre || '',
       qr_wifi_clave: rest.qr_wifi_clave || '',
       qr_wifi_activo: Boolean(rest.qr_wifi_activo ?? false),
+      pedidos_activos: Boolean(rest.pedidos_activos ?? false),
+      pedidos_envio_activo: Boolean(rest.pedidos_envio_activo ?? true),
+      pedidos_envio_costo: parseFloat(rest.pedidos_envio_costo) || 0,
+      pedidos_whatsapp: rest.pedidos_whatsapp || '',
+      pedidos_trans_clabe: rest.pedidos_trans_clabe || '',
+      pedidos_trans_cuenta: rest.pedidos_trans_cuenta || '',
+      pedidos_trans_titular: rest.pedidos_trans_titular || '',
+      pedidos_trans_banco: rest.pedidos_trans_banco || '',
+      compartir_mensaje: rest.compartir_mensaje || '¡Hola! Te comparto el menú digital de',
     }
     await Promise.all([loadCategorias(), loadProductos()])
   } catch (err) {
@@ -784,6 +972,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.removeEventListener('click', cerrarPickerGlobal)
+  clearInterval(pedidosInterval)
 })
 
 // ── Favicon dinámico ──
@@ -887,6 +1076,27 @@ async function subirGlb(prodId, event) {
     await loadProductos()
     mostrarNotif('Modelo 3D subido. ¡Ya disponible en el menú!')
   } catch (err) { mostrarNotif(err.message, 'error') }
+}
+
+// ── Pedidos ──
+async function loadPedidos() {
+  loadingPedidos.value = true
+  try {
+    const res = await get('pedidos', { restaurante_id: restauranteId.value })
+    pedidos.value = res.pedidos || []
+  } finally {
+    loadingPedidos.value = false
+  }
+}
+
+async function cambiarStatus(id, status) {
+  try {
+    await put('pedidos', { status }, { id })
+    await loadPedidos()
+    mostrarNotif('Pedido actualizado')
+  } catch (err) {
+    mostrarNotif(err.message, 'error')
+  }
 }
 
 // ── Restaurante ──
@@ -1363,4 +1573,90 @@ label.btn-icon { cursor: pointer; }
   .temas-grid { grid-template-columns: 1fr 1fr; }
   .prod-badges { display: none; }
 }
+
+/* ─── Tab Negocio ─── */
+.negocio-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 4px 0; }
+.negocio-divider { border: none; border-top: 1px solid #f0f0f0; margin: 16px 0; }
+.field-hint { font-size: 0.75rem; color: #aaa; margin-top: 3px; display: block; }
+.compartir-textarea {
+  width: 100%; box-sizing: border-box;
+  border: 1px solid #ddd; border-radius: 8px;
+  padding: 10px 12px; font-size: 0.88rem; line-height: 1.5;
+  color: #444; resize: vertical; margin-bottom: 12px;
+  font-family: inherit;
+}
+.compartir-textarea:focus { outline: none; border-color: #aaa; }
+.compartir-hint {
+  font-size: 0.78rem; color: #aaa; margin: -4px 0 12px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.compartir-hint strong { color: #888; }
+.compartir-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.btn-wa {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #25D366; color: #fff; text-decoration: none;
+  padding: 10px 18px; border-radius: 9px; font-size: 0.9rem; font-weight: 700;
+  transition: opacity 0.2s;
+}
+.btn-wa:hover { opacity: 0.88; }
+.btn-copy-link {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #f0f0f0; color: #444; border: none;
+  padding: 10px 18px; border-radius: 9px; font-size: 0.9rem; font-weight: 700;
+  cursor: pointer; transition: background 0.2s;
+}
+.btn-copy-link:hover { background: #e0e0e0; }
+.btn-refresh {
+  background: #f5f5f5; border: 1px solid #e0e0e0; color: #555;
+  padding: 5px 12px; border-radius: 7px; font-size: 0.82rem;
+  font-weight: 600; cursor: pointer; transition: background 0.15s;
+}
+.btn-refresh:hover { background: #ebebeb; }
+
+/* ─── Tab Pedidos ─── */
+.pedidos-lista { display: flex; flex-direction: column; gap: 0; }
+.pedido-card { border-bottom: 1px solid #f0f0f0; padding: 16px 20px; }
+.pedido-card:last-child { border-bottom: none; }
+
+.pedido-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.pedido-id { display: flex; align-items: center; gap: 10px; }
+.pedido-id strong { font-size: 0.95rem; color: #1a1a1a; }
+.pedido-hora { font-size: 0.75rem; color: #aaa; }
+
+.pedido-status { padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; }
+.status-nuevo         { background: #ffebee; color: #c62828; }
+.status-visto         { background: #fff3e0; color: #e65100; }
+.status-en_preparacion{ background: #e3f2fd; color: #1565c0; }
+.status-listo         { background: #e8f5e9; color: #2e7d32; }
+.status-entregado     { background: #f5f5f5; color: #9e9e9e; }
+.status-cancelado     { background: #fce4ec; color: #880e4f; }
+
+.pedido-body { display: flex; flex-direction: column; gap: 8px; }
+.pedido-cliente { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.85rem; color: #555; }
+.pedido-entrega { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.82rem; }
+.pedido-tag { padding: 2px 8px; border-radius: 5px; font-weight: 600; background: #f0f0f0; color: #555; }
+.tag-envio  { background: #e3f2fd; color: #1565c0; }
+.tag-recoger{ background: #f3e5f5; color: #6a1b9a; }
+.tag-pago   { background: #e8f5e9; color: #2e7d32; }
+.pedido-dir { font-size: 0.8rem; color: #888; }
+.pedido-denominacion { font-size: 0.8rem; color: #888; }
+
+.pedido-items-list { background: #fafafa; border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 5px; }
+.pedido-item-row { display: flex; align-items: baseline; gap: 6px; font-size: 0.85rem; }
+.pedido-item-cant   { font-weight: 700; color: var(--accent); min-width: 24px; }
+.pedido-item-nombre { flex: 1; font-weight: 600; color: #1a1a1a; }
+.pedido-item-obs    { font-size: 0.78rem; color: #999; font-style: italic; }
+.pedido-item-precio { font-weight: 700; color: #555; }
+
+.pedido-totales { display: flex; justify-content: flex-end; gap: 16px; font-size: 0.88rem; color: #888; }
+.pedido-totales strong { color: #1a1a1a; font-size: 0.95rem; }
+
+.pedido-acciones { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.btn-status { padding: 6px 14px; border: none; border-radius: 7px; font-size: 0.82rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
+.btn-status:hover { opacity: 0.82; }
+.btn-visto     { background: #fff3e0; color: #e65100; }
+.btn-prep      { background: #e3f2fd; color: #1565c0; }
+.btn-listo     { background: #e8f5e9; color: #2e7d32; }
+.btn-entregado { background: #c8e6c9; color: #1b5e20; }
+.btn-cancelar  { background: #ffebee; color: #c62828; }
 </style>

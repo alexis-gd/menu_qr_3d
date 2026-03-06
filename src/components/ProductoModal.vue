@@ -58,19 +58,43 @@
           </svg>
           <span>Modelo 3D interactivo · Rota, acerca y aleja · AR en móvil</span>
         </div>
+
+        <!-- Agregar al carrito -->
+        <div v-if="pedidosActivos" class="carrito-section">
+          <textarea
+            :value="observacion"
+            @input="observacion = ucfirst($event.target.value)"
+            class="observacion-input"
+            rows="2"
+            placeholder="Observaciones: sin cebolla, bien cocido, extra salsa... (opcional)"
+          ></textarea>
+          <button class="btn-agregar-carrito" @click="emitirAgregar">
+            + Agregar al carrito
+          </button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import ModelViewer3D from './ModelViewer3D.vue'
+import { ucfirst } from '../utils/ucfirst.js'
 
-defineProps({
-  producto: { type: Object, required: true }
+const props = defineProps({
+  producto: { type: Object, required: true },
+  pedidosActivos: { type: Boolean, default: false }
 })
 
-defineEmits(['close'])
+const emit = defineEmits(['close', 'agregar'])
+
+const observacion = ref('')
+
+const emitirAgregar = () => {
+  emit('agregar', { producto: props.producto, observacion: observacion.value.trim() })
+  observacion.value = ''
+}
 </script>
 
 <style scoped>
@@ -312,5 +336,52 @@ defineEmits(['close'])
   .modal-nombre {
     font-size: 1.7rem;
   }
+}
+
+/* ── Carrito section ── */
+.carrito-section {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid var(--divider, #f0f0f0);
+  padding-top: 16px;
+}
+
+.observacion-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1.5px solid var(--divider, #e0e0e0);
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  background: var(--card-bg, #fafafa);
+  color: var(--text-main, #333);
+  transition: border-color 0.2s;
+}
+
+.observacion-input:focus {
+  border-color: var(--accent, #FF6B35);
+}
+
+.btn-agregar-carrito {
+  width: 100%;
+  padding: 13px;
+  background: var(--accent, #FF6B35);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+}
+
+.btn-agregar-carrito:hover {
+  opacity: 0.88;
+  transform: translateY(-1px);
 }
 </style>

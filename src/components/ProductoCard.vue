@@ -36,9 +36,17 @@
 
       <div class="card-bottom">
         <span class="card-precio">${{ Number(producto.precio).toFixed(2) }}</span>
-        <button class="btn-ver" aria-label="Ver detalles del platillo">
-          {{ producto.tiene_ar ? 'Ver en 3D' : 'Ver más' }}
-        </button>
+        <div class="card-bottom-actions">
+          <button class="btn-ver" aria-label="Ver detalles del platillo">
+            {{ producto.tiene_ar ? 'Ver en 3D' : 'Ver más' }}
+          </button>
+          <button
+            v-if="pedidosActivos"
+            class="btn-agregar"
+            @click.stop="$emit('agregar')"
+            aria-label="Agregar al carrito"
+          >+</button>
+        </div>
       </div>
     </div>
   </div>
@@ -46,10 +54,11 @@
 
 <script setup>
 defineProps({
-  producto: { type: Object, required: true }
+  producto: { type: Object, required: true },
+  pedidosActivos: { type: Boolean, default: false }
 })
 
-defineEmits(['click'])
+defineEmits(['click', 'agregar'])
 
 const truncar = (texto, len) =>
   texto && texto.length > len ? texto.substring(0, len) + '…' : texto
@@ -183,6 +192,35 @@ const truncar = (texto, len) =>
   justify-content: space-between;
   margin-top: 10px;
   gap: 8px;
+}
+
+.card-bottom-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-agregar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent, #FF6B35);
+  color: #fff;
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s, opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.btn-agregar:hover {
+  transform: scale(1.12);
+  opacity: 0.88;
 }
 
 .card-precio {

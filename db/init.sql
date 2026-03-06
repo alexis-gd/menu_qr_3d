@@ -34,9 +34,10 @@ CREATE TABLE IF NOT EXISTS restaurantes (
   logo_url        VARCHAR(500),
   color_primario  VARCHAR(7)    DEFAULT '#FF6B35',
   tema            VARCHAR(20)   NOT NULL DEFAULT 'calido',
-  activo          TINYINT(1)    NOT NULL DEFAULT 1,
-  created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  activo              TINYINT(1)    NOT NULL DEFAULT 1,
+  compartir_mensaje   TEXT,
+  created_at          TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at          TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -123,6 +124,53 @@ CREATE TABLE IF NOT EXISTS sesiones_admin (
   expira_en       DATETIME      NOT NULL,
   created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- COLUMNAS DE PEDIDOS en restaurantes (ejecutar si la tabla ya existe)
+-- ALTER TABLE restaurantes ADD COLUMN pedidos_activos TINYINT(1) NOT NULL DEFAULT 0 AFTER tema;
+-- ALTER TABLE restaurantes ADD COLUMN pedidos_envio_activo TINYINT(1) NOT NULL DEFAULT 1 AFTER pedidos_activos;
+-- ALTER TABLE restaurantes ADD COLUMN pedidos_envio_costo DECIMAL(10,2) NOT NULL DEFAULT 0 AFTER pedidos_envio_activo;
+-- ALTER TABLE restaurantes ADD COLUMN pedidos_whatsapp VARCHAR(20) AFTER pedidos_envio_costo;
+-- ALTER TABLE restaurantes ADD COLUMN pedidos_trans_clabe VARCHAR(18) AFTER pedidos_whatsapp;
+-- ALTER TABLE restaurantes ADD COLUMN pedidos_trans_cuenta VARCHAR(30) AFTER pedidos_trans_clabe;
+-- ALTER TABLE restaurantes ADD COLUMN pedidos_trans_titular VARCHAR(100) AFTER pedidos_trans_cuenta;
+-- ALTER TABLE restaurantes ADD COLUMN pedidos_trans_banco VARCHAR(100) AFTER pedidos_trans_titular;
+-- ALTER TABLE restaurantes ADD COLUMN compartir_mensaje TEXT;
+
+-- ------------------------------------------------------------
+-- TABLA: pedidos
+CREATE TABLE IF NOT EXISTS pedidos (
+  id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  restaurante_id    INT UNSIGNED  NOT NULL,
+  numero_pedido     VARCHAR(20)   NOT NULL,             -- ej: 20260304-0001
+  nombre_cliente    VARCHAR(100)  NOT NULL,
+  telefono          VARCHAR(20),                         -- requerido si tipo_entrega='envio'
+  tipo_entrega      ENUM('recoger','envio') NOT NULL DEFAULT 'recoger',
+  direccion         TEXT,
+  metodo_pago       ENUM('efectivo','transferencia') NOT NULL DEFAULT 'efectivo',
+  denominacion      DECIMAL(10,2),                       -- con cuánto paga (efectivo + envio)
+  mesa              VARCHAR(20),                         -- de la URL ?mesa=N si aplica
+  subtotal          DECIMAL(10,2) NOT NULL DEFAULT 0,
+  costo_envio       DECIMAL(10,2) NOT NULL DEFAULT 0,
+  total             DECIMAL(10,2) NOT NULL DEFAULT 0,
+  status            ENUM('nuevo','visto','en_preparacion','listo','entregado','cancelado') NOT NULL DEFAULT 'nuevo',
+  created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (restaurante_id) REFERENCES restaurantes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- TABLA: pedido_items
+CREATE TABLE IF NOT EXISTS pedido_items (
+  id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  pedido_id         INT UNSIGNED  NOT NULL,
+  producto_id       INT UNSIGNED,                        -- puede ser NULL si el producto se eliminó
+  nombre_producto   VARCHAR(200)  NOT NULL,              -- snapshot del nombre al momento del pedido
+  precio_unitario   DECIMAL(10,2) NOT NULL,
+  cantidad          SMALLINT      NOT NULL DEFAULT 1,
+  observacion       TEXT,                                -- "sin cebolla, bien cocido"
+  subtotal          DECIMAL(10,2) NOT NULL,
+  FOREIGN KEY (pedido_id) REFERENCES pedidos(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET foreign_key_checks = 1;

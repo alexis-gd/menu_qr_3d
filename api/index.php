@@ -17,11 +17,20 @@ switch ($route) {
 
         $stmt = $pdo->prepare(
             'SELECT
+                r.id AS restaurante_id,
                 r.nombre AS restaurante_nombre,
                 r.descripcion AS restaurante_descripcion,
                 r.logo_url,
                 r.color_primario,
                 r.tema,
+                r.pedidos_activos,
+                r.pedidos_envio_activo,
+                r.pedidos_envio_costo,
+                r.pedidos_whatsapp,
+                r.pedidos_trans_clabe,
+                r.pedidos_trans_cuenta,
+                r.pedidos_trans_titular,
+                r.pedidos_trans_banco,
                 c.id AS cat_id,
                 c.nombre AS cat_nombre,
                 c.icono AS cat_icono,
@@ -49,11 +58,20 @@ switch ($route) {
         }
 
         $restauranteData = [
-            'nombre'         => $rows[0]['restaurante_nombre'],
-            'descripcion'    => $rows[0]['restaurante_descripcion'],
-            'logo_url'       => $rows[0]['logo_url'] ? UPLOADS_URL . $rows[0]['logo_url'] : null,
-            'color_primario' => $rows[0]['color_primario'],
-            'tema'           => $rows[0]['tema'] ?? 'calido',
+            'id'                    => (int) $rows[0]['restaurante_id'],
+            'nombre'                => $rows[0]['restaurante_nombre'],
+            'descripcion'           => $rows[0]['restaurante_descripcion'],
+            'logo_url'              => $rows[0]['logo_url'] ? UPLOADS_URL . $rows[0]['logo_url'] : null,
+            'color_primario'        => $rows[0]['color_primario'],
+            'tema'                  => $rows[0]['tema'] ?? 'calido',
+            'pedidos_activos'       => (bool) $rows[0]['pedidos_activos'],
+            'pedidos_envio_activo'  => (bool) $rows[0]['pedidos_envio_activo'],
+            'pedidos_envio_costo'   => (float) $rows[0]['pedidos_envio_costo'],
+            'pedidos_whatsapp'      => $rows[0]['pedidos_whatsapp'],
+            'pedidos_trans_clabe'   => $rows[0]['pedidos_trans_clabe'],
+            'pedidos_trans_cuenta'  => $rows[0]['pedidos_trans_cuenta'],
+            'pedidos_trans_titular' => $rows[0]['pedidos_trans_titular'],
+            'pedidos_trans_banco'   => $rows[0]['pedidos_trans_banco'],
         ];
 
         $categoriasMap = [];
@@ -118,7 +136,7 @@ switch ($route) {
         // GET: lista restaurantes (auth requerida)
         if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             require_auth();
-            $stmt = $pdo->prepare('SELECT id, slug, nombre, descripcion, logo_url, color_primario, tema, qr_frase, qr_frase_activa, qr_wifi_nombre, qr_wifi_clave, qr_wifi_activo FROM restaurantes WHERE activo = 1 ORDER BY nombre');
+            $stmt = $pdo->prepare('SELECT id, slug, nombre, descripcion, logo_url, color_primario, tema, qr_frase, qr_frase_activa, qr_wifi_nombre, qr_wifi_clave, qr_wifi_activo, pedidos_activos, pedidos_envio_activo, pedidos_envio_costo, pedidos_whatsapp, pedidos_trans_clabe, pedidos_trans_cuenta, pedidos_trans_titular, pedidos_trans_banco, compartir_mensaje FROM restaurantes WHERE activo = 1 ORDER BY nombre');
             $stmt->execute();
             $rows = $stmt->fetchAll();
             foreach ($rows as &$r) {
@@ -160,7 +178,7 @@ switch ($route) {
                 json_response(['error' => 'id requerido'], 400);
             }
             $body = json_decode(file_get_contents('php://input'), true) ?: [];
-            $allowed = ['nombre', 'descripcion', 'tema', 'color_primario', 'qr_frase', 'qr_frase_activa', 'qr_wifi_nombre', 'qr_wifi_clave', 'qr_wifi_activo'];
+            $allowed = ['nombre', 'descripcion', 'tema', 'color_primario', 'qr_frase', 'qr_frase_activa', 'qr_wifi_nombre', 'qr_wifi_clave', 'qr_wifi_activo', 'pedidos_activos', 'pedidos_envio_activo', 'pedidos_envio_costo', 'pedidos_whatsapp', 'pedidos_trans_clabe', 'pedidos_trans_cuenta', 'pedidos_trans_titular', 'pedidos_trans_banco', 'compartir_mensaje'];
             $fields = [];
             $params = [':id' => (int)$id];
             foreach ($allowed as $f) {
@@ -501,6 +519,133 @@ switch ($route) {
             ->execute([':path' => $filename, ':pid' => intval($producto_id)]);
 
         json_response(['success' => true, 'modelo_glb_url' => UPLOADS_URL . 'modelos/' . $filename]);
+        break;
+
+    case 'pedidos':
+        // GET: lista pedidos del restaurante (auth)
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            require_auth();
+            $restaurante_id = $_GET['restaurante_id'] ?? null;
+            if (!$restaurante_id) json_response(['error' => 'restaurante_id requerido'], 400);
+
+            $stmt = $pdo->prepare(
+                'SELECT p.id, p.numero_pedido, p.nombre_cliente, p.telefono,
+                        p.tipo_entrega, p.direccion, p.metodo_pago, p.denominacion,
+                        p.mesa, p.subtotal, p.costo_envio, p.total, p.status,
+                        p.created_at
+                 FROM pedidos p
+                 WHERE p.restaurante_id = :rid
+                 ORDER BY p.created_at DESC LIMIT 100'
+            );
+            $stmt->execute([':rid' => (int)$restaurante_id]);
+            $pedidos = $stmt->fetchAll();
+
+            // Cargar items de cada pedido
+            foreach ($pedidos as &$ped) {
+                $stmtItems = $pdo->prepare(
+                    'SELECT id, producto_id, nombre_producto, precio_unitario, cantidad, observacion, subtotal
+                     FROM pedido_items WHERE pedido_id = :pid'
+                );
+                $stmtItems->execute([':pid' => $ped['id']]);
+                $ped['items'] = $stmtItems->fetchAll();
+                $ped['subtotal']   = (float) $ped['subtotal'];
+                $ped['costo_envio'] = (float) $ped['costo_envio'];
+                $ped['total']      = (float) $ped['total'];
+            }
+            unset($ped);
+            json_response(['pedidos' => $pedidos]);
+        }
+
+        // POST: crear pedido (público, sin auth)
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $body = json_decode(file_get_contents('php://input'), true) ?: [];
+
+            $restaurante_id = $body['restaurante_id'] ?? null;
+            $nombre_cliente = trim($body['nombre_cliente'] ?? '');
+            $tipo_entrega   = $body['tipo_entrega'] ?? 'recoger';
+            $metodo_pago    = $body['metodo_pago'] ?? 'efectivo';
+            $items          = $body['items'] ?? [];
+
+            if (!$restaurante_id || !$nombre_cliente || empty($items)) {
+                json_response(['error' => 'restaurante_id, nombre_cliente e items son requeridos'], 400);
+            }
+            if (!in_array($tipo_entrega, ['recoger', 'envio'], true)) {
+                json_response(['error' => 'tipo_entrega inválido'], 400);
+            }
+            if (!in_array($metodo_pago, ['efectivo', 'transferencia'], true)) {
+                json_response(['error' => 'metodo_pago inválido'], 400);
+            }
+
+            // Generar numero_pedido: YYYYMMDD-XXXX (con padding en base al último del día)
+            $hoy = date('Ymd');
+            $stmtNum = $pdo->prepare("SELECT COUNT(*) FROM pedidos WHERE restaurante_id=:rid AND DATE(created_at)=CURDATE()");
+            $stmtNum->execute([':rid' => (int)$restaurante_id]);
+            $countHoy = (int) $stmtNum->fetchColumn();
+            $numero_pedido = $hoy . '-' . str_pad($countHoy + 1, 4, '0', STR_PAD_LEFT);
+
+            $subtotal   = (float) ($body['subtotal'] ?? 0);
+            $costo_envio = (float) ($body['costo_envio'] ?? 0);
+            $total      = (float) ($body['total'] ?? ($subtotal + $costo_envio));
+
+            $stmt = $pdo->prepare(
+                'INSERT INTO pedidos (restaurante_id, numero_pedido, nombre_cliente, telefono, tipo_entrega, direccion, metodo_pago, denominacion, mesa, subtotal, costo_envio, total)
+                 VALUES (:rid, :np, :nc, :tel, :te, :dir, :mp, :den, :mesa, :sub, :env, :tot)'
+            );
+            $stmt->execute([
+                ':rid'  => (int)$restaurante_id,
+                ':np'   => $numero_pedido,
+                ':nc'   => $nombre_cliente,
+                ':tel'  => $body['telefono'] ?? null,
+                ':te'   => $tipo_entrega,
+                ':dir'  => $body['direccion'] ?? null,
+                ':mp'   => $metodo_pago,
+                ':den'  => isset($body['denominacion']) ? (float)$body['denominacion'] : null,
+                ':mesa' => $body['mesa'] ?? null,
+                ':sub'  => $subtotal,
+                ':env'  => $costo_envio,
+                ':tot'  => $total,
+            ]);
+            $pedido_id = $pdo->lastInsertId();
+
+            // Insertar items
+            $stmtItem = $pdo->prepare(
+                'INSERT INTO pedido_items (pedido_id, producto_id, nombre_producto, precio_unitario, cantidad, observacion, subtotal)
+                 VALUES (:pid, :prod_id, :nombre, :precio, :cant, :obs, :sub)'
+            );
+            foreach ($items as $item) {
+                $cant = max(1, (int)($item['cantidad'] ?? 1));
+                $precio = (float)($item['precio'] ?? 0);
+                $stmtItem->execute([
+                    ':pid'    => $pedido_id,
+                    ':prod_id'=> $item['producto_id'] ?? null,
+                    ':nombre' => $item['nombre'] ?? '',
+                    ':precio' => $precio,
+                    ':cant'   => $cant,
+                    ':obs'    => $item['observacion'] ?? null,
+                    ':sub'    => $precio * $cant,
+                ]);
+            }
+
+            json_response(['id' => (int)$pedido_id, 'numero_pedido' => $numero_pedido], 201);
+        }
+
+        // PUT: actualizar status del pedido (auth)
+        if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
+            require_auth();
+            $id = $_GET['id'] ?? null;
+            if (!$id) json_response(['error' => 'id requerido'], 400);
+            $body = json_decode(file_get_contents('php://input'), true) ?: [];
+            $status = $body['status'] ?? null;
+            $validStatuses = ['nuevo','visto','en_preparacion','listo','entregado','cancelado'];
+            if (!$status || !in_array($status, $validStatuses, true)) {
+                json_response(['error' => 'status inválido'], 400);
+            }
+            $pdo->prepare('UPDATE pedidos SET status = :s WHERE id = :id')
+                ->execute([':s' => $status, ':id' => (int)$id]);
+            json_response(['success' => true]);
+        }
+
+        json_response(['error' => 'Método no soportado'], 405);
         break;
 
     default:
