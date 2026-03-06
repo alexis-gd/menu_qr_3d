@@ -1,5 +1,5 @@
 <template>
-  <div class="admin-panel" :style="{ '--accent': temaActualData.accent }">
+  <div class="admin-panel" :class="{ 'tema-oscuro-admin': formRest.tema === 'oscuro' }" :style="{ '--accent': temaActualData.accent }">
     <!-- ═══ Header ═══ -->
     <header class="panel-header">
       <div class="header-left">
@@ -361,7 +361,7 @@
               <div class="qr-card-preview-col">
                 <p class="qr-preview-label">Vista previa</p>
                 <div class="qr-card-dm" ref="qrCardDmEl">
-                  <div class="qr-card-dm-hdr" :style="{ background: temaActualData.accent }">
+                  <div class="qr-card-dm-hdr" :style="{ background: temaActualData.headerBg }">
                     <div class="qr-hdr-inner">
                       <img v-if="restaurante?.logo_url" :src="restaurante.logo_url" class="qr-hdr-logo" alt="logo" />
                       <span v-else class="qr-hdr-emoji">🍽️</span>
@@ -388,7 +388,7 @@
                       </div>
                     </div>
                   </div>
-                  <div class="qr-card-dm-bar" :style="{ background: temaActualData.accent }"></div>
+                  <div class="qr-card-dm-bar" :style="{ background: temaActualData.headerBg }"></div>
                 </div>
               </div>
 
@@ -401,7 +401,7 @@
                     <span class="qr-ctrl-label">Frase motivacional</span>
                     <label class="sw">
                       <input type="checkbox" v-model="formRest.qr_frase_activa" />
-                      <span class="sw-track" :style="formRest.qr_frase_activa ? { background: temaActualData.accent } : {}"></span>
+                      <span class="sw-track" :style="formRest.qr_frase_activa ? { background: formRest.tema === 'oscuro' ? '#2a2a6a' : temaActualData.accent } : {}"></span>
                     </label>
                   </div>
                   <input v-if="formRest.qr_frase_activa" :value="formRest.qr_frase" @input="formRest.qr_frase = ucfirst($event.target.value)" class="qr-ctrl-input" maxlength="60" placeholder="Ej: Delicioso desde el primer vistazo" />
@@ -412,7 +412,7 @@
                     <span class="qr-ctrl-label">Info WiFi</span>
                     <label class="sw">
                       <input type="checkbox" v-model="formRest.qr_wifi_activo" />
-                      <span class="sw-track" :style="formRest.qr_wifi_activo ? { background: temaActualData.accent } : {}"></span>
+                      <span class="sw-track" :style="formRest.qr_wifi_activo ? { background: formRest.tema === 'oscuro' ? '#2a2a6a' : temaActualData.accent } : {}"></span>
                     </label>
                   </div>
                   <template v-if="formRest.qr_wifi_activo">
@@ -429,7 +429,7 @@
                       <button :class="['qr-q-btn', { active: escalaDescarga === 3 }]" @click="escalaDescarga = 3">Alta</button>
                     </div>
                   </div>
-                  <button @click="descargarCard" class="btn-dl-card" :style="{ background: temaActualData.accent }" :disabled="!qrDataUrl">
+                  <button @click="descargarCard" class="btn-dl-card" :style="formRest.tema === 'oscuro' ? { background: '#1e1e48', color: '#f0c040', border: '1.5px solid #f0c040' } : { background: formRest.tema === 'oscuro' ? '#2a2a6a' : temaActualData.accent }" :disabled="!qrDataUrl">
                     ⬇ Descargar tarjeta (PNG)
                   </button>
                   <a v-if="qrDataUrl" :href="qrDataUrl" :download="`qr-menu-${restaurante?.slug || 'menu'}.png`" class="btn-dl-solo">
@@ -465,7 +465,7 @@
               rows="2"
               placeholder="¡Hola! Te comparto el menú digital de"
             ></textarea>
-            <p class="compartir-hint">Se adjuntará: <strong>{{ restaurante?.nombre }}</strong>: {{ menuUrl }}</p>
+            <p class="compartir-hint">Se adjuntará: <strong>{{ restaurante?.nombre }}</strong> · {{ menuUrl }}</p>
             <div class="compartir-actions">
               <a :href="'https://wa.me/?text=' + encodeURIComponent(textoCompartir)"
                  target="_blank" rel="noopener" class="btn-wa">
@@ -489,7 +489,7 @@
               </div>
               <label class="sw">
                 <input type="checkbox" v-model="formRest.pedidos_activos" />
-                <span class="sw-track" :style="formRest.pedidos_activos ? { background: temaActualData.accent } : {}"></span>
+                <span class="sw-track" :style="formRest.pedidos_activos ? { background: formRest.tema === 'oscuro' ? '#2a2a6a' : temaActualData.accent } : {}"></span>
               </label>
             </div>
             <template v-if="formRest.pedidos_activos">
@@ -503,7 +503,7 @@
                 <strong>Ofrecer envío a domicilio</strong>
                 <label class="sw">
                   <input type="checkbox" v-model="formRest.pedidos_envio_activo" />
-                  <span class="sw-track" :style="formRest.pedidos_envio_activo ? { background: temaActualData.accent } : {}"></span>
+                  <span class="sw-track" :style="formRest.pedidos_envio_activo ? { background: formRest.tema === 'oscuro' ? '#2a2a6a' : temaActualData.accent } : {}"></span>
                 </label>
               </div>
               <div v-if="formRest.pedidos_envio_activo" class="field" style="max-width:200px; margin-top:10px">
@@ -517,23 +517,38 @@
         <!-- Datos de transferencia -->
         <div v-if="formRest.pedidos_activos" class="card">
           <div class="card-header"><h2>Datos para transferencia</h2></div>
-          <div class="card-body form-grid">
-            <div class="field">
-              <label>Banco / Alias</label>
-              <input v-model="formRest.pedidos_trans_banco" placeholder="Ej: BBVA, SPIN, CoDi..." />
+          <div class="card-body">
+            <div class="negocio-toggle-row">
+              <div>
+                <strong>Aceptar transferencia bancaria</strong>
+                <p class="helper-text" style="margin:4px 0 0">Los clientes verán la opción de pagar por transferencia en el checkout.</p>
+              </div>
+              <label class="sw">
+                <input type="checkbox" v-model="formRest.pedidos_trans_activo" />
+                <span class="sw-track" :style="formRest.pedidos_trans_activo ? { background: formRest.tema === 'oscuro' ? '#2a2a6a' : temaActualData.accent } : {}"></span>
+              </label>
             </div>
-            <div class="field">
-              <label>Titular de la cuenta</label>
-              <input v-model="formRest.pedidos_trans_titular" placeholder="Nombre completo" />
-            </div>
-            <div class="field">
-              <label>CLABE interbancaria</label>
-              <input v-model="formRest.pedidos_trans_clabe" placeholder="18 dígitos" maxlength="18" />
-            </div>
-            <div class="field">
-              <label>Número de cuenta</label>
-              <input v-model="formRest.pedidos_trans_cuenta" placeholder="Número de cuenta" />
-            </div>
+            <template v-if="formRest.pedidos_trans_activo">
+              <hr class="negocio-divider" />
+              <div class="form-grid">
+                <div class="field">
+                  <label>Banco / Alias</label>
+                  <input v-model="formRest.pedidos_trans_banco" placeholder="Ej: BBVA, SPIN, CoDi..." />
+                </div>
+                <div class="field">
+                  <label>Titular de la cuenta</label>
+                  <input v-model="formRest.pedidos_trans_titular" placeholder="Nombre completo" />
+                </div>
+                <div class="field">
+                  <label>CLABE interbancaria</label>
+                  <input v-model="formRest.pedidos_trans_clabe" placeholder="18 dígitos" maxlength="18" />
+                </div>
+                <div class="field">
+                  <label>Número de cuenta</label>
+                  <input v-model="formRest.pedidos_trans_cuenta" placeholder="Número de cuenta" />
+                </div>
+              </div>
+            </template>
           </div>
         </div>
 
@@ -652,11 +667,11 @@ const preview = ref(null)
 const pickerAbierto = ref(null)
 
 const emojiGrupos = [
-  { nombre: 'Platos', emojis: ['🍕','🍔','🌮','🌯','🥗','🍖','🥩','🍗','🍱','🍜','🍝','🍲','🫕','🥘','🌭','🫔','🥙','🍛'] },
+  { nombre: 'Platos', emojis: ['🍕','🍔','🌮','🌯','🥗','🍖','🥩','🍗','🍱','🍜','🍝','🍲','🥘','🌭','🥙','🍛'] },
   { nombre: 'Mariscos', emojis: ['🍣','🦐','🦞','🦀','🐟','🍤','🦑','🍙','🦪','🐠'] },
-  { nombre: 'Bebidas', emojis: ['🥤','☕','🧃','🧋','🍵','🍺','🍷','🍹','🥛','🍸','🧉','🫖'] },
+  { nombre: 'Bebidas', emojis: ['🥤','☕','🧃','🍵','🍺','🍷','🍹','🥛','🍸','🧉'] },
   { nombre: 'Postres', emojis: ['🍰','🎂','🍮','🍦','🧁','🍩','🍪','🍫','🍬','🍭','🥧','🍡'] },
-  { nombre: 'Extras', emojis: ['⭐','🔥','💎','🌿','🥇','❤️','🌶️','🥑','✨','🆕','🎯','🫙'] },
+  { nombre: 'Extras', emojis: ['⭐','🔥','💎','🌿','🥇','❤️','🌶️','🥑','✨','🆕','🎯'] },
 ]
 
 const togglePicker = (id) => {
@@ -704,8 +719,9 @@ const temaActualData = computed(() => {
 
 const menuUrl = computed(() => {
   if (!restaurante.value?.slug) return ''
+  const origin = import.meta.env.VITE_PUBLIC_ORIGIN || window.location.origin
   const base = import.meta.env.BASE_URL
-  return `${window.location.origin}${base}?r=${restaurante.value.slug}`
+  return `${origin}${base}?r=${restaurante.value.slug}`
 })
 
 // Tabs
@@ -729,10 +745,10 @@ const temas = [
 // Formularios
 const formProd = ref({ categoria_id: '', nombre: '', precio: '', descripcion: '' })
 const formCat  = ref({ nombre: '', icono: '' })
-const formRest = ref({ nombre: '', descripcion: '', tema: 'calido', qr_frase: 'Delicioso desde el primer vistazo', qr_frase_activa: true, qr_wifi_nombre: '', qr_wifi_clave: '', qr_wifi_activo: false, pedidos_activos: false, pedidos_envio_activo: true, pedidos_envio_costo: 0, pedidos_whatsapp: '', pedidos_trans_clabe: '', pedidos_trans_cuenta: '', pedidos_trans_titular: '', pedidos_trans_banco: '', compartir_mensaje: '' })
+const formRest = ref({ nombre: '', descripcion: '', tema: 'calido', qr_frase: 'Delicioso desde el primer vistazo', qr_frase_activa: true, qr_wifi_nombre: '', qr_wifi_clave: '', qr_wifi_activo: false, pedidos_activos: false, pedidos_envio_activo: true, pedidos_envio_costo: 0, pedidos_whatsapp: '', pedidos_trans_activo: false, pedidos_trans_clabe: '', pedidos_trans_cuenta: '', pedidos_trans_titular: '', pedidos_trans_banco: '', compartir_mensaje: '' })
 
 const textoCompartir = computed(() =>
-  `${formRest.value.compartir_mensaje}\n${restaurante.value?.nombre || ''}: ${menuUrl.value}`
+  `${formRest.value.compartir_mensaje}\n${restaurante.value?.nombre || ''}\n${menuUrl.value}`
 )
 
 // ── Pedidos ──
@@ -956,6 +972,7 @@ onMounted(async () => {
       pedidos_envio_activo: Boolean(rest.pedidos_envio_activo ?? true),
       pedidos_envio_costo: parseFloat(rest.pedidos_envio_costo) || 0,
       pedidos_whatsapp: rest.pedidos_whatsapp || '',
+      pedidos_trans_activo: Boolean(rest.pedidos_trans_activo ?? false),
       pedidos_trans_clabe: rest.pedidos_trans_clabe || '',
       pedidos_trans_cuenta: rest.pedidos_trans_cuenta || '',
       pedidos_trans_titular: rest.pedidos_trans_titular || '',
@@ -1217,6 +1234,23 @@ async function guardarRestaurante() {
 }
 .btn-primary:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Tema oscuro: botones con fondo navy + borde/texto dorado */
+.tema-oscuro-admin .btn-primary {
+  background: #1e1e48;
+  color: #f0c040;
+  border: 1.5px solid #f0c040;
+}
+.tema-oscuro-admin .btn-primary:hover:not(:disabled) {
+  background: rgba(240,192,64,0.15);
+  opacity: 1;
+}
+.tema-oscuro-admin .tab-btn.active {
+  background: #1e1e48;
+  color: #f0c040;
+  border-color: #f0c040;
+  box-shadow: 0 2px 8px rgba(240,192,64,0.2);
+}
 
 .btn-icon {
   width: 34px; height: 34px; display: flex; align-items: center;
@@ -1503,7 +1537,7 @@ label.btn-icon { cursor: pointer; }
   border-radius: 14px;
   box-shadow: 0 10px 36px rgba(0,0,0,0.16);
   padding: 14px;
-  width: 284px;
+  width: 305px;
   max-height: 360px;
   overflow-y: auto;
   scrollbar-width: thin;

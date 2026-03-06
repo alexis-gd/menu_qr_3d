@@ -51,12 +51,22 @@ CREATE TABLE IF NOT EXISTS restaurantes (
   descripcion     TEXT,
   logo_url        VARCHAR(500),                   -- ruta relativa en /uploads/logos/, ej: logos/logo_1_1234.jpg
   color_primario  VARCHAR(7)    DEFAULT '#FF6B35', -- color hex para UI del menú
-  tema            VARCHAR(50)   DEFAULT 'calido',  -- tema visual: calido|fresco|elegante|rapida|rosa
+  tema            VARCHAR(50)   DEFAULT 'calido',  -- tema visual: calido|oscuro|moderno|rapida|rosa
   qr_frase        VARCHAR(255)  DEFAULT 'Delicioso desde el primer vistazo', -- frase bajo el QR
   qr_frase_activa TINYINT(1)    NOT NULL DEFAULT 1,  -- mostrar/ocultar la frase
   qr_wifi_nombre  VARCHAR(100),                   -- nombre de red WiFi del restaurante
   qr_wifi_clave   VARCHAR(100),                   -- contraseña WiFi
   qr_wifi_activo  TINYINT(1)    NOT NULL DEFAULT 0, -- mostrar sección WiFi en la card QR
+  pedidos_activos        TINYINT(1)    NOT NULL DEFAULT 0, -- toggle sistema de pedidos
+  pedidos_envio_activo   TINYINT(1)    NOT NULL DEFAULT 0, -- opción de entrega a domicilio
+  pedidos_envio_costo    DECIMAL(10,2) DEFAULT 0.00,       -- costo de envío
+  pedidos_whatsapp       VARCHAR(20),                      -- número WA sin + ni espacios
+  pedidos_trans_activo   TINYINT(1)    NOT NULL DEFAULT 0, -- toggle para mostrar opción de transferencia
+  pedidos_trans_clabe    VARCHAR(18),                      -- CLABE para transferencia
+  pedidos_trans_cuenta   VARCHAR(20),
+  pedidos_trans_titular  VARCHAR(100),
+  pedidos_trans_banco    VARCHAR(100),
+  compartir_mensaje      TEXT,                             -- texto personalizable del botón "Compartir"
   activo          TINYINT(1)    NOT NULL DEFAULT 1,
   created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -70,6 +80,17 @@ CREATE TABLE IF NOT EXISTS restaurantes (
 -- ALTER TABLE restaurantes ADD COLUMN qr_wifi_nombre VARCHAR(100) AFTER qr_frase_activa;
 -- ALTER TABLE restaurantes ADD COLUMN qr_wifi_clave VARCHAR(100) AFTER qr_wifi_nombre;
 -- ALTER TABLE restaurantes ADD COLUMN qr_wifi_activo TINYINT(1) NOT NULL DEFAULT 0 AFTER qr_wifi_clave;
+-- Fase 6 — Sistema de Pedidos:
+-- ALTER TABLE restaurantes ADD COLUMN pedidos_activos TINYINT(1) NOT NULL DEFAULT 0 AFTER qr_wifi_activo;
+-- ALTER TABLE restaurantes ADD COLUMN pedidos_envio_activo TINYINT(1) NOT NULL DEFAULT 0 AFTER pedidos_activos;
+-- ALTER TABLE restaurantes ADD COLUMN pedidos_envio_costo DECIMAL(10,2) DEFAULT 0.00 AFTER pedidos_envio_activo;
+-- ALTER TABLE restaurantes ADD COLUMN pedidos_whatsapp VARCHAR(20) AFTER pedidos_envio_costo;
+-- ALTER TABLE restaurantes ADD COLUMN pedidos_trans_clabe VARCHAR(18) AFTER pedidos_whatsapp;
+-- ALTER TABLE restaurantes ADD COLUMN pedidos_trans_cuenta VARCHAR(20) AFTER pedidos_trans_clabe;
+-- ALTER TABLE restaurantes ADD COLUMN pedidos_trans_titular VARCHAR(100) AFTER pedidos_trans_cuenta;
+-- ALTER TABLE restaurantes ADD COLUMN pedidos_trans_banco VARCHAR(100) AFTER pedidos_trans_titular;
+-- ALTER TABLE restaurantes ADD COLUMN pedidos_trans_activo TINYINT(1) NOT NULL DEFAULT 0 AFTER pedidos_trans_banco;
+-- ALTER TABLE restaurantes ADD COLUMN compartir_mensaje TEXT AFTER pedidos_trans_activo;
 
 -- ------------------------------------------------------------
 -- TABLA: mesas
@@ -171,6 +192,46 @@ CREATE TABLE IF NOT EXISTS sesiones_admin (
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ------------------------------------------------------------
+-- TABLA: pedidos
+-- Pedidos realizados por clientes (Fase 6).
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS pedidos (
+  id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  restaurante_id  INT UNSIGNED  NOT NULL,
+  numero_pedido   VARCHAR(20)   NOT NULL,           -- formato YYYYMMDD-XXXX (ej: 20260305-0001)
+  nombre_cliente  VARCHAR(100)  NOT NULL,
+  telefono        VARCHAR(20),
+  tipo_entrega    ENUM('recoger','envio') NOT NULL DEFAULT 'recoger',
+  direccion       VARCHAR(200),
+  metodo_pago     ENUM('efectivo','transferencia') NOT NULL DEFAULT 'efectivo',
+  denominacion    DECIMAL(10,2),                    -- con cuánto paga (solo efectivo)
+  mesa            VARCHAR(20),
+  subtotal        DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  costo_envio     DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  total           DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  status          ENUM('nuevo','confirmado','en_preparacion','listo','entregado','cancelado') NOT NULL DEFAULT 'nuevo',
+  created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (restaurante_id) REFERENCES restaurantes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- TABLA: pedido_items
+-- Líneas de cada pedido. nombre_producto es un snapshot al
+-- momento del pedido (el producto puede editarse después).
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS pedido_items (
+  id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  pedido_id       INT UNSIGNED  NOT NULL,
+  producto_id     INT UNSIGNED,                     -- nullable: producto puede borrarse después
+  nombre_producto VARCHAR(200)  NOT NULL,           -- snapshot del nombre al momento del pedido
+  precio_unitario DECIMAL(10,2) NOT NULL,
+  cantidad        SMALLINT      NOT NULL DEFAULT 1,
+  observacion     VARCHAR(100),
+  subtotal        DECIMAL(10,2) NOT NULL,
+  FOREIGN KEY (pedido_id) REFERENCES pedidos(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET foreign_key_checks = 1;
 ```
 
@@ -189,6 +250,10 @@ usuarios
 
 usuarios
   └──< sesiones_admin (usuario_id)
+
+restaurantes
+  └──< pedidos (restaurante_id)
+         └──< pedido_items (pedido_id)
 ```
 
 ---

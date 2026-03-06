@@ -27,11 +27,11 @@
 - [x] Protección de rutas admin con beforeEach guard
 - [x] CORS habilitado en `/uploads/` vía `.htaccess` (necesario para model-viewer en dev)
 - [x] **Panel Apariencia** en Dashboard: tema de color, frase QR, WiFi en QR, logo del restaurante
-- [x] **5 temas visuales** para el menú público: `calido`, `fresco`, `elegante`, `rapida`, `rosa` — cada uno con sus CSS variables en MenuPublico.vue
+- [x] **5 temas visuales** para el menú público: `calido`, `oscuro`, `moderno`, `rapida`, `rosa` — cada uno con sus CSS variables en MenuPublico.vue
 - [x] **QR Card descargable** — diseño rico con gradiente vertical del tema, logo circular del restaurante (fallback emoji), sección WiFi (caja estilizada con nombre/clave de red), frase personalizada
 - [x] **Logo del restaurante** — upload desde admin (JPG/PNG/WebP, max 2 MB), guardado en `uploads/logos/`, URL absoluta en DB, visible en: card QR, navbar del admin, menú público (vía campo `logo_url` en API)
 - [x] **Favicon dinámico** — watch en Dashboard.vue actualiza `<link rel="icon">` con el logo del restaurante al cargar
-- [x] **Sistema de Pedidos** — toggle por restaurante (`pedidos_activos`). Carrito sin sesión en Vue `ref([])`. Checkout: tipo entrega (recoger/envío con costo configurable), datos cliente, pago (efectivo con denominación / transferencia con botones copiar por campo), observaciones por platillo. Al confirmar: POST a `/api/?route=pedidos` → abre WhatsApp con resumen pre-llenado. Admin: tab Negocio (config + compartir menú con mensaje personalizado guardado en DB) + tab Pedidos (lista con status + auto-refresh 30s). Nuevas tablas: `pedidos`, `pedido_items`. Nuevas columnas en `restaurantes`: `pedidos_activos`, `pedidos_envio_activo`, `pedidos_envio_costo`, `pedidos_whatsapp`, `pedidos_trans_clabe/cuenta/titular/banco`, `compartir_mensaje`.
+- [x] **Sistema de Pedidos** — toggle por restaurante (`pedidos_activos`). Carrito sin sesión en Vue `ref([])`. Checkout: tipo entrega (recoger/envío con costo configurable), datos cliente, pago (efectivo con denominación / transferencia con botones copiar por campo — solo visible si `pedidos_trans_activo = 1`), observaciones por platillo. Al confirmar: POST a `/api/?route=pedidos` → abre WhatsApp con resumen pre-llenado. Admin: tab Negocio (config + compartir menú con mensaje personalizado guardado en DB) + tab Pedidos (lista con status + auto-refresh 30s). Nuevas tablas: `pedidos`, `pedido_items`. Nuevas columnas en `restaurantes`: `pedidos_activos`, `pedidos_envio_activo`, `pedidos_envio_costo`, `pedidos_whatsapp`, `pedidos_trans_activo`, `pedidos_trans_clabe/cuenta/titular/banco`, `compartir_mensaje`.
 - [x] **Utilería ucfirst** — `src/utils/ucfirst.js`. Primera letra mayúscula al tipear. Patrón: `:value + @input` con `ucfirst($event.target.value)`. Usada en Dashboard (CRUD), CheckoutModal (nombre, dirección, observación) y ProductoModal (observación).
 
 ### Decisión: Flujo 3D sin Meshy API
@@ -139,15 +139,9 @@ Los modelos 3D se generan automáticamente desde fotos tomadas por el dueño del
 │   └── .htaccess
 │
 ├── api/                           ← Backend PHP nativo
-│   ├── index.php                  ← Router principal
-│   ├── config.php                 ← Constantes, conexión DB, helpers
-│   ├── helpers.php                ← Funciones reutilizables
-│   └── routes/
-│       ├── menu.php               ← GET menú público
-│       ├── productos.php          ← CRUD productos (admin)
-│       ├── upload.php             ← Subida fotos + disparo a Meshy
-│       ├── restaurantes.php       ← CRUD restaurantes (admin)
-│       └── auth.php               ← Login admin
+│   ├── index.php                  ← Router + TODOS los endpoints en un solo archivo
+│   ├── config.php                 ← Constantes, conexión DB, config multi-entorno
+│   └── helpers.php                ← Funciones reutilizables
 │
 ├── uploads/                       ← Archivos públicos
 │   ├── fotos/                     ← Fotos originales por producto_id
@@ -198,6 +192,18 @@ export default defineConfig({
 - Imágenes de UI estáticas → carpeta `public/imgs/` → referenciar como `/menu/imgs/foto.png`
 - Imágenes de productos → vienen de la API como URLs absolutas `https://dominio.com/uploads/...`
 - NUNCA importar imágenes de productos como módulos ES dentro de componentes
+
+**Variables de entorno Vite:**
+```
+.env.local           ← gitignored (desarrollo local)
+.env.production      ← sí al repo (sin credenciales)
+VITE_PUBLIC_ORIGIN=https://nodosmx.com
+```
+Patrón de uso en Vue para URLs públicas (QR, compartir menú):
+```js
+const origin = import.meta.env.VITE_PUBLIC_ORIGIN || window.location.origin
+```
+> ⚠️ `window.location.origin` devuelve `localhost:5173` en dev → SIEMPRE usar la env var para URLs que se compartirán externamente (WhatsApp, QR, etc.).
 
 **.htaccess para Vue Router (modo history):**
 ```apache
@@ -265,6 +271,9 @@ Todos bajo `/api/index.php` con parámetro `?route=`:
 | POST | `/api/?route=upload-glb` | Subir .glb validado, `tiene_ar=1` | Sí |
 | POST | `/api/?route=upload-logo` | Subir logo del restaurante (JPG/PNG/WebP, max 2MB) | Sí |
 | GET | `/api/?route=job-status&producto_id={id}` | Estado conversión 3D (Meshy) | Sí |
+| GET | `/api/?route=pedidos&restaurante_id={id}` | Lista pedidos con items nested | Sí |
+| POST | `/api/?route=pedidos` | Crear pedido + items | No |
+| PUT | `/api/?route=pedidos&id={id}` | Actualizar status del pedido | Sí |
 
 ---
 

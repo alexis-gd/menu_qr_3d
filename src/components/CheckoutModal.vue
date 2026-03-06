@@ -27,6 +27,7 @@
                   @input="item.observacion = ucfirst($event.target.value)"
                   class="item-obs-input"
                   placeholder="Observación (opcional)"
+                  maxlength="100"
                 />
               </div>
               <span class="item-subtotal">${{ (item.producto.precio * item.cantidad).toFixed(2) }}</span>
@@ -62,16 +63,16 @@
           <div class="campos">
             <div class="campo">
               <label>Nombre *</label>
-              <input :value="nombre" @input="nombre = ucfirst($event.target.value)" placeholder="¿Cómo te llamamos?" />
+              <input :value="nombre" @input="nombre = ucfirst($event.target.value)" placeholder="¿Cómo te llamamos?" maxlength="60" />
             </div>
             <template v-if="tipoEntrega === 'envio'">
               <div class="campo">
                 <label>Teléfono *</label>
-                <input v-model="telefono" type="tel" placeholder="Para coordinar la entrega" />
+                <input v-model="telefono" type="tel" placeholder="Para coordinar la entrega" maxlength="10" />
               </div>
               <div class="campo">
                 <label>Dirección de entrega *</label>
-                <textarea :value="direccion" @input="direccion = ucfirst($event.target.value)" rows="2" placeholder="Calle, número, colonia, referencias..."></textarea>
+                <textarea :value="direccion" @input="direccion = ucfirst($event.target.value)" rows="2" placeholder="Calle, número, colonia, referencias..." maxlength="150"></textarea>
               </div>
             </template>
           </div>
@@ -86,7 +87,10 @@
               <span class="opcion-icon">💵</span>
               <span class="opcion-label">Efectivo</span>
             </label>
-            <label :class="['opcion-card', { selected: metodoPago === 'transferencia' }]">
+            <label
+              v-if="pedidosConfig.pedidos_trans_activo"
+              :class="['opcion-card', { selected: metodoPago === 'transferencia' }]"
+            >
               <input type="radio" v-model="metodoPago" value="transferencia" />
               <span class="opcion-icon">🏦</span>
               <span class="opcion-label">Transferencia</span>
@@ -96,7 +100,10 @@
           <!-- Denominación (efectivo + envío) -->
           <div v-if="metodoPago === 'efectivo' && tipoEntrega === 'envio'" class="campo" style="margin-top:12px; max-width:220px">
             <label>¿Con cuánto pagarás?</label>
-            <input v-model="denominacion" type="number" min="0" step="10" placeholder="Ej: 200" />
+            <input v-model="denominacion" type="number" min="0" max="99999" step="10" placeholder="Ej: 200" />
+            <p v-if="faltante > 0" class="warn-denominacion">
+              ⚠️ Faltan ${{ faltante.toFixed(2) }} para cubrir el total
+            </p>
           </div>
 
           <!-- Datos de transferencia -->
@@ -167,7 +174,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useApi } from '../composables/useApi.js'
 import { ucfirst } from '../utils/ucfirst.js'
 
@@ -183,6 +190,11 @@ const { post } = useApi()
 
 // Copia local del carrito para poder editar cantidades y observaciones
 const carritoLocal = ref(props.carrito.map(i => ({ ...i, observacion: i.observacion || '' })))
+
+// Sincronizar cuando el padre agrega/quita items (necesario con v-show que no remonta el componente)
+watch(() => props.carrito, (newCarrito) => {
+  carritoLocal.value = newCarrito.map(i => ({ ...i, observacion: i.observacion || '' }))
+}, { deep: true })
 
 const tipoEntrega  = ref('recoger')
 const metodoPago   = ref('efectivo')
@@ -213,6 +225,12 @@ const total = computed(() => subtotal.value + costoEnvio.value)
 const tieneDatosTransferencia = computed(() =>
   !!(props.pedidosConfig.pedidos_trans_clabe || props.pedidosConfig.pedidos_trans_banco)
 )
+
+const faltante = computed(() => {
+  const den = parseFloat(denominacion.value)
+  if (!den || den <= 0) return 0
+  return Math.max(0, total.value - den)
+})
 
 const reducir = (idx) => {
   if (carritoLocal.value[idx].cantidad > 1) {
@@ -265,26 +283,26 @@ const confirmar = async () => {
 
     // Construir mensaje de WhatsApp
     const lineas = [
-      `¡Hola! Nuevo pedido 🛒`,
-      `#${res.numero_pedido}`,
+      `*-- NUEVO PEDIDO --*`,
+      `*#${res.numero_pedido}*`,
       ``,
-      `Pedido:`,
+      `*Pedido:*`,
       ...carritoLocal.value.map(i => {
-        const obs = i.observacion ? ` (${i.observacion})` : ''
-        return `- ${i.cantidad}× ${i.producto.nombre}${obs}  $${(i.producto.precio * i.cantidad).toFixed(2)}`
+        const obs = i.observacion ? ` _(${i.observacion})_` : ''
+        return `  ${i.cantidad}x ${i.producto.nombre}${obs} — $${(i.producto.precio * i.cantidad).toFixed(2)}`
       }),
       ``,
       `Subtotal: $${subtotal.value.toFixed(2)}`,
-      ...(costoEnvio.value > 0 ? [`Envío: $${costoEnvio.value.toFixed(2)}`] : []),
-      `Total: $${total.value.toFixed(2)}`,
+      ...(costoEnvio.value > 0 ? [`Envio: $${costoEnvio.value.toFixed(2)}`] : []),
+      `*Total: $${total.value.toFixed(2)}*`,
       ``,
-      `Entrega: ${tipoEntrega.value === 'envio' ? 'A domicilio' : 'Recoger en local'}`,
-      ...(tipoEntrega.value === 'envio' && direccion.value ? [`Dirección: ${direccion.value.trim()}`] : []),
-      ...(telefono.value ? [`Tel: ${telefono.value.trim()}`] : []),
-      `Pago: ${metodoPago.value === 'transferencia' ? 'Transferencia' : 'Efectivo'}`,
+      `*Entrega:* ${tipoEntrega.value === 'envio' ? 'A domicilio' : 'Recoger en local'}`,
+      ...(tipoEntrega.value === 'envio' && direccion.value ? [`*Direccion:* ${direccion.value.trim()}`] : []),
+      ...(telefono.value ? [`*Tel:* ${telefono.value.trim()}`] : []),
+      `*Pago:* ${metodoPago.value === 'transferencia' ? 'Transferencia' : 'Efectivo'}`,
       ...(metodoPago.value === 'efectivo' && denominacion.value ? [`Con: $${parseFloat(denominacion.value).toFixed(0)}`] : []),
-      `Nombre: ${nombre.value.trim()}`,
-      ...(props.mesa ? [`Mesa: ${props.mesa}`] : []),
+      `*Nombre:* ${nombre.value.trim()}`,
+      ...(props.mesa ? [`*Mesa:* ${props.mesa}`] : []),
     ]
 
     const waPhone = props.pedidosConfig.pedidos_whatsapp?.replace(/\D/g, '') || ''
@@ -506,6 +524,8 @@ const confirmar = async () => {
 .total-final { font-size: 1.05rem; color: #1a1a1a; border-top: 1px solid #e0e0e0; padding-top: 8px; margin-top: 4px; }
 
 /* ── Confirmar ── */
+.warn-denominacion { font-size: 0.8rem; color: #b45309; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 5px 8px; margin: 4px 0 0; }
+
 .error-msg { font-size: 0.85rem; color: #c62828; text-align: center; margin: 0; }
 
 .btn-confirmar {
