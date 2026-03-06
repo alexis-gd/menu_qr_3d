@@ -474,6 +474,9 @@
               <button @click="copiarUrl" class="btn-copy-link">
                 {{ copiado ? '✓ Copiado' : '🔗 Copiar' }}
               </button>
+              <a :href="menuUrl" target="_blank" rel="noopener" class="btn-ver-menu">
+                👁 Ver menú
+              </a>
             </div>
           </div>
         </div>
@@ -1640,6 +1643,14 @@ label.btn-icon { cursor: pointer; }
   cursor: pointer; transition: background 0.2s;
 }
 .btn-copy-link:hover { background: #e0e0e0; }
+.btn-ver-menu {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #fff; color: #444; text-decoration: none;
+  border: 1.5px solid #ddd;
+  padding: 10px 18px; border-radius: 9px; font-size: 0.9rem; font-weight: 700;
+  transition: background 0.2s, border-color 0.2s;
+}
+.btn-ver-menu:hover { background: #f5f5f5; border-color: #bbb; }
 .btn-refresh {
   background: #f5f5f5; border: 1px solid #e0e0e0; color: #555;
   padding: 5px 12px; border-radius: 7px; font-size: 0.82rem;

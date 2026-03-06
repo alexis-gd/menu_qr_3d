@@ -96,7 +96,7 @@
 
     <!-- Checkout -->
     <CheckoutModal
-      v-if="mostrarCheckout"
+      v-show="mostrarCheckout"
       :carrito="carrito"
       :pedidos-config="pedidosConfig"
       :mesa="mesaNumero"
@@ -252,7 +252,7 @@ const abrirModal = (producto) => {
   --text-main: #e8e8f0;
   --text-sub: #8888aa;
   --accent: #f0c040;
-  --accent-light: rgba(240,192,64,0.12);
+  --accent-light: rgba(255,255,255,0.05);
   --cat-nav-bg: #14142a;
   --cat-nav-shadow: 0 2px 12px rgba(0,0,0,0.4);
   --cat-nav-text: #9090b8;
@@ -264,6 +264,33 @@ const abrirModal = (producto) => {
   --footer-text: #44445a;
   --mesa-bg: rgba(240,192,64,0.18);
   --mesa-text: #f0c040;
+}
+
+/* Botones de acción: fondo oscuro + borde dorado + texto dorado */
+.tema-oscuro :deep(.btn-ver),
+.tema-oscuro :deep(.btn-agregar),
+.tema-oscuro :deep(.btn-agregar-carrito),
+.tema-oscuro :deep(.btn-confirmar),
+.tema-oscuro :deep(.carrito-flotante) {
+  background: #1e1e48;
+  color: #f0c040;
+  border: 1.5px solid #f0c040;
+}
+.tema-oscuro :deep(.btn-ver:hover),
+.tema-oscuro :deep(.btn-agregar:hover),
+.tema-oscuro :deep(.btn-agregar-carrito:hover),
+.tema-oscuro :deep(.btn-confirmar:hover:not(:disabled)),
+.tema-oscuro :deep(.carrito-flotante:hover) {
+  background: rgba(240,192,64,0.15);
+}
+
+/* Badges decorativos: fondo sutil dorado + texto dorado */
+.tema-oscuro :deep(.badge-3d),
+.tema-oscuro :deep(.pill-3d),
+.tema-oscuro :deep(.ar-btn) {
+  background: rgba(240,192,64,0.18);
+  color: #f0c040;
+  border: 1px solid rgba(240,192,64,0.4);
 }
 
 /* Tema: Moderno (minimalista) */

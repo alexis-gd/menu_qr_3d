@@ -198,6 +198,7 @@ const truncar = (texto, len) =>
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .btn-agregar {
@@ -234,9 +235,9 @@ const truncar = (texto, len) =>
   background: var(--accent, #FF6B35);
   color: #fff;
   border: none;
-  padding: 7px 14px;
+  padding: 7px 10px;
   border-radius: 8px;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;

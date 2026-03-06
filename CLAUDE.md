@@ -43,14 +43,20 @@ Lee estos archivos antes de cualquier tarea compleja:
 api/
   config.php          ← LOCAL Y SERVIDOR SOLO, nunca al repo
   config.example.php  ← Esta sí va al repo (sin valores reales)
-  index.php           ← Router principal
-  routes/             ← Endpoints PHP
+  index.php           ← Router + TODOS los endpoints (no hay carpeta routes/)
 uploads/
   fotos/              ← Fotos de productos por producto_id
   modelos/            ← Archivos .glb descargados de Meshy
 cron/
   check_meshy_jobs.php ← Cron cada 2 min en cPanel
 ```
+
+## Comando especial
+"actualiza contextos" = revisar y actualizar los 4 archivos de contexto del proyecto:
+- `CONTEXTO_BASE_DE_DATOS.md`
+- `CONTEXTO_PROYECTO.md`
+- `CLAUDE.md`
+- `MEMORY.md` (en `~/.claude/projects/.../memory/`)
 
 ## Comandos útiles
 ```bash
@@ -64,8 +70,3 @@ npm run build
 php -v
 ```
 
-## Cómo funciona la conversión 3D (flujo async)
-1. Admin sube fotos → PHP llama Meshy API → guarda `task_id` en tabla `meshy_jobs`
-2. Cron de cPanel cada 2 min → consulta status en Meshy
-3. Cuando `SUCCEEDED` → descarga `.glb` a `/uploads/modelos/` → actualiza `productos.tiene_ar = 1`
-4. El cliente nunca espera: el modelo ya está listo cuando llega al menú
