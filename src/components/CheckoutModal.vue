@@ -72,7 +72,11 @@
               </div>
               <div class="campo">
                 <label>Dirección de entrega *</label>
-                <textarea :value="direccion" @input="direccion = ucfirst($event.target.value)" rows="2" placeholder="Calle, número, colonia, referencias..." maxlength="150"></textarea>
+                <textarea :value="direccion" @input="direccion = ucfirst($event.target.value)" rows="2" placeholder="Calle, número, colonia..." maxlength="150"></textarea>
+              </div>
+              <div class="campo">
+                <label>Referencia de entrega</label>
+                <input :value="referencia" @input="referencia = ucfirst($event.target.value)" placeholder="Ej: edificio azul, junto a la farmacia..." maxlength="150" />
               </div>
             </template>
           </div>
@@ -201,6 +205,7 @@ const metodoPago   = ref('efectivo')
 const nombre       = ref('')
 const telefono     = ref('')
 const direccion    = ref('')
+const referencia   = ref('')
 const denominacion = ref('')
 const enviando     = ref(false)
 const errorMsg     = ref('')
@@ -270,6 +275,7 @@ const confirmar = async () => {
       telefono: telefono.value.trim() || null,
       tipo_entrega: tipoEntrega.value,
       direccion: direccion.value.trim() || null,
+      referencia: referencia.value.trim() || null,
       metodo_pago: metodoPago.value,
       denominacion: denominacion.value ? parseFloat(denominacion.value) : null,
       mesa: props.mesa || null,
@@ -298,6 +304,7 @@ const confirmar = async () => {
       ``,
       `*Entrega:* ${tipoEntrega.value === 'envio' ? 'A domicilio' : 'Recoger en local'}`,
       ...(tipoEntrega.value === 'envio' && direccion.value ? [`*Direccion:* ${direccion.value.trim()}`] : []),
+      ...(tipoEntrega.value === 'envio' && referencia.value ? [`*Referencia:* ${referencia.value.trim()}`] : []),
       ...(telefono.value ? [`*Tel:* ${telefono.value.trim()}`] : []),
       `*Pago:* ${metodoPago.value === 'transferencia' ? 'Transferencia' : 'Efectivo'}`,
       ...(metodoPago.value === 'efectivo' && denominacion.value ? [`Con: $${parseFloat(denominacion.value).toFixed(0)}`] : []),

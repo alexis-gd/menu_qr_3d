@@ -115,6 +115,18 @@
                     <input :value="formEdit.nombre" @input="formEdit.nombre = ucfirst($event.target.value)" placeholder="Nombre" />
                     <input v-model="formEdit.precio" type="number" min="0" step="0.01" placeholder="Precio" />
                     <textarea :value="formEdit.descripcion" @input="formEdit.descripcion = ucfirst($event.target.value)" rows="2" placeholder="Descripción"></textarea>
+                    <div class="edit-stock">
+                      <span class="edit-stock-label">Stock:</span>
+                      <template v-if="formEdit.stock === null">
+                        <span class="stock-sin-ctrl">Sin control</span>
+                        <button type="button" class="btn-activar-stock" @click="formEdit.stock = 0">Activar</button>
+                      </template>
+                      <template v-else>
+                        <button type="button" class="stock-btn" @click="formEdit.stock = Math.max(0, formEdit.stock - 1)">−</button>
+                        <span class="stock-num">{{ formEdit.stock }}</span>
+                        <button type="button" class="stock-btn" @click="formEdit.stock++">+</button>
+                      </template>
+                    </div>
                     <div class="edit-actions">
                       <button @click="guardarEdicionProducto(prod.id)" class="btn-save">✓ Guardar</button>
                       <button @click="cancelarEdicion" class="btn-cancel">✕ Cancelar</button>
@@ -147,6 +159,12 @@
                   <div class="prod-badges">
                     <span v-if="prod.tiene_ar" class="badge badge-3d">3D ✓</span>
                     <span v-else class="badge badge-no3d">Sin 3D</span>
+                    <label class="badge-disp" :title="prod.disponible ? 'Disponible — click para desactivar' : 'No disponible — click para activar'">
+                      <input type="checkbox" :checked="prod.disponible" @change="toggleDisponible(prod)" hidden />
+                      <span :class="['disp-pill', prod.disponible ? 'disp-on' : 'disp-off']">
+                        {{ prod.disponible ? 'Activo' : 'Inactivo' }}
+                      </span>
+                    </label>
                   </div>
 
                   <!-- Acciones -->
@@ -876,6 +894,18 @@ const iniciarEdicion = (prod) => {
     nombre: prod.nombre,
     precio: prod.precio,
     descripcion: prod.descripcion || '',
+    stock: prod.stock ?? null,
+  }
+}
+
+const toggleDisponible = async (prod) => {
+  const nuevoValor = !prod.disponible
+  try {
+    await put('productos', { disponible: nuevoValor ? 1 : 0 }, { id: prod.id })
+    prod.disponible = nuevoValor
+    mostrarNotif(nuevoValor ? 'Platillo activado' : 'Platillo desactivado')
+  } catch (err) {
+    mostrarNotif(err.message, 'error')
   }
 }
 
@@ -891,12 +921,14 @@ const guardarEdicionProducto = async (id) => {
   }
   guardando.value = true
   try {
-    await put('productos', {
+    const payload = {
       categoria_id: formEdit.value.categoria_id,
       nombre: formEdit.value.nombre.trim(),
       precio: parseFloat(formEdit.value.precio),
       descripcion: formEdit.value.descripcion.trim(),
-    }, { id })
+    }
+    if (formEdit.value.stock !== null) payload.stock = formEdit.value.stock
+    await put('productos', payload, { id })
     prodEditando.value = null
     await loadProductos()
     mostrarNotif('Platillo actualizado')
@@ -1317,10 +1349,16 @@ label.btn-icon { cursor: pointer; }
 .prod-cat  { font-size: 0.75rem; color: #aaa; }
 .prod-precio { font-size: 0.88rem; font-weight: 700; color: var(--accent); }
 
-.prod-badges { flex-shrink: 0; }
+.prod-badges { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
 .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; }
 .badge-3d   { background: #e8f5e9; color: #2e7d32; }
 .badge-no3d { background: #f5f5f5; color: #bbb; }
+
+/* Pill disponible */
+.badge-disp { cursor: pointer; }
+.disp-pill { display: inline-block; padding: 3px 9px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; transition: background 0.15s; }
+.disp-on  { background: #e8f5e9; color: #2e7d32; }
+.disp-off { background: #fdecea; color: #c62828; }
 
 .prod-actions { display: flex; gap: 5px; flex-shrink: 0; }
 
@@ -1343,6 +1381,16 @@ label.btn-icon { cursor: pointer; }
 .edit-fields textarea:focus { border-color: var(--accent); }
 .edit-fields textarea { resize: vertical; min-height: 50px; }
 .edit-actions { display: flex; gap: 8px; }
+
+/* Stock en edit form */
+.edit-stock { display: flex; align-items: center; gap: 8px; }
+.edit-stock-label { font-size: 0.78rem; font-weight: 600; color: #777; }
+.stock-sin-ctrl { font-size: 0.8rem; color: #bbb; }
+.btn-activar-stock { font-size: 0.85rem; font-weight: 600; padding: 7px 14px; border: none; border-radius: 7px; background: #e3f2fd; color: #1565c0; cursor: pointer; }
+.btn-activar-stock:hover { background: #bbdefb; }
+.stock-btn { width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid #e0e0e0; background: #fff; font-size: 1rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; }
+.stock-btn:hover { background: #f0f0f0; }
+.stock-num { font-size: 0.95rem; font-weight: 800; min-width: 24px; text-align: center; color: #1a1a1a; }
 
 /* ─── Categorías ─── */
 .cat-lista { display: flex; flex-direction: column; }

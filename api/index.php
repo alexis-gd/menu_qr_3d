@@ -47,7 +47,7 @@ switch ($route) {
                 p.disponible
              FROM restaurantes r
              JOIN categorias c ON c.restaurante_id = r.id AND c.activo = 1
-             JOIN productos p ON p.categoria_id = c.id AND p.activo = 1
+             JOIN productos p ON p.categoria_id = c.id AND p.activo = 1 AND p.disponible = 1
              WHERE r.slug = :slug AND r.activo = 1
              ORDER BY c.orden ASC, p.orden ASC, p.nombre ASC'
         );
@@ -273,6 +273,7 @@ switch ($route) {
                 $prod['tiene_ar']        = (bool)  $prod['tiene_ar'];
                 $prod['es_destacado']    = (bool)  $prod['es_destacado'];
                 $prod['disponible']      = (bool)  $prod['disponible'];
+                $prod['stock']           = isset($prod['stock']) ? (int) $prod['stock'] : null;
                 $prod['foto_principal']  = $prod['foto_principal'] ? UPLOADS_URL . $prod['foto_principal'] : null;
             }
             unset($prod);
@@ -303,7 +304,7 @@ switch ($route) {
             }
             $fields = [];
             $params = [':id'=>$id];
-            foreach (['categoria_id','nombre','descripcion','precio','es_destacado','disponible','orden'] as $f) {
+            foreach (['categoria_id','nombre','descripcion','precio','es_destacado','disponible','stock','orden'] as $f) {
                 if (isset($body[$f])) {
                     $fields[] = "$f = :$f";
                     $params[":$f"] = $body[$f];
@@ -532,7 +533,7 @@ switch ($route) {
 
             $stmt = $pdo->prepare(
                 'SELECT p.id, p.numero_pedido, p.nombre_cliente, p.telefono,
-                        p.tipo_entrega, p.direccion, p.metodo_pago, p.denominacion,
+                        p.tipo_entrega, p.direccion, p.referencia, p.metodo_pago, p.denominacion,
                         p.mesa, p.subtotal, p.costo_envio, p.total, p.status,
                         p.created_at
                  FROM pedidos p
@@ -590,8 +591,8 @@ switch ($route) {
             $total      = (float) ($body['total'] ?? ($subtotal + $costo_envio));
 
             $stmt = $pdo->prepare(
-                'INSERT INTO pedidos (restaurante_id, numero_pedido, nombre_cliente, telefono, tipo_entrega, direccion, metodo_pago, denominacion, mesa, subtotal, costo_envio, total)
-                 VALUES (:rid, :np, :nc, :tel, :te, :dir, :mp, :den, :mesa, :sub, :env, :tot)'
+                'INSERT INTO pedidos (restaurante_id, numero_pedido, nombre_cliente, telefono, tipo_entrega, direccion, referencia, metodo_pago, denominacion, mesa, subtotal, costo_envio, total)
+                 VALUES (:rid, :np, :nc, :tel, :te, :dir, :ref, :mp, :den, :mesa, :sub, :env, :tot)'
             );
             $stmt->execute([
                 ':rid'  => (int)$restaurante_id,
@@ -600,6 +601,7 @@ switch ($route) {
                 ':tel'  => $body['telefono'] ?? null,
                 ':te'   => $tipo_entrega,
                 ':dir'  => $body['direccion'] ?? null,
+                ':ref'  => $body['referencia'] ?? null,
                 ':mp'   => $metodo_pago,
                 ':den'  => isset($body['denominacion']) ? (float)$body['denominacion'] : null,
                 ':mesa' => $body['mesa'] ?? null,

@@ -159,8 +159,9 @@ Los modelos 3D se generan automáticamente desde fotos tomadas por el dueño del
 │   ├── views/
 │   │   ├── MenuPublico.vue        ← Vista del cliente (QR → menú)
 │   │   └── admin/
-│   │       ├── Dashboard.vue
-│   │       ├── Productos.vue
+│   │       ├── Dashboard.vue       ← VISTA PRINCIPAL DEL ADMIN (platillos, categorías, apariencia, pedidos)
+│   │       ├── Productos.vue       ← NO USADA (ruta /admin/restaurantes/:id/productos — inactiva)
+│   │       ├── Mesas.vue           ← NO USADA (ruta /admin/restaurantes/:id/mesas — inactiva)
 │   │       └── Restaurantes.vue
 │   ├── components/
 │   │   ├── ProductoCard.vue

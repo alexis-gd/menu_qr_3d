@@ -87,6 +87,13 @@
       @agregar="({ producto, observacion }) => { agregarAlCarrito(producto, observacion); productoSeleccionado = null }"
     />
 
+    <!-- Toast "agregado al carrito" -->
+    <transition name="toast-anim">
+      <div v-if="toastNombre" class="carrito-toast">
+        ✓ {{ toastNombre }} agregado
+      </div>
+    </transition>
+
     <!-- Carrito flotante -->
     <CarritoFlotante
       v-if="pedidosActivos && carrito.length"
@@ -128,6 +135,8 @@ const mesaNumero = route.query.mesa || null
 // ── Carrito ──
 const carrito = ref([])
 const mostrarCheckout = ref(false)
+const toastNombre = ref('')
+let toastTimer = null
 
 const pedidosActivos = computed(() => !!restaurante.value?.pedidos_activos)
 const pedidosConfig  = computed(() => restaurante.value || {})
@@ -141,6 +150,10 @@ const agregarAlCarrito = (producto, observacion = '') => {
   } else {
     carrito.value.push({ producto, cantidad: 1, observacion })
   }
+  // Toast de confirmación
+  toastNombre.value = producto.nombre
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => { toastNombre.value = '' }, 1800)
 }
 
 const onPedidoConfirmado = () => {
@@ -602,4 +615,27 @@ const abrirModal = (producto) => {
     padding: 24px 32px 48px;
   }
 }
+
+/* ── Toast carrito ── */
+.carrito-toast {
+  position: fixed;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent, #FF6B35);
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  white-space: nowrap;
+  z-index: 500;
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+}
+
+.toast-anim-enter-active { transition: opacity 0.2s ease, transform 0.2s ease; }
+.toast-anim-leave-active { transition: opacity 0.3s ease, transform 0.3s ease; }
+.toast-anim-enter-from   { opacity: 0; transform: translateX(-50%) translateY(10px); }
+.toast-anim-leave-to     { opacity: 0; transform: translateX(-50%) translateY(10px); }
 </style>
