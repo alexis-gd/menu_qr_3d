@@ -70,3 +70,116 @@ npm run build
 php -v
 ```
 
+## DECISIONES ARQUITECTÓNICAS — Razonamiento y Estado Actual
+
+> Esta sección documenta el POR QUÉ de las decisiones técnicas tomadas.
+> Claude Code debe leer esto antes de cualquier tarea de refactor o feature nueva.
+> Al terminar cada tarea relevante, actualizar el LOG DE CAMBIOS al final de esta sección.
+
+---
+
+### TEMA CSS — Sistema de dos capas
+
+**Decisión:** El proyecto usa un sistema de estilos en dos capas separadas con responsabilidades distintas.
+
+**Capa 1 — `src/assets/theme.css` (valores fijos del sistema):**
+Variables CSS que no cambian por cliente ni por tema: tamaños de botones, espaciados, border-radius, tipografía base, sombras. Se importa una vez en `main.js`. Resuelve la inconsistencia histórica donde cada componente definía sus propios tamaños de botón y espaciados, resultando en variaciones sutiles de padding y fuentes entre vistas.
+
+**Capa 2 — Temas dinámicos del cliente (valores que sí cambian):**
+Los 5 temas (`calido`, `oscuro`, `moderno`, `rapida`, `rosa`) se aplican en runtime con `document.documentElement.style.setProperty()` cuando el menú público carga. Los colores vienen de la API (campo `tema` del restaurante en BD). El dashboard admin también aplica el tema activo del restaurante para que el cliente vea consistencia. Esto permite que el cliente cambie de tema desde Apariencia y el cambio se refleje inmediatamente en el menú público sin rebuild del frontend.
+
+**Archivos involucrados:** `src/assets/theme.css` (nuevo), `src/main.js`, `src/views/MenuPublico.vue`, `src/views/admin/Dashboard.vue`
+
+---
+
+### AUTENTICACIÓN — Migración de localStorage a cookies HttpOnly
+
+**Decisión:** El token de admin se mueve de `localStorage` a cookie HttpOnly.
+
+**Por qué:** `localStorage` es accesible desde cualquier JS en la página — un script XSS puede leer y exfiltrar el token. Las cookies HttpOnly no son accesibles desde JS: el browser las gestiona y las envía automáticamente en cada request. El repo es público y el proyecto se comercializará, por lo que la seguridad del panel admin es crítica.
+
+**Cambio de flujo:** Login → PHP hace `Set-Cookie: token=...; HttpOnly; Secure; SameSite=Strict` → `useApi.js` ya no necesita leer ni enviar el token manualmente → `helpers.php` lee el token de `$_COOKIE['token']` en lugar de headers → el guard del router verifica existencia de cookie vía endpoint de validación en lugar de leer localStorage.
+
+**Archivos involucrados:** `api/index.php`, `api/helpers.php`, `src/composables/useApi.js`, `src/views/admin/Login.vue`, `src/router/index.js`
+
+**Estado:** Pendiente de implementar.
+
+---
+
+### ARQUITECTURA DE COMPONENTES — Por qué se partió Dashboard.vue
+
+**Decisión:** `Dashboard.vue` se dividió en componentes hijo por cada tab del panel.
+
+**Por qué:** Dashboard.vue acumuló toda la lógica del admin conforme se agregaban fases (platillos, categorías, apariencia, negocio, pedidos). Un archivo con múltiples responsabilidades hace que cualquier cambio en una sección requiera entender todo el archivo, aumenta el riesgo de romper otra sección y hace el código difícil de mantener. Separar por tab permite que cada sección tenga su propio ciclo de vida, sus propios datos y sea cargada solo cuando se necesita.
+
+**Estructura resultante:**
+```
+src/components/admin/tabs/
+  TabPlatillos.vue    ← CRUD de productos, subida de fotos y .glb
+  TabCategorias.vue   ← CRUD de categorías
+  TabApariencia.vue   ← Selección de tema, logo, configuración visual
+  TabNegocio.vue      ← WhatsApp, pedidos, transferencia, compartir menú
+  TabPedidos.vue      ← Lista de pedidos con auto-refresh
+```
+
+`Dashboard.vue` queda como orquestador: maneja qué tab está activa, tiene el `restaurante_id` activo y lo pasa como prop a cada tab. Cada tab emite eventos cuando necesita refrescar datos del padre.
+
+**Archivos involucrados:** `src/views/admin/Dashboard.vue` (reducido), nuevos archivos en `src/components/admin/tabs/`
+
+**Estado:** Pendiente de implementar.
+
+---
+
+### COMPONENTES — Reorganización de src/components/
+
+**Decisión:** Los componentes se organizan por dominio, no en carpeta plana.
+
+**Por qué:** Con 5+ componentes del menú público y 5+ del admin mezclados en la misma carpeta, el proyecto se vuelve difícil de navegar conforme crece. La separación por dominio hace evidente a qué parte del sistema pertenece cada archivo.
+
+**Estructura resultante:**
+```
+src/components/
+  menu/
+    ProductoCard.vue
+    ProductoModal.vue
+    ModelViewer3D.vue
+    CarritoFlotante.vue
+    CheckoutModal.vue
+  admin/
+    tabs/   ← ver sección anterior
+```
+
+**Estado:** Pendiente de implementar.
+
+---
+
+### ESTADO GLOBAL — Pinia para el carrito
+
+**Decisión:** El carrito migra de `ref([])` local en `MenuPublico.vue` a un Pinia store.
+
+**Por qué:** El carrito como estado local en el componente significa que si el componente se destruye (navegación, recarga), el carrito se pierde. Pinia centraliza el estado y con el plugin `pinia-plugin-persistedstate` se persiste automáticamente en localStorage. Adicionalmente, si en el futuro el carrito necesita ser accedido desde otro componente (por ejemplo un header con badge de cantidad), ya está disponible sin prop drilling.
+
+**Archivo nuevo:** `src/stores/carrito.js`
+
+**Estado:** Pendiente de implementar.
+
+---
+
+### INSTRUCCIÓN PARA CLAUDE CODE — Documentar cambios
+
+Cada vez que Claude Code complete una tarea de las listadas arriba, debe:
+
+1. Agregar una entrada en el **LOG DE CAMBIOS** al final de esta sección con formato:
+   ```
+   - [FECHA] [TAREA] — Archivos creados/modificados: X, Y, Z. Notas relevantes.
+   ```
+2. Actualizar el estado de la tarea correspondiente de `Pendiente` a `Implementado`.
+3. Si durante la implementación se tomó una decisión técnica no documentada aquí (por ejemplo, elegir una forma específica de pasar props entre componentes), agregarla como subsección nueva con el mismo formato: Decisión → Por qué → Archivos involucrados → Estado.
+
+**El objetivo es que cualquier chat futuro entienda el estado del proyecto leyendo solo este archivo, sin necesidad de leer el código.**
+
+---
+
+## LOG DE CAMBIOS ARQUITECTÓNICOS
+
+_(Claude Code agrega entradas aquí al completar tareas)_
