@@ -165,7 +165,7 @@
 
         <!-- Botón confirmar -->
         <button
-          class="btn-confirmar"
+          class="btn-primary btn-confirmar"
           :disabled="enviando"
           @click="confirmar"
         >
@@ -535,19 +535,11 @@ const confirmar = async () => {
 
 .error-msg { font-size: 0.85rem; color: #c62828; text-align: center; margin: 0; }
 
+/* .btn-confirmar extiende .btn-primary (global en theme.css) — solo sobreescribe tamaño */
 .btn-confirmar {
   width: 100%;
   padding: 15px;
-  background: var(--accent, #FF6B35);
-  color: #fff;
-  border: none;
   border-radius: 14px;
   font-size: 1rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: opacity 0.2s, transform 0.1s;
 }
-
-.btn-confirmar:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
-.btn-confirmar:disabled { opacity: 0.55; cursor: not-allowed; }
 </style>

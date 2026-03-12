@@ -68,7 +68,7 @@
             rows="2"
             placeholder="Observaciones: sin cebolla, bien cocido, extra salsa... (opcional)"
           ></textarea>
-          <button class="btn-agregar-carrito" @click="emitirAgregar">
+          <button class="btn-primary btn-agregar-carrito" @click="emitirAgregar">
             + Agregar al carrito
           </button>
         </div>
@@ -367,21 +367,11 @@ const emitirAgregar = () => {
   border-color: var(--accent, #FF6B35);
 }
 
+/* .btn-agregar-carrito extiende .btn-primary (global en theme.css) — solo sobreescribe tamaño */
 .btn-agregar-carrito {
   width: 100%;
   padding: 13px;
-  background: var(--accent, #FF6B35);
-  color: #fff;
-  border: none;
   border-radius: 12px;
   font-size: 1rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: opacity 0.2s, transform 0.1s;
-}
-
-.btn-agregar-carrito:hover {
-  opacity: 0.88;
-  transform: translateY(-1px);
 }
 </style>

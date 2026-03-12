@@ -662,6 +662,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApi } from '../../composables/useApi.js'
 import { ucfirst } from '../../utils/ucfirst.js'
+import { THEMES as temas, THEMES_EXTRA as TEMAS_EXTRA } from '../../utils/themes.js'
 import QRCode from 'qrcode'
 import html2canvas from 'html2canvas'
 
@@ -725,14 +726,6 @@ const copiado    = ref(false)
 // ── Logo ──
 const logoSubiendo = ref(false)
 
-const TEMAS_EXTRA = {
-  calido:  { decoColor: 'rgba(255,255,255,0.15)', canvasH1: '#b5451b', canvasH2: '#e8841f' },
-  oscuro:  { decoColor: 'rgba(240,192,64,0.1)',   canvasH1: '#0a0a1a', canvasH2: '#1a1a38' },
-  moderno: { decoColor: 'rgba(26,127,90,0.08)',   canvasH1: '#f0f8f4', canvasH2: '#e0f5ec' },
-  rapida:  { decoColor: 'rgba(255,255,255,0.15)', canvasH1: '#c0392b', canvasH2: '#e74c3c' },
-  rosa:    { decoColor: 'rgba(255,255,255,0.18)', canvasH1: '#FF8276', canvasH2: '#EA9087' },
-}
-
 const temaActualData = computed(() => {
   const t = temas.find(t => t.id === formRest.value.tema) || temas[0]
   return { ...t, ...(TEMAS_EXTRA[t.id] || TEMAS_EXTRA.calido) }
@@ -752,15 +745,6 @@ const tabs = [
   { id: 'apariencia', icon: '🎨', label: 'Apariencia' },
   { id: 'negocio',    icon: '⚙️', label: 'Negocio'    },
   { id: 'pedidos',    icon: '🛒', label: 'Pedidos'    },
-]
-
-// Temas
-const temas = [
-  { id: 'calido',  nombre: 'Cálido',   desc: 'Bistró, tacos, casero',  bg: '#fdf6f0', cardBg: '#fff',    text: '#3d2c1e', accent: '#d4691e', headerBg: 'linear-gradient(135deg,#b5451b,#e8841f)', headerText: '#fff' },
-  { id: 'oscuro',  nombre: 'Oscuro',   desc: 'Bar, premium, elegante', bg: '#1a1a2e', cardBg: '#1e1e2e', text: '#e8e8f0', accent: '#f0c040', headerBg: 'linear-gradient(135deg,#0a0a1a,#1a1a38)', headerText: '#f0c040' },
-  { id: 'moderno', nombre: 'Moderno',  desc: 'Saludable, minimalista', bg: '#f4f4f4', cardBg: '#fff',    text: '#111111', accent: '#1a7f5a', headerBg: '#fff',                                   headerText: '#111' },
-  { id: 'rapida',  nombre: 'Express',  desc: 'Rápido, cafetería',      bg: '#fffbf0', cardBg: '#fff',    text: '#1a1a1a', accent: '#d43f2e', headerBg: 'linear-gradient(135deg,#c0392b,#e74c3c)', headerText: '#fff' },
-  { id: 'rosa',    nombre: 'Rosa',     desc: 'Romántico, suave',       bg: '#FFEFEF', cardBg: '#fff',    text: '#5a2030', accent: '#FF8276', headerBg: 'linear-gradient(135deg,#FF8276,#EA9087)', headerText: '#fff' },
 ]
 
 // Formularios
@@ -1261,25 +1245,8 @@ async function guardarRestaurante() {
 .field textarea { resize: vertical; min-height: 60px; }
 
 /* ─── Botones ─── */
-.btn-primary {
-  background: var(--accent);
-  color: #fff; border: none; padding: 10px 20px; border-radius: 8px;
-  font-size: 0.9rem; font-weight: 700; cursor: pointer;
-  transition: opacity 0.2s, transform 0.1s; white-space: nowrap;
-}
-.btn-primary:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
-.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+/* .btn-primary y .tema-oscuro-admin .btn-primary → definidos globalmente en src/assets/theme.css */
 
-/* Tema oscuro: botones con fondo navy + borde/texto dorado */
-.tema-oscuro-admin .btn-primary {
-  background: #1e1e48;
-  color: #f0c040;
-  border: 1.5px solid #f0c040;
-}
-.tema-oscuro-admin .btn-primary:hover:not(:disabled) {
-  background: rgba(240,192,64,0.15);
-  opacity: 1;
-}
 .tema-oscuro-admin .tab-btn.active {
   background: #1e1e48;
   color: #f0c040;

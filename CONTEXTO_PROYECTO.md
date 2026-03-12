@@ -68,6 +68,37 @@ La API de Meshy requiere plan Pro ($20/mes) para acceso programático. Se adopt�
 - [ ] **Auth por cookies** — Reemplazar token en query string por cookies HttpOnly
 - [ ] **Meshy API key** — Aún en placeholder; configurar cuando se tenga acceso al plan API
 
+---
+
+### Accionables técnicos pendientes (arquitectura)
+> Ver detalles de razonamiento y decisiones en `CLAUDE.md` sección "DECISIONES ARQUITECTÓNICAS".
+
+#### A1 — Seguridad de autenticación (Prioridad: Alta — resolver antes de comercializar)
+- [ ] **Migrar token de localStorage a cookies HttpOnly**
+  - El token actual es visible en DevTools → Application → localStorage → cualquier XSS lo lee
+  - PHP emite `Set-Cookie: token=...; HttpOnly; Secure; SameSite=Strict`
+  - Afecta: `api/index.php` (login), `api/helpers.php` (validación), `src/composables/useApi.js`, `src/views/admin/Login.vue`, `src/router/index.js` (guard)
+
+#### A2 — Sistema de temas CSS (Prioridad: Alta — ✅ Implementado 2026-03-11)
+- [x] `src/assets/theme.css` — variables del sistema (espaciados, radios, sombras, tipografía) + clases globales `.btn-primary`, `.btn-secondary`, `.btn-danger`, `.btn-sm`
+- [x] `src/utils/themes.js` — fuente de verdad de los 5 temas (TEMAS + TEMAS_EXTRA). Importado por Dashboard.vue
+- [x] Botones estandarizados: `btn-ver`, `btn-agregar-carrito`, `btn-confirmar` extienden `.btn-primary` global
+
+#### A3 — Arquitectura de componentes (Prioridad: Media)
+- [ ] **Partir `Dashboard.vue` en componentes por tab**
+  - Crear `src/components/admin/tabs/`: `TabPlatillos.vue`, `TabCategorias.vue`, `TabApariencia.vue`, `TabNegocio.vue`, `TabPedidos.vue`
+  - Dashboard.vue queda como orquestador: tab activa + props/emits
+- [ ] **Reorganizar `src/components/`**
+  - `src/components/menu/` — ProductoCard, ProductoModal, ModelViewer3D, CarritoFlotante, CheckoutModal
+  - `src/components/admin/tabs/` — tabs del panel
+
+#### A4 — Estado global con Pinia (Prioridad: Media)
+- [ ] **Migrar carrito de `ref([])` en MenuPublico.vue a Pinia store**
+  - Nuevo archivo: `src/stores/carrito.js`
+  - Plugin `pinia-plugin-persistedstate` para persistir en localStorage
+- [ ] **Store de restaurante activo en admin**
+  - Nuevo archivo: `src/stores/admin.js` — centraliza `restaurante_id` activo
+
 ### Testing Local
 - ✅ Base de datos: MySQL tablas creadas
 - ✅ Usuario de prueba: katche4@gmail.com / katch123

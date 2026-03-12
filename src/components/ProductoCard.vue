@@ -37,7 +37,7 @@
       <div class="card-bottom">
         <span class="card-precio">${{ Number(producto.precio).toFixed(2) }}</span>
         <div class="card-bottom-actions">
-          <button class="btn-ver" aria-label="Ver detalles del platillo">
+          <button class="btn-primary btn-ver" aria-label="Ver detalles del platillo">
             {{ producto.tiene_ar ? 'Ver en 3D' : 'Ver más' }}
           </button>
           <button
@@ -231,21 +231,11 @@ const truncar = (texto, len) =>
   letter-spacing: -0.3px;
 }
 
+/* .btn-ver extiende .btn-primary (global en theme.css) — solo sobreescribe tamaño */
 .btn-ver {
-  background: var(--accent, #FF6B35);
-  color: #fff;
-  border: none;
   padding: 7px 10px;
   border-radius: 8px;
   font-size: 0.78rem;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: opacity 0.2s;
-}
-
-.btn-ver:hover {
-  opacity: 0.85;
 }
 
 /* ── Responsive ── */

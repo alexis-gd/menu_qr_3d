@@ -86,9 +86,11 @@ php -v
 Variables CSS que no cambian por cliente ni por tema: tamaños de botones, espaciados, border-radius, tipografía base, sombras. Se importa una vez en `main.js`. Resuelve la inconsistencia histórica donde cada componente definía sus propios tamaños de botón y espaciados, resultando en variaciones sutiles de padding y fuentes entre vistas.
 
 **Capa 2 — Temas dinámicos del cliente (valores que sí cambian):**
-Los 5 temas (`calido`, `oscuro`, `moderno`, `rapida`, `rosa`) se aplican en runtime con `document.documentElement.style.setProperty()` cuando el menú público carga. Los colores vienen de la API (campo `tema` del restaurante en BD). El dashboard admin también aplica el tema activo del restaurante para que el cliente vea consistencia. Esto permite que el cliente cambie de tema desde Apariencia y el cambio se refleje inmediatamente en el menú público sin rebuild del frontend.
+Los 5 temas (`calido`, `oscuro`, `moderno`, `rapida`, `rosa`) se aplican vía clase CSS (`:class="\`tema-${tema}\`"`) en `MenuPublico.vue`. Los colores vienen de la API (campo `tema` del restaurante en BD). El admin aplica `--accent` vía `:style`. Los datos de los temas (objetos JS) se centralizan en `src/utils/themes.js` como fuente única de verdad, importada por Dashboard.vue.
 
-**Archivos involucrados:** `src/assets/theme.css` (nuevo), `src/main.js`, `src/views/MenuPublico.vue`, `src/views/admin/Dashboard.vue`
+**Archivos involucrados:** `src/assets/theme.css` (nuevo), `src/utils/themes.js` (nuevo), `src/main.js`, `src/views/admin/Dashboard.vue`, `src/components/ProductoCard.vue`, `src/components/ProductoModal.vue`, `src/components/CheckoutModal.vue`
+
+**Estado:** Implementado (2026-03-11).
 
 ---
 
@@ -182,4 +184,4 @@ Cada vez que Claude Code complete una tarea de las listadas arriba, debe:
 
 ## LOG DE CAMBIOS ARQUITECTÓNICOS
 
-_(Claude Code agrega entradas aquí al completar tareas)_
+- [2026-03-11] **TEMA CSS — Sistema de dos capas** — Archivos creados/modificados: `src/assets/theme.css` (variables del sistema + clases globales `.btn-primary/.btn-secondary/.btn-danger/.btn-sm` + override `.tema-oscuro-admin`), `src/utils/themes.js` (fuente única de TEMAS y TEMAS_EXTRA, extraído de Dashboard.vue), `src/main.js` (importa theme.css). Componentes actualizados para usar `.btn-primary` como base: `ProductoCard.vue` (`.btn-ver`), `ProductoModal.vue` (`.btn-agregar-carrito`), `CheckoutModal.vue` (`.btn-confirmar`), `Dashboard.vue` (scoped `.btn-primary` eliminado — usa global). `ACCIONABLES_MEJORAS.md` eliminado — contenido fusionado en `CONTEXTO_PROYECTO.md` sección "Accionables técnicos pendientes".
