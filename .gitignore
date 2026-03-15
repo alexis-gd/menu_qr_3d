@@ -23,6 +23,7 @@ DEPLOY.md
 # -------------------------------------------------------
 uploads/
 public_html/uploads/
+mockups/
 
 # -------------------------------------------------------
 # BUILD DE VUE — El dist se sube por FTP directo al cPanel
