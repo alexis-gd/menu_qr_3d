@@ -15,52 +15,51 @@ function json_response($data, $code = 200)
 }
 
 /**
- * Extrae el token de autenticación (Bearer) del header Authorization.
- * Busca en múltiples fuentes (getallheaders, $_SERVER, etc).
+ * Emite la cookie de sesión admin (HttpOnly, SameSite=Strict).
+ * Secure se activa automáticamente cuando la conexión es HTTPS.
  *
- * @return string|null
+ * @param string $token  Valor del token (ADMIN_TOKEN)
  */
-function get_bearer_token()
+function set_auth_cookie($token)
 {
-    $auth = null;
+    $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+              || (($_SERVER['SERVER_PORT'] ?? 80) == 443);
 
-    if (function_exists('getallheaders')) {
-        $headers = getallheaders();
-        if (!empty($headers['Authorization'])) {
-            $auth = $headers['Authorization'];
-        }
-    }
-
-    if (!$auth && !empty($_SERVER['HTTP_AUTHORIZATION'])) {
-        $auth = $_SERVER['HTTP_AUTHORIZATION'];
-    }
-
-    if (!$auth && !empty($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
-        $auth = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
-    }
-
-    if ($auth && preg_match('/Bearer\s+(.*)$/i', $auth, $matches)) {
-        return trim($matches[1]);
-    }
-    return null;
+    setcookie('token', $token, [
+        'expires'  => 0,           // cookie de sesión (desaparece al cerrar el browser)
+        'path'     => '/',
+        'httponly' => true,
+        'samesite' => 'Strict',
+        'secure'   => $secure,
+    ]);
 }
 
 /**
- * Comprueba si la petición está autenticada con ADMIN_TOKEN.
- * Retorna true/false y en caso de false finalizará con 401.
+ * Borra la cookie de sesión admin.
+ */
+function clear_auth_cookie()
+{
+    $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+              || (($_SERVER['SERVER_PORT'] ?? 80) == 443);
+
+    setcookie('token', '', [
+        'expires'  => time() - 3600,
+        'path'     => '/',
+        'httponly' => true,
+        'samesite' => 'Strict',
+        'secure'   => $secure,
+    ]);
+}
+
+/**
+ * Comprueba si la petición está autenticada con ADMIN_TOKEN via cookie HttpOnly.
+ * En caso de fallar finaliza con 401.
  */
 function require_auth()
 {
-    $token = get_bearer_token();
-    
-    // TEMPORAL: permitir token por query string para debug
-    if (!$token && !empty($_GET['token'])) {
-        $token = $_GET['token'];
-    }
-    
-    $expected = ADMIN_TOKEN;
-    
-    if ($token !== $expected) {
+    $token = $_COOKIE['token'] ?? null;
+
+    if (!$token || $token !== ADMIN_TOKEN) {
         json_response(['error' => 'No autorizado'], 401);
     }
 }

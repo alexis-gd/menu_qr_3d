@@ -73,11 +73,15 @@ La API de Meshy requiere plan Pro ($20/mes) para acceso programático. Se adopt�
 ### Accionables técnicos pendientes (arquitectura)
 > Ver detalles de razonamiento y decisiones en `CLAUDE.md` sección "DECISIONES ARQUITECTÓNICAS".
 
-#### A1 — Seguridad de autenticación (Prioridad: Alta — resolver antes de comercializar)
-- [ ] **Migrar token de localStorage a cookies HttpOnly**
-  - El token actual es visible en DevTools → Application → localStorage → cualquier XSS lo lee
-  - PHP emite `Set-Cookie: token=...; HttpOnly; Secure; SameSite=Strict`
-  - Afecta: `api/index.php` (login), `api/helpers.php` (validación), `src/composables/useApi.js`, `src/views/admin/Login.vue`, `src/router/index.js` (guard)
+#### A1 — Seguridad de autenticación (Prioridad: Alta — ✅ Implementado 2026-03-11)
+- [x] **Migrar token de localStorage a cookies HttpOnly**
+  - PHP emite `Set-Cookie: token=...; HttpOnly; SameSite=Strict; Secure (si HTTPS)`
+  - `helpers.php`: `require_auth()` lee `$_COOKIE['token']`; nuevas funciones `set_auth_cookie()` / `clear_auth_cookie()`
+  - `api/index.php`: login emite cookie (no retorna token en body); nuevos endpoints `logout` y `auth-check`
+  - `useApi.js`: eliminado todo manejo de token; todos los fetch usan `credentials: 'include'`
+  - `router/index.js`: guard async con caché (`authenticated`); exporta `resetAuth()`
+  - `Dashboard.vue`: logout llama `POST logout` + `resetAuth()`; uploads usan `credentials: 'include'`
+  - `Login.vue`: eliminado `localStorage`
 
 #### A2 — Sistema de temas CSS (Prioridad: Alta — ✅ Implementado 2026-03-11)
 - [x] `src/assets/theme.css` — variables del sistema (espaciados, radios, sombras, tipografía) + clases globales `.btn-primary`, `.btn-secondary`, `.btn-danger`, `.btn-sm`

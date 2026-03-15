@@ -130,8 +130,19 @@ switch ($route) {
             json_response(['error' => 'Credenciales inválidas'], 401);
         }
 
-        // Para simplicidad devolvemos el token estático definido en config.php
-        json_response(['token' => ADMIN_TOKEN]);
+        // Emitir cookie HttpOnly — el token nunca viaja en el body
+        set_auth_cookie(ADMIN_TOKEN);
+        json_response(['ok' => true]);
+        break;
+
+    case 'logout':
+        clear_auth_cookie();
+        json_response(['ok' => true]);
+        break;
+
+    case 'auth-check':
+        require_auth();
+        json_response(['ok' => true]);
         break;
 
     case 'restaurantes':

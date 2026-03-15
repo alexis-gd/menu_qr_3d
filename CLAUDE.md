@@ -102,9 +102,14 @@ Los 5 temas (`calido`, `oscuro`, `moderno`, `rapida`, `rosa`) se aplican vía cl
 
 **Cambio de flujo:** Login → PHP hace `Set-Cookie: token=...; HttpOnly; Secure; SameSite=Strict` → `useApi.js` ya no necesita leer ni enviar el token manualmente → `helpers.php` lee el token de `$_COOKIE['token']` en lugar de headers → el guard del router verifica existencia de cookie vía endpoint de validación en lugar de leer localStorage.
 
-**Archivos involucrados:** `api/index.php`, `api/helpers.php`, `src/composables/useApi.js`, `src/views/admin/Login.vue`, `src/router/index.js`
+**Archivos involucrados:** `api/index.php` (login + nuevos endpoints `logout`/`auth-check`), `api/helpers.php` (cookie helpers + `require_auth`), `src/composables/useApi.js`, `src/views/admin/Login.vue`, `src/views/admin/Dashboard.vue` (logout + uploads), `src/router/index.js` (guard async + `resetAuth`)
 
-**Estado:** Pendiente de implementar.
+**Notas de implementación:**
+- Router guard cachea el resultado en `authenticated` (módulo-level) — solo hace 1 llamada a `/api/?route=auth-check` por carga de página, no en cada navegación interna.
+- Cookie `Secure` se activa automáticamente si `$_SERVER['HTTPS']` está presente — funciona en local (HTTP) y en producción (HTTPS) sin cambio de config.
+- `useApi.js` mantiene el parámetro `includeAuth` por compatibilidad con call sites existentes pero ya no tiene efecto.
+
+**Estado:** Implementado (2026-03-11).
 
 ---
 
@@ -184,4 +189,5 @@ Cada vez que Claude Code complete una tarea de las listadas arriba, debe:
 
 ## LOG DE CAMBIOS ARQUITECTÓNICOS
 
+- [2026-03-11] **AUTENTICACIÓN — Cookies HttpOnly** — Eliminado token en localStorage y query string. `helpers.php`: `require_auth()` lee `$_COOKIE['token']`; funciones `set_auth_cookie()`/`clear_auth_cookie()`. `api/index.php`: login emite cookie, nuevos endpoints `logout` y `auth-check`. `useApi.js`: `credentials: 'include'`, sin lógica de token. `router/index.js`: guard async con `checkAuth()` cacheado + `resetAuth()` exportado. `Dashboard.vue`: logout llama API + `resetAuth()`; uploads usan `credentials: 'include'`. `Login.vue`: sin `localStorage`.
 - [2026-03-11] **TEMA CSS — Sistema de dos capas** — Archivos creados/modificados: `src/assets/theme.css` (variables del sistema + clases globales `.btn-primary/.btn-secondary/.btn-danger/.btn-sm` + override `.tema-oscuro-admin`), `src/utils/themes.js` (fuente única de TEMAS y TEMAS_EXTRA, extraído de Dashboard.vue), `src/main.js` (importa theme.css). Componentes actualizados para usar `.btn-primary` como base: `ProductoCard.vue` (`.btn-ver`), `ProductoModal.vue` (`.btn-agregar-carrito`), `CheckoutModal.vue` (`.btn-confirmar`), `Dashboard.vue` (scoped `.btn-primary` eliminado — usa global). `ACCIONABLES_MEJORAS.md` eliminado — contenido fusionado en `CONTEXTO_PROYECTO.md` sección "Accionables técnicos pendientes".
