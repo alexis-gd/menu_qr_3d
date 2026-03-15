@@ -82,6 +82,113 @@
                     <button type="button" class="stock-btn" @click="formEdit.stock++">+</button>
                   </template>
                 </div>
+                <!-- ── Personalización ── -->
+                <div class="pers-toggle">
+                  <label class="toggle-check-label">
+                    <input type="checkbox" v-model="formEdit.tiene_personalizacion" />
+                    Personalización por pasos
+                  </label>
+                </div>
+
+                <div v-if="formEdit.tiene_personalizacion" class="pers-section">
+                  <!-- Aviso complemento -->
+                  <input
+                    v-model="formEdit.aviso_complemento"
+                    placeholder="Aviso sugerido (ej: ¿Quieres una bebida?)"
+                    class="pers-aviso-input"
+                  />
+                  <select v-model="formEdit.aviso_categoria_id" class="pers-aviso-cat">
+                    <option value="">Sin categoría sugerida</option>
+                    <option v-for="cat in categorias" :key="cat.id" :value="cat.id">
+                      {{ cat.icono || '' }} {{ cat.nombre }}
+                    </option>
+                  </select>
+
+                  <!-- Grupos -->
+                  <div v-if="gruposCargando" class="loading-inline"><div class="spinner"></div></div>
+                  <div v-else class="grupos-editor">
+                    <div class="grupos-label">Grupos de opciones:</div>
+
+                    <div
+                      v-for="(grupo, gi) in formEdit.grupos"
+                      :key="grupo._key"
+                      class="grupo-card"
+                    >
+                      <!-- Cabecera del grupo -->
+                      <div class="grupo-head">
+                        <input
+                          :value="grupo.nombre"
+                          @input="grupo.nombre = ucfirst($event.target.value)"
+                          placeholder="Nombre del grupo (ej: Tamaño)"
+                          class="grupo-nombre-input"
+                        />
+                        <select v-model="grupo.tipo" class="grupo-tipo">
+                          <option value="radio">Única</option>
+                          <option value="checkbox">Múltiple</option>
+                        </select>
+                        <button type="button" @click="eliminarGrupo(gi)" class="btn-del-grupo" title="Eliminar grupo">✕</button>
+                      </div>
+
+                      <!-- Config del grupo -->
+                      <div class="grupo-config">
+                        <label class="config-check">
+                          <input type="checkbox" v-model="grupo.obligatorio" />
+                          <span>Requerido</span>
+                        </label>
+                        <label v-if="grupo.tipo === 'checkbox'" class="config-max">
+                          Máx selecciones:
+                          <input type="number" v-model.number="grupo.max_selecciones" min="1" max="20" class="input-max" />
+                        </label>
+                        <!-- Control de max dinámico: solo para grupos radio cuando hay al menos un grupo checkbox -->
+                        <label
+                          v-if="grupo.tipo === 'radio' && formEdit.grupos.some((g, i) => i !== gi && g.tipo === 'checkbox')"
+                          class="config-din"
+                        >
+                          Controla máx de:
+                          <select v-model="grupo.max_dinamico_grupo_index" class="input-din">
+                            <option :value="null">Ninguno</option>
+                            <template v-for="(g, i) in formEdit.grupos" :key="g._key">
+                              <option v-if="i !== gi && g.tipo === 'checkbox'" :value="i">
+                                {{ g.nombre || `Grupo ${i + 1}` }}
+                              </option>
+                            </template>
+                          </select>
+                        </label>
+                      </div>
+
+                      <!-- Opciones del grupo -->
+                      <div class="opciones-edit">
+                        <div
+                          v-for="(op, oi) in grupo.opciones"
+                          :key="op._key"
+                          class="opcion-edit-row"
+                        >
+                          <input
+                            :value="op.nombre"
+                            @input="op.nombre = ucfirst($event.target.value)"
+                            placeholder="Opción"
+                            class="op-nombre"
+                          />
+                          <span class="op-extra-wrap">
+                            +$<input type="number" v-model.number="op.precio_extra" min="0" step="0.5" class="op-extra" />
+                          </span>
+                          <span
+                            v-if="grupo.max_dinamico_grupo_index !== null"
+                            class="op-override-wrap"
+                            title="Max selecciones del grupo controlado cuando se elige esta opción"
+                          >
+                            Máx:<input type="number" v-model.number="op.max_override" min="0" class="op-override" />
+                          </span>
+                          <button type="button" @click="eliminarOpcion(gi, oi)" class="btn-del-op" title="Eliminar opción">✕</button>
+                        </div>
+                        <button type="button" @click="agregarOpcion(gi)" class="btn-add-op">+ opción</button>
+                      </div>
+                    </div><!-- /.grupo-card -->
+
+                    <button type="button" @click="agregarGrupo" class="btn-add-grupo">+ Agregar grupo</button>
+                  </div><!-- /.grupos-editor -->
+                </div><!-- /.pers-section -->
+
                 <div class="edit-actions">
                   <button @click="guardarEdicionProducto(prod.id)" class="btn-save">✓ Guardar</button>
                   <button @click="cancelarEdicion" class="btn-cancel">✕ Cancelar</button>
@@ -164,8 +271,12 @@ const formAbierto      = ref(true)
 const prodEditando     = ref(null)
 const formEdit         = ref({})
 const preview          = ref(null)
+const gruposCargando   = ref(false)
 
 const formProd = ref({ categoria_id: '', nombre: '', precio: '', descripcion: '' })
+
+let _uid = 0
+const newKey = () => ++_uid
 
 const catMap = computed(() => {
   const m = {}
@@ -216,15 +327,78 @@ async function eliminarProducto(id) {
   } catch (err) { emit('notif', { texto: err.message, tipo: 'error' }) }
 }
 
-const iniciarEdicion = (prod) => {
+const iniciarEdicion = async (prod) => {
   prodEditando.value = prod.id
   formEdit.value = {
-    categoria_id: prod.categoria_id,
-    nombre: prod.nombre,
-    precio: prod.precio,
-    descripcion: prod.descripcion || '',
-    stock: prod.stock ?? null,
+    categoria_id:          prod.categoria_id,
+    nombre:                prod.nombre,
+    precio:                prod.precio,
+    descripcion:           prod.descripcion || '',
+    stock:                 prod.stock ?? null,
+    tiene_personalizacion: !!prod.tiene_personalizacion,
+    aviso_complemento:     prod.aviso_complemento || '',
+    aviso_categoria_id:    prod.aviso_categoria_id || '',
+    grupos:                [],
   }
+  if (prod.tiene_personalizacion) {
+    await loadGrupos(prod.id)
+  }
+}
+
+const loadGrupos = async (productoId) => {
+  gruposCargando.value = true
+  try {
+    const res = await get('producto-grupos', { producto_id: productoId })
+    const gruposApi = res.grupos || []
+    // Mapa id → índice para resolver max_dinamico_grupo_id → índice local
+    const idToIndex = {}
+    gruposApi.forEach((g, i) => { idToIndex[g.id] = i })
+
+    formEdit.value.grupos = gruposApi.map(g => ({
+      _key:                    newKey(),
+      nombre:                  g.nombre,
+      tipo:                    g.tipo,
+      obligatorio:             g.obligatorio,
+      max_selecciones:         g.max_selecciones,
+      max_dinamico_grupo_index: g.max_dinamico_grupo_id != null
+        ? (idToIndex[g.max_dinamico_grupo_id] ?? null)
+        : null,
+      opciones: g.opciones.map(o => ({
+        _key:         newKey(),
+        nombre:       o.nombre,
+        precio_extra: o.precio_extra,
+        max_override: o.max_override,
+      })),
+    }))
+  } finally {
+    gruposCargando.value = false
+  }
+}
+
+const agregarGrupo = () => {
+  formEdit.value.grupos.push({
+    _key: newKey(), nombre: '', tipo: 'radio',
+    obligatorio: true, max_selecciones: 1,
+    max_dinamico_grupo_index: null, opciones: [],
+  })
+}
+
+const eliminarGrupo = (idx) => {
+  formEdit.value.grupos.splice(idx, 1)
+  // Ajustar referencias de max_dinamico_grupo_index
+  formEdit.value.grupos.forEach(g => {
+    if (g.max_dinamico_grupo_index === idx) g.max_dinamico_grupo_index = null
+    else if (g.max_dinamico_grupo_index !== null && g.max_dinamico_grupo_index > idx)
+      g.max_dinamico_grupo_index--
+  })
+}
+
+const agregarOpcion = (gi) => {
+  formEdit.value.grupos[gi].opciones.push({ _key: newKey(), nombre: '', precio_extra: 0, max_override: null })
+}
+
+const eliminarOpcion = (gi, oi) => {
+  formEdit.value.grupos[gi].opciones.splice(oi, 1)
 }
 
 const cancelarEdicion = () => {
@@ -248,6 +422,7 @@ const guardarEdicionProducto = async (id) => {
   }
   guardando.value = true
   try {
+    // 1. Guardar campos básicos
     const payload = {
       categoria_id: formEdit.value.categoria_id,
       nombre:       formEdit.value.nombre.trim(),
@@ -256,6 +431,33 @@ const guardarEdicionProducto = async (id) => {
     }
     if (formEdit.value.stock !== null) payload.stock = formEdit.value.stock
     await put('productos', payload, { id })
+
+    // 2. Guardar personalización (siempre, para sincronizar el flag)
+    await post('producto-grupos', {
+      producto_id:           id,
+      tiene_personalizacion: formEdit.value.tiene_personalizacion ? 1 : 0,
+      aviso_complemento:     formEdit.value.aviso_complemento?.trim() || null,
+      aviso_categoria_id:    formEdit.value.aviso_categoria_id || null,
+      grupos: formEdit.value.tiene_personalizacion
+        ? formEdit.value.grupos.map((g, gi) => ({
+            nombre:                  g.nombre.trim(),
+            tipo:                    g.tipo,
+            obligatorio:             g.obligatorio ? 1 : 0,
+            min_selecciones:         0,
+            max_selecciones:         parseInt(g.max_selecciones) || 1,
+            max_dinamico_grupo_index: g.max_dinamico_grupo_index,
+            orden:                   gi,
+            opciones: g.opciones.map((o, oi) => ({
+              nombre:       o.nombre.trim(),
+              precio_extra: parseFloat(o.precio_extra) || 0,
+              max_override: o.max_override !== null && o.max_override !== ''
+                ? parseInt(o.max_override) : null,
+              orden: oi,
+            })),
+          }))
+        : [],
+    })
+
     prodEditando.value = null
     await loadProductos()
     emit('notif', { texto: 'Platillo actualizado', tipo: 'ok' })
@@ -394,4 +596,255 @@ onMounted(loadProductos)
 @media (max-width: 600px) {
   .prod-badges { display: none; }
 }
+
+/* ── Personalización ── */
+.pers-toggle {
+  padding: 8px 0 4px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.toggle-check-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #444;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-check-label input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.pers-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0 4px;
+}
+
+.pers-aviso-input,
+.pers-aviso-cat {
+  padding: 7px 10px;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 7px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  background: #fff;
+}
+.pers-aviso-input:focus,
+.pers-aviso-cat:focus { border-color: var(--accent); }
+
+/* Grupos */
+.grupos-editor { display: flex; flex-direction: column; gap: 8px; }
+.grupos-label  { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #aaa; }
+
+.grupo-card {
+  border: 1.5px solid #e8e8e8;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #fafafa;
+}
+
+.grupo-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.grupo-nombre-input {
+  flex: 1;
+  padding: 6px 9px;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  background: #fff;
+}
+.grupo-nombre-input:focus { border-color: var(--accent); }
+
+.grupo-tipo {
+  padding: 6px 7px;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  background: #fff;
+  outline: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.btn-del-grupo {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: #fdecea;
+  color: #c62828;
+  font-size: 0.8rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-del-grupo:hover { background: #ffcdd2; }
+
+.grupo-config {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.config-check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.82rem;
+  color: #555;
+  cursor: pointer;
+}
+.config-check input[type="checkbox"] { accent-color: var(--accent); }
+
+.config-max,
+.config-din {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.82rem;
+  color: #555;
+}
+
+.input-max {
+  width: 52px;
+  padding: 4px 6px;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 5px;
+  font-size: 0.82rem;
+  text-align: center;
+  outline: none;
+}
+.input-max:focus { border-color: var(--accent); }
+
+.input-din {
+  padding: 4px 6px;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 5px;
+  font-size: 0.82rem;
+  outline: none;
+  background: #fff;
+}
+.input-din:focus { border-color: var(--accent); }
+
+/* Opciones del grupo */
+.opciones-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-top: 4px;
+  border-top: 1px solid #efefef;
+}
+
+.opcion-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.op-nombre {
+  flex: 1;
+  padding: 5px 8px;
+  border: 1px solid #e0e0e0;
+  border-radius: 5px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  outline: none;
+  background: #fff;
+}
+.op-nombre:focus { border-color: var(--accent); }
+
+.op-extra-wrap,
+.op-override-wrap {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.78rem;
+  color: #888;
+  flex-shrink: 0;
+}
+
+.op-extra {
+  width: 58px;
+  padding: 4px 5px;
+  border: 1px solid #e0e0e0;
+  border-radius: 5px;
+  font-size: 0.82rem;
+  text-align: right;
+  outline: none;
+}
+.op-extra:focus { border-color: var(--accent); }
+
+.op-override {
+  width: 46px;
+  padding: 4px 5px;
+  border: 1px solid #e0e0e0;
+  border-radius: 5px;
+  font-size: 0.82rem;
+  text-align: center;
+  outline: none;
+}
+.op-override:focus { border-color: var(--accent); }
+
+.btn-del-op {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: #fdecea;
+  color: #c62828;
+  font-size: 0.72rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-del-op:hover { background: #ffcdd2; }
+
+.btn-add-op {
+  align-self: flex-start;
+  padding: 4px 10px;
+  border: 1.5px dashed #ccc;
+  border-radius: 6px;
+  background: transparent;
+  color: #888;
+  font-size: 0.8rem;
+  cursor: pointer;
+  margin-top: 2px;
+}
+.btn-add-op:hover { border-color: var(--accent); color: var(--accent); }
+
+.btn-add-grupo {
+  align-self: flex-start;
+  padding: 7px 14px;
+  border: 1.5px dashed #ccc;
+  border-radius: 8px;
+  background: transparent;
+  color: #888;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-add-grupo:hover { border-color: var(--accent); color: var(--accent); }
 </style>
