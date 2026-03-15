@@ -118,6 +118,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useApi } from '../composables/useApi.js'
+import { useCarritoStore } from '../stores/carrito.js'
 import ProductoCard from '../components/menu/ProductoCard.vue'
 import ProductoModal from '../components/menu/ProductoModal.vue'
 import CarritoFlotante from '../components/menu/CarritoFlotante.vue'
@@ -133,9 +134,10 @@ const catActiva = ref(null)
 const mesaNumero = route.query.mesa || null
 
 // ── Carrito ──
-const carrito = ref([])
+const carritoStore    = useCarritoStore()
+const carrito         = computed(() => carritoStore.items)
 const mostrarCheckout = ref(false)
-const toastNombre = ref('')
+const toastNombre     = ref('')
 let toastTimer = null
 
 const pedidosActivos = computed(() => !!restaurante.value?.pedidos_activos)
@@ -144,20 +146,14 @@ const pedidosConfig  = computed(() => restaurante.value || {})
 const tema = computed(() => restaurante.value?.tema || 'calido')
 
 const agregarAlCarrito = (producto, observacion = '') => {
-  const existente = carrito.value.find(i => i.producto.id === producto.id && i.observacion === observacion)
-  if (existente) {
-    existente.cantidad++
-  } else {
-    carrito.value.push({ producto, cantidad: 1, observacion })
-  }
-  // Toast de confirmación
+  carritoStore.agregar(producto, observacion)
   toastNombre.value = producto.nombre
   clearTimeout(toastTimer)
   toastTimer = setTimeout(() => { toastNombre.value = '' }, 1800)
 }
 
 const onPedidoConfirmado = () => {
-  carrito.value = []
+  carritoStore.vaciar()
   mostrarCheckout.value = false
 }
 
