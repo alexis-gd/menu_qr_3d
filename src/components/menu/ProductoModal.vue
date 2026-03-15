@@ -1,12 +1,14 @@
 <template>
   <div class="modal-overlay" @click.self="$emit('close')">
     <div class="modal-panel">
-      <!-- Botón cerrar -->
-      <button class="btn-close" @click="$emit('close')" aria-label="Cerrar">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
+      <!-- Botón cerrar — sticky sobre el visual -->
+      <div class="close-sticky">
+        <button class="btn-close" @click="$emit('close')" aria-label="Cerrar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
 
       <!-- Sección visual (3D o foto) -->
       <div class="modal-visual">
@@ -141,27 +143,36 @@ const emitirAgregar = () => {
   border-radius: 2px;
 }
 
-/* ── Cerrar ── */
+/* ── Cerrar — sticky sobre el visual ── */
+.close-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 16px 0;
+  pointer-events: none;
+  margin-bottom: -56px; /* se superpone sobre el visual, no consume espacio */
+}
+
 .btn-close {
-  position: absolute;
-  top: 16px;
-  right: 16px;
+  pointer-events: all;
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: rgba(0,0,0,0.08);
+  background: rgba(0,0,0,0.35);
   border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-main, #333);
-  z-index: 10;
+  color: #fff;
   transition: background 0.2s;
+  backdrop-filter: blur(4px);
 }
 
 .btn-close:hover {
-  background: rgba(0,0,0,0.15);
+  background: rgba(0,0,0,0.5);
 }
 
 /* ── Visual (3D / foto) ── */
