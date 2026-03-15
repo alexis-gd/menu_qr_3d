@@ -660,6 +660,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { resetAuth } from '../../router/index.js'
 import { useApi } from '../../composables/useApi.js'
 import { ucfirst } from '../../utils/ucfirst.js'
 import { THEMES as temas, THEMES_EXTRA as TEMAS_EXTRA } from '../../utils/themes.js'
@@ -793,8 +794,9 @@ const mostrarNotif = (texto, tipo = 'ok') => {
   setTimeout(() => { notif.value = null }, 3000)
 }
 
-const logout = () => {
-  localStorage.removeItem('admin_token')
+const logout = async () => {
+  await post('logout', {})
+  resetAuth()
   router.push('/admin')
 }
 
@@ -839,9 +841,8 @@ const uploadLogo = async (event) => {
     const fd = new FormData()
     fd.append('logo', file)
     fd.append('restaurante_id', restauranteId.value)
-    const token = localStorage.getItem('admin_token')
     const apiBase = import.meta.env.BASE_URL + 'api/'
-    const res = await fetch(`${apiBase}?route=upload-logo&token=${token}`, { method: 'POST', body: fd })
+    const res = await fetch(`${apiBase}?route=upload-logo`, { method: 'POST', body: fd, credentials: 'include' })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Error al subir el logo')
     restaurante.value = { ...restaurante.value, logo_url: data.logo_url }
@@ -1088,8 +1089,7 @@ async function subirFotos(prodId, event) {
   fd.append('producto_id', prodId)
   for (let i = 0; i < files.length; i++) fd.append('fotos[]', files[i])
   try {
-    const token = localStorage.getItem('admin_token')
-    const res = await fetch(`${import.meta.env.BASE_URL}api/?route=upload-fotos&token=${token}`, { method: 'POST', body: fd })
+    const res = await fetch(`${import.meta.env.BASE_URL}api/?route=upload-fotos`, { method: 'POST', body: fd, credentials: 'include' })
     if (!res.ok) throw new Error('Error al subir fotos')
     event.target.value = ''
     await loadProductos()
@@ -1104,8 +1104,7 @@ async function subirGlb(prodId, event) {
   fd.append('producto_id', prodId)
   fd.append('modelo', file)
   try {
-    const token = localStorage.getItem('admin_token')
-    const res = await fetch(`${import.meta.env.BASE_URL}api/?route=upload-glb&token=${token}`, { method: 'POST', body: fd })
+    const res = await fetch(`${import.meta.env.BASE_URL}api/?route=upload-glb`, { method: 'POST', body: fd, credentials: 'include' })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Error al subir el modelo')
     event.target.value = ''

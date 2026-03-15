@@ -29,6 +29,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApi } from '../../composables/useApi.js'
+import { resetAuth } from '../../router/index.js'
 
 const email = ref('')
 const password = ref('')
@@ -41,8 +42,9 @@ const submit = async () => {
   errorMsg.value = null
   cargando.value = true
   try {
-    const res = await post('login', { email: email.value, password: password.value }, false)
-    localStorage.setItem('admin_token', res.token)
+    await post('login', { email: email.value, password: password.value }, false)
+    // Limpiar la caché del guard (estaba en false por la visita inicial al login)
+    resetAuth()
     router.push('/admin/dashboard')
   } catch (err) {
     errorMsg.value = err.message || 'Credenciales incorrectas'
@@ -50,10 +52,7 @@ const submit = async () => {
     cargando.value = false
   }
 }
-
-if (localStorage.getItem('admin_token')) {
-  router.replace('/admin/dashboard')
-}
+// La redirección si ya está autenticado la maneja el router guard (beforeEach)
 </script>
 
 <style scoped>

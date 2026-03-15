@@ -44,18 +44,42 @@ const router = createRouter({
   routes
 })
 
+// Estado de autenticación — se cachea para no llamar la API en cada navegación interna.
+// null = sin verificar (primera carga o después de logout), true/false = verificado.
+let authenticated = null
+
+async function checkAuth() {
+  if (authenticated !== null) return authenticated
+  try {
+    const res = await fetch(import.meta.env.BASE_URL + 'api/?route=auth-check', {
+      credentials: 'include'
+    })
+    authenticated = res.ok
+  } catch {
+    authenticated = false
+  }
+  return authenticated
+}
+
+// Exportado para que Dashboard.vue lo llame al hacer logout.
+export function resetAuth() {
+  authenticated = null
+}
+
 // Protección de rutas admin
-router.beforeEach((to, _from, next) => {
-  const token = localStorage.getItem('admin_token')
-  if (to.path.startsWith('/admin') && to.path !== '/admin') {
-    if (!token) {
-      return next({ path: '/admin' })
-    }
+router.beforeEach(async (to) => {
+  const isAdminProtected = to.path.startsWith('/admin') && to.path !== '/admin'
+  const isLoginPage     = to.path === '/admin'
+
+  if (isAdminProtected) {
+    const ok = await checkAuth()
+    if (!ok) return { path: '/admin' }
   }
-  if (to.path === '/admin' && token) {
-    return next({ path: '/admin/dashboard' })
+
+  if (isLoginPage) {
+    const ok = await checkAuth()
+    if (ok) return { path: '/admin/dashboard' }
   }
-  next()
 })
 
 export default router
