@@ -129,20 +129,24 @@ CREATE TABLE IF NOT EXISTS categorias (
 -- relativa dentro de /uploads/modelos/ (no URL completa).
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS productos (
-  id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  categoria_id    INT UNSIGNED  NOT NULL,
-  nombre          VARCHAR(200)  NOT NULL,
-  descripcion     TEXT,
-  precio          DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  foto_principal  VARCHAR(500),                    -- ruta relativa /uploads/fotos/{id}/principal.jpg
-  modelo_glb_path VARCHAR(500),                    -- ruta relativa /uploads/modelos/modelo_{id}_{ts}.glb
-  tiene_ar        TINYINT(1)    NOT NULL DEFAULT 0, -- 1 = modelo 3D listo y disponible
-  es_destacado    TINYINT(1)    NOT NULL DEFAULT 0, -- para mostrar en sección especial
-  disponible      TINYINT(1)    NOT NULL DEFAULT 1, -- disponibilidad del platillo hoy
-  activo          TINYINT(1)    NOT NULL DEFAULT 1, -- borrado lógico
-  orden           SMALLINT      NOT NULL DEFAULT 0,
-  created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  id                    INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  categoria_id          INT UNSIGNED  NOT NULL,
+  nombre                VARCHAR(200)  NOT NULL,
+  descripcion           TEXT,
+  precio                DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  foto_principal        VARCHAR(500),                    -- ruta relativa /uploads/fotos/{id}/principal.jpg
+  modelo_glb_path       VARCHAR(500),                    -- ruta relativa /uploads/modelos/modelo_{id}_{ts}.glb
+  tiene_ar              TINYINT(1)    NOT NULL DEFAULT 0, -- 1 = modelo 3D listo y disponible
+  es_destacado          TINYINT(1)    NOT NULL DEFAULT 0, -- para mostrar en sección especial
+  disponible            TINYINT(1)    NOT NULL DEFAULT 1, -- disponibilidad del platillo hoy
+  tiene_personalizacion TINYINT(1)    NOT NULL DEFAULT 0, -- 1 = usa PersonalizacionModal (Fase 7)
+  aviso_complemento     TEXT          DEFAULT NULL,        -- texto del aviso de complemento (ej: "¿Bebida?")
+  aviso_categoria_id    INT UNSIGNED  DEFAULT NULL,        -- categoría a la que lleva el botón "Ver"
+  stock                 SMALLINT      DEFAULT NULL,        -- NULL = sin control de stock
+  activo                TINYINT(1)    NOT NULL DEFAULT 1, -- borrado lógico
+  orden                 SMALLINT      NOT NULL DEFAULT 0,
+  created_at            TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at            TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (categoria_id) REFERENCES categorias(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -281,12 +285,6 @@ CREATE TABLE IF NOT EXISTS pedido_item_opciones (
   FOREIGN KEY (pedido_item_id) REFERENCES pedido_items(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Columnas nuevas en productos (Fase 7):
--- ALTER TABLE productos
---   ADD COLUMN tiene_personalizacion TINYINT(1) NOT NULL DEFAULT 0 AFTER disponible,
---   ADD COLUMN aviso_complemento TEXT DEFAULT NULL AFTER tiene_personalizacion,
---   ADD COLUMN aviso_categoria_id INT UNSIGNED DEFAULT NULL AFTER aviso_complemento;
-
 SET foreign_key_checks = 1;
 ```
 
@@ -305,15 +303,13 @@ usuarios
                        └──< producto_grupos (producto_id)
                               └──< producto_opciones (grupo_id)
 
-pedido_items
-  └──< pedido_item_opciones (pedido_item_id)
-
-usuarios
-  └──< sesiones_admin (usuario_id)
-
 restaurantes
   └──< pedidos (restaurante_id)
          └──< pedido_items (pedido_id)
+                └──< pedido_item_opciones (pedido_item_id)  ← snapshot Fase 7
+
+usuarios
+  └──< sesiones_admin (usuario_id)
 ```
 
 ---

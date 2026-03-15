@@ -192,8 +192,8 @@ src/components/
 **Estado Vue Chat 3:** ✅ Implementado (2026-03-15):
 - `src/views/MenuPublico.vue` — `abrirModal` + `onCardAgregar` ruteán a PersonalizacionModal o ProductoModal; `onIrCategoria` cierra modal + scroll
 - `src/components/menu/CheckoutModal.vue` — chips opciones, subtotal con `precio_unitario`, WA flatMap, POST incluye `opciones[]`
-**Estado Vue Chat 4:** 🔄 Pendiente:
-- `src/components/admin/tabs/TabPlatillos.vue` — sección personalización en modo edición
+**Estado Vue Chat 4:** ✅ Implementado (2026-03-15):
+- `src/components/admin/tabs/TabPlatillos.vue` — editor inline de grupos/opciones; iniciarEdicion async; guardarEdicionProducto llama PUT productos + POST producto-grupos; max_dinamico convertido id↔índice
 
 **Archivos BD:** `database/migrations/fase7_personalizacion.sql`
 **Tablas nuevas:** `producto_grupos`, `producto_opciones`, `pedido_item_opciones`
