@@ -80,7 +80,7 @@
 <script setup>
 import { ref } from 'vue'
 import ModelViewer3D from './ModelViewer3D.vue'
-import { ucfirst } from '../utils/ucfirst.js'
+import { ucfirst } from '../../utils/ucfirst.js'
 
 const props = defineProps({
   producto: { type: Object, required: true },

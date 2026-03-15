@@ -179,8 +179,8 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { useApi } from '../composables/useApi.js'
-import { ucfirst } from '../utils/ucfirst.js'
+import { useApi } from '../../composables/useApi.js'
+import { ucfirst } from '../../utils/ucfirst.js'
 
 const props = defineProps({
   carrito:       { type: Array,  required: true },

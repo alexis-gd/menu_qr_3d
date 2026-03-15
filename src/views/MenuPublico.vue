@@ -118,10 +118,10 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useApi } from '../composables/useApi.js'
-import ProductoCard from '../components/ProductoCard.vue'
-import ProductoModal from '../components/ProductoModal.vue'
-import CarritoFlotante from '../components/CarritoFlotante.vue'
-import CheckoutModal from '../components/CheckoutModal.vue'
+import ProductoCard from '../components/menu/ProductoCard.vue'
+import ProductoModal from '../components/menu/ProductoModal.vue'
+import CarritoFlotante from '../components/menu/CarritoFlotante.vue'
+import CheckoutModal from '../components/menu/CheckoutModal.vue'
 
 const route = useRoute()
 const { get, loading, error } = useApi()
