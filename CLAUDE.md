@@ -172,6 +172,36 @@ src/components/
 
 ---
 
+### PERSONALIZACIÓN POR PASOS — Sistema genérico estilo Rappi/Uber Eats
+
+**Decisión:** Los productos pueden tener grupos de opciones configurables por el admin. El flujo de selección es paso a paso en un bottom sheet modal, no en el ProductoModal existente.
+
+**Por qué:** Productos como poke bowls, hamburguesas o pizzas requieren que el cliente elija ingredientes, tamaños y extras antes de agregar al carrito. El sistema es genérico: cualquier producto puede tenerlo o no (`tiene_personalizacion` flag). Los productos simples siguen usando `ProductoModal.vue` sin cambios.
+
+**Reglas clave:**
+- `precio` del producto es FIJO (base). Solo `opciones.precio_extra > 0` suma al total.
+- El max de selecciones de un grupo checkbox puede ser dinámico: depende de la opción elegida en otro grupo radio (ej: Tamaño Mediano → max 5 ingredientes). Se resuelve via `max_dinamico_grupo_id` + `max_override` en opciones.
+- Aviso de complemento (bebida, etc.) es texto configurable + categoría destino. El cliente toca "Ver X" → se cierra el modal y el menú hace scroll a esa categoría.
+- El checkout y WhatsApp muestran las opciones seleccionadas como snapshot (nombres + precio_extra guardados en `pedido_item_opciones`).
+
+**Estado BD y API:** ✅ Implementado (2026-03-15).
+**Estado Vue Chat 2:** ✅ Implementado (2026-03-15):
+- `src/components/menu/PersonalizacionModal.vue` — bottom sheet completo (CREADO)
+- `src/components/menu/ProductoModal.vue` — fix botón X: `.close-sticky` wrapper `position:sticky; margin-bottom:-56px`
+- `src/stores/carrito.js` — `agregar(producto, obs, opciones)`, `precio_unitario`, dedup solo sin opciones
+**Estado Vue Chat 3:** ✅ Implementado (2026-03-15):
+- `src/views/MenuPublico.vue` — `abrirModal` + `onCardAgregar` ruteán a PersonalizacionModal o ProductoModal; `onIrCategoria` cierra modal + scroll
+- `src/components/menu/CheckoutModal.vue` — chips opciones, subtotal con `precio_unitario`, WA flatMap, POST incluye `opciones[]`
+**Estado Vue Chat 4:** 🔄 Pendiente:
+- `src/components/admin/tabs/TabPlatillos.vue` — sección personalización en modo edición
+
+**Archivos BD:** `database/migrations/fase7_personalizacion.sql`
+**Tablas nuevas:** `producto_grupos`, `producto_opciones`, `pedido_item_opciones`
+**Columnas nuevas en `productos`:** `tiene_personalizacion`, `aviso_complemento`, `aviso_categoria_id`
+**Endpoints nuevos:** `GET/POST producto-grupos`
+
+---
+
 ### INSTRUCCIÓN PARA CLAUDE CODE — Documentar cambios
 
 Cada vez que Claude Code complete una tarea de las listadas arriba, debe:
@@ -189,6 +219,7 @@ Cada vez que Claude Code complete una tarea de las listadas arriba, debe:
 
 ## LOG DE CAMBIOS ARQUITECTÓNICOS
 
+- [2026-03-15] **FASE 7 BD+API — Personalización por pasos** — `database/migrations/fase7_personalizacion.sql` (migración ejecutada en local). `api/index.php`: nuevos endpoints `GET/POST producto-grupos`; `menu` GET extiende productos con `grupos[]` embebidos (query eficiente sin N+1); `pedidos` POST guarda `pedido_item_opciones`; `pedidos` GET retorna opciones por item. Pendiente: toda la capa Vue (Chat 2+).
 - [2026-03-15] **PINIA — Carrito store con persistencia** — `src/stores/carrito.js` (store con `items`, `agregar()`, `vaciar()`). `main.js`: registra Pinia + `pinia-plugin-persistedstate`. `MenuPublico.vue`: `carrito` pasa de `ref([])` a `computed(() => carritoStore.items)`. El carrito sobrevive recargas del menú público.
 - [2026-03-15] **ARQUITECTURA — Dashboard particionado + reorganización components** — `Dashboard.vue` reducido de 1721 → ~170 líneas (solo orquestador). Creados: `src/components/admin/tabs/` (5 tabs) y `src/assets/admin.css` (estilos compartidos del admin). `src/components/` reorganizado: carpeta `menu/` para componentes del menú público, carpeta `admin/tabs/` para tabs. Props/emits: Dashboard pasa `restauranteId`, `categorias`, `restaurante`, `menuUrl`, `active` a cada tab; recibe `notif`, `categorias-changed`, `restaurante-updated`, `tema-preview`. Bug fix en imports relativos de componentes movidos (`../` → `../../`).
 - [2026-03-11] **AUTENTICACIÓN — Cookies HttpOnly** — Eliminado token en localStorage y query string. `helpers.php`: `require_auth()` lee `$_COOKIE['token']`; funciones `set_auth_cookie()`/`clear_auth_cookie()`. `api/index.php`: login emite cookie, nuevos endpoints `logout` y `auth-check`. `useApi.js`: `credentials: 'include'`, sin lógica de token. `router/index.js`: guard async con `checkAuth()` cacheado + `resetAuth()` exportado. `Dashboard.vue`: logout llama API + `resetAuth()`; uploads usan `credentials: 'include'`. `Login.vue`: sin `localStorage`.

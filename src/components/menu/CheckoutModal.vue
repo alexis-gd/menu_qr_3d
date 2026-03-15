@@ -22,6 +22,12 @@
               </div>
               <div class="item-info">
                 <span class="item-nombre">{{ item.producto.nombre }}</span>
+                <!-- Chips de opciones seleccionadas -->
+                <div v-if="item.opciones?.length" class="item-opciones">
+                  <span v-for="op in item.opciones" :key="op.opcion_id" class="chip-opcion">
+                    {{ op.opcion_nombre }}<template v-if="op.precio_extra > 0"> +${{ Number(op.precio_extra).toFixed(2) }}</template>
+                  </span>
+                </div>
                 <input
                   :value="item.observacion"
                   @input="item.observacion = ucfirst($event.target.value)"
@@ -30,7 +36,7 @@
                   maxlength="100"
                 />
               </div>
-              <span class="item-subtotal">${{ (item.producto.precio * item.cantidad).toFixed(2) }}</span>
+              <span class="item-subtotal">${{ ((item.precio_unitario ?? item.producto.precio) * item.cantidad).toFixed(2) }}</span>
             </div>
           </div>
         </section>
@@ -222,7 +228,7 @@ const costoEnvio = computed(() =>
 )
 
 const subtotal = computed(() =>
-  carritoLocal.value.reduce((s, i) => s + i.producto.precio * i.cantidad, 0)
+  carritoLocal.value.reduce((s, i) => s + (i.precio_unitario ?? Number(i.producto.precio)) * i.cantidad, 0)
 )
 
 const total = computed(() => subtotal.value + costoEnvio.value)
@@ -264,9 +270,10 @@ const confirmar = async () => {
     const items = carritoLocal.value.map(i => ({
       producto_id: i.producto.id,
       nombre: i.producto.nombre,
-      precio: i.producto.precio,
+      precio: i.precio_unitario ?? i.producto.precio,
       cantidad: i.cantidad,
       observacion: i.observacion || null,
+      opciones: i.opciones || [],
     }))
 
     const body = {
@@ -293,9 +300,14 @@ const confirmar = async () => {
       `*#${res.numero_pedido}*`,
       ``,
       `*Pedido:*`,
-      ...carritoLocal.value.map(i => {
+      ...carritoLocal.value.flatMap(i => {
+        const precioUnit = i.precio_unitario ?? Number(i.producto.precio)
         const obs = i.observacion ? ` _(${i.observacion})_` : ''
-        return `  ${i.cantidad}x ${i.producto.nombre}${obs} — $${(i.producto.precio * i.cantidad).toFixed(2)}`
+        const linea = `  ${i.cantidad}x ${i.producto.nombre}${obs} — $${(precioUnit * i.cantidad).toFixed(2)}`
+        const opLines = (i.opciones || []).map(o =>
+          `    · ${o.opcion_nombre}${o.precio_extra > 0 ? ` +$${Number(o.precio_extra).toFixed(2)}` : ''}`
+        )
+        return [linea, ...opLines]
       }),
       ``,
       `Subtotal: $${subtotal.value.toFixed(2)}`,
@@ -427,6 +439,25 @@ const confirmar = async () => {
 
 .item-info { flex: 1; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .item-nombre { font-size: 0.9rem; font-weight: 700; color: #1a1a1a; }
+
+.item-opciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+
+.chip-opcion {
+  display: inline-block;
+  background: var(--accent-light, #fff0e8);
+  color: var(--accent, #FF6B35);
+  border: 1px solid rgba(255,107,53,0.25);
+  border-radius: 20px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
 
 .item-obs-input {
   padding: 5px 8px; border: 1px solid #e0e0e0; border-radius: 6px;

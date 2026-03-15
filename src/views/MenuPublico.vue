@@ -66,7 +66,7 @@
               :producto="prod"
               :pedidos-activos="pedidosActivos"
               @click="abrirModal(prod)"
-              @agregar="agregarAlCarrito(prod, '')"
+              @agregar="onCardAgregar(prod)"
             />
           </div>
         </section>
@@ -78,13 +78,22 @@
       </footer>
     </template>
 
-    <!-- Modal de producto -->
+    <!-- Modal de producto (sin personalización) -->
     <ProductoModal
       v-if="productoSeleccionado"
       :producto="productoSeleccionado"
       :pedidos-activos="pedidosActivos"
       @close="productoSeleccionado = null"
       @agregar="({ producto, observacion }) => { agregarAlCarrito(producto, observacion); productoSeleccionado = null }"
+    />
+
+    <!-- Modal de personalización por pasos -->
+    <PersonalizacionModal
+      v-if="productoPersonalizacion"
+      :producto="productoPersonalizacion"
+      @close="productoPersonalizacion = null"
+      @agregar="onAgregarConOpciones"
+      @ir-categoria="onIrCategoria"
     />
 
     <!-- Toast "agregado al carrito" -->
@@ -121,6 +130,7 @@ import { useApi } from '../composables/useApi.js'
 import { useCarritoStore } from '../stores/carrito.js'
 import ProductoCard from '../components/menu/ProductoCard.vue'
 import ProductoModal from '../components/menu/ProductoModal.vue'
+import PersonalizacionModal from '../components/menu/PersonalizacionModal.vue'
 import CarritoFlotante from '../components/menu/CarritoFlotante.vue'
 import CheckoutModal from '../components/menu/CheckoutModal.vue'
 
@@ -129,8 +139,9 @@ const { get, loading, error } = useApi()
 
 const restaurante = ref(null)
 const categorias = ref([])
-const productoSeleccionado = ref(null)
-const catActiva = ref(null)
+const productoSeleccionado     = ref(null)
+const productoPersonalizacion  = ref(null)
+const catActiva  = ref(null)
 const mesaNumero = route.query.mesa || null
 
 // ── Carrito ──
@@ -145,11 +156,32 @@ const pedidosConfig  = computed(() => restaurante.value || {})
 
 const tema = computed(() => restaurante.value?.tema || 'calido')
 
-const agregarAlCarrito = (producto, observacion = '') => {
-  carritoStore.agregar(producto, observacion)
+const agregarAlCarrito = (producto, observacion = '', opciones = []) => {
+  carritoStore.agregar(producto, observacion, opciones)
   toastNombre.value = producto.nombre
   clearTimeout(toastTimer)
   toastTimer = setTimeout(() => { toastNombre.value = '' }, 1800)
+}
+
+// Llamado desde PersonalizacionModal al confirmar opciones
+const onAgregarConOpciones = ({ producto, observacion, opciones }) => {
+  agregarAlCarrito(producto, observacion, opciones)
+  productoPersonalizacion.value = null
+}
+
+// "+" en card: abre modal de personalización si aplica, si no agrega directo
+const onCardAgregar = (prod) => {
+  if (prod.tiene_personalizacion) {
+    productoPersonalizacion.value = prod
+  } else {
+    agregarAlCarrito(prod, '')
+  }
+}
+
+// Botón "Ver X" del aviso complemento: cierra modal + scroll a categoría
+const onIrCategoria = (catId) => {
+  productoPersonalizacion.value = null
+  irACategoria(catId)
 }
 
 const onPedidoConfirmado = () => {
@@ -216,7 +248,11 @@ const irACategoria = (catId) => {
 }
 
 const abrirModal = (producto) => {
-  productoSeleccionado.value = producto
+  if (producto.tiene_personalizacion) {
+    productoPersonalizacion.value = producto
+  } else {
+    productoSeleccionado.value = producto
+  }
 }
 </script>
 
