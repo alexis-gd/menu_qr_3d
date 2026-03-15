@@ -13,6 +13,7 @@
 - [x] **Fase 4** — Integración 3D: upload-fotos, upload-glb manual, model-viewer en modal, cron script
 - [x] **Fase 5** — QR & Mesas: endpoint mesas, admin Mesas.vue, QR por mesa, badge de mesa en menú
 - [x] **Fase 6** — Sistema de Pedidos: carrito sin sesión, checkout con WhatsApp deep link, tabs Negocio/Pedidos en admin
+- [ ] **Fase 7** — Personalización por pasos (estilo Rappi/Uber Eats): BD ✅, API ✅, Vue pendiente
 
 ### Funcionalidades Implementadas
 - [x] API endpoints: `menu`, `login`, `restaurantes`, `categorias`, `productos`, `mesas`, `upload-fotos`, `upload-glb`, `upload-logo`, `job-status`
@@ -33,6 +34,7 @@
 - [x] **Favicon dinámico** — watch en Dashboard.vue actualiza `<link rel="icon">` con el logo del restaurante al cargar
 - [x] **Sistema de Pedidos** — toggle por restaurante (`pedidos_activos`). Carrito sin sesión en Vue `ref([])`. Checkout: tipo entrega (recoger/envío con costo configurable), datos cliente, pago (efectivo con denominación / transferencia con botones copiar por campo — solo visible si `pedidos_trans_activo = 1`), observaciones por platillo. Al confirmar: POST a `/api/?route=pedidos` → abre WhatsApp con resumen pre-llenado. Admin: tab Negocio (config + compartir menú con mensaje personalizado guardado en DB) + tab Pedidos (lista con status + auto-refresh 30s). Nuevas tablas: `pedidos`, `pedido_items`. Nuevas columnas en `restaurantes`: `pedidos_activos`, `pedidos_envio_activo`, `pedidos_envio_costo`, `pedidos_whatsapp`, `pedidos_trans_activo`, `pedidos_trans_clabe/cuenta/titular/banco`, `compartir_mensaje`.
 - [x] **Utilería ucfirst** — `src/utils/ucfirst.js`. Primera letra mayúscula al tipear. Patrón: `:value + @input` con `ucfirst($event.target.value)`. Usada en Dashboard (CRUD), CheckoutModal (nombre, dirección, observación) y ProductoModal (observación).
+- [ ] **Personalización por pasos (Fase 7)** — Sistema genérico de grupos de opciones por producto estilo Rappi/Uber Eats. BD completa: `producto_grupos`, `producto_opciones`, `pedido_item_opciones` + columnas en `productos` (`tiene_personalizacion`, `aviso_complemento`, `aviso_categoria_id`). API: `GET/POST producto-grupos`, extensión de `menu` GET (grupos embebidos), `pedidos` POST/GET con opciones. **Pendiente Vue:** `PersonalizacionModal.vue` (bottom sheet nuevo), fix X sticky en `ProductoModal.vue`, extensión de `carrito.js`, integración en `MenuPublico.vue`, extensión de `CheckoutModal.vue`, sección personalización en `TabPlatillos.vue`.
 
 ### Decisión: Flujo 3D sin Meshy API
 La API de Meshy requiere plan Pro ($20/mes) para acceso programático. Se adoptó **flujo semi-manual (Opción B)**:
@@ -319,9 +321,11 @@ Todos bajo `/api/index.php` con parámetro `?route=`:
 | POST | `/api/?route=upload-glb` | Subir .glb validado, `tiene_ar=1` | Sí |
 | POST | `/api/?route=upload-logo` | Subir logo del restaurante (JPG/PNG/WebP, max 2MB) | Sí |
 | GET | `/api/?route=job-status&producto_id={id}` | Estado conversión 3D (Meshy) | Sí |
-| GET | `/api/?route=pedidos&restaurante_id={id}` | Lista pedidos con items nested | Sí |
-| POST | `/api/?route=pedidos` | Crear pedido + items | No |
+| GET | `/api/?route=pedidos&restaurante_id={id}` | Lista pedidos con items nested + opciones | Sí |
+| POST | `/api/?route=pedidos` | Crear pedido + items + opciones | No |
 | PUT | `/api/?route=pedidos&id={id}` | Actualizar status del pedido | Sí |
+| GET | `/api/?route=producto-grupos&producto_id={id}` | Grupos y opciones de un producto | No |
+| POST | `/api/?route=producto-grupos` | Guardar/reemplazar grupos+opciones de un producto | Sí |
 
 ---
 

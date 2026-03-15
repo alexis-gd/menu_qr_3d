@@ -44,7 +44,10 @@ switch ($route) {
                 p.modelo_glb_path,
                 p.tiene_ar,
                 p.es_destacado,
-                p.disponible
+                p.disponible,
+                p.tiene_personalizacion,
+                p.aviso_complemento,
+                p.aviso_categoria_id
              FROM restaurantes r
              JOIN categorias c ON c.restaurante_id = r.id AND c.activo = 1
              JOIN productos p ON p.categoria_id = c.id AND p.activo = 1 AND p.disponible = 1
@@ -89,16 +92,82 @@ switch ($route) {
                 ];
             }
             $categoriasMap[$catId]['productos'][] = [
-                'id'              => $row['prod_id'],
-                'nombre'          => $row['prod_nombre'],
-                'descripcion'     => $row['prod_descripcion'],
-                'precio'          => (float) $row['precio'],
-                'foto_principal'  => $row['foto_principal'] ? UPLOADS_URL . $row['foto_principal'] : null,
-                'modelo_glb_url'  => $row['modelo_glb_path'] ? UPLOADS_URL . 'modelos/' . $row['modelo_glb_path'] : null,
-                'tiene_ar'        => (bool) $row['tiene_ar'],
-                'es_destacado'    => (bool) $row['es_destacado'],
-                'disponible'      => (bool) $row['disponible'],
+                'id'                    => $row['prod_id'],
+                'nombre'                => $row['prod_nombre'],
+                'descripcion'           => $row['prod_descripcion'],
+                'precio'                => (float) $row['precio'],
+                'foto_principal'        => $row['foto_principal'] ? UPLOADS_URL . $row['foto_principal'] : null,
+                'modelo_glb_url'        => $row['modelo_glb_path'] ? UPLOADS_URL . 'modelos/' . $row['modelo_glb_path'] : null,
+                'tiene_ar'              => (bool) $row['tiene_ar'],
+                'es_destacado'          => (bool) $row['es_destacado'],
+                'disponible'            => (bool) $row['disponible'],
+                'tiene_personalizacion' => (bool) $row['tiene_personalizacion'],
+                'aviso_complemento'     => $row['aviso_complemento'],
+                'aviso_categoria_id'    => $row['aviso_categoria_id'] ? (int) $row['aviso_categoria_id'] : null,
+                'grupos'                => [],
             ];
+        }
+
+        // Cargar grupos y opciones para productos con personalización (evita N+1)
+        $prodIds = [];
+        foreach ($categoriasMap as $cat) {
+            foreach ($cat['productos'] as $prod) {
+                if ($prod['tiene_personalizacion']) {
+                    $prodIds[] = $prod['id'];
+                }
+            }
+        }
+        if (!empty($prodIds)) {
+            $placeholders = implode(',', array_fill(0, count($prodIds), '?'));
+            $stmtGrupos = $pdo->prepare(
+                "SELECT pg.id, pg.producto_id, pg.nombre, pg.tipo, pg.obligatorio,
+                        pg.min_selecciones, pg.max_selecciones, pg.max_dinamico_grupo_id, pg.orden,
+                        po.id AS op_id, po.nombre AS op_nombre, po.precio_extra,
+                        po.max_override, po.orden AS op_orden
+                 FROM producto_grupos pg
+                 LEFT JOIN producto_opciones po ON po.grupo_id = pg.id AND po.activo = 1
+                 WHERE pg.producto_id IN ($placeholders) AND pg.activo = 1
+                 ORDER BY pg.producto_id, pg.orden, po.orden"
+            );
+            $stmtGrupos->execute($prodIds);
+            $gruposRows = $stmtGrupos->fetchAll();
+
+            $gruposMap = [];
+            foreach ($gruposRows as $gr) {
+                $pid = $gr['producto_id'];
+                $gid = $gr['id'];
+                if (!isset($gruposMap[$pid][$gid])) {
+                    $gruposMap[$pid][$gid] = [
+                        'id'                    => (int) $gr['id'],
+                        'nombre'                => $gr['nombre'],
+                        'tipo'                  => $gr['tipo'],
+                        'obligatorio'           => (bool) $gr['obligatorio'],
+                        'min_selecciones'       => (int) $gr['min_selecciones'],
+                        'max_selecciones'       => (int) $gr['max_selecciones'],
+                        'max_dinamico_grupo_id' => $gr['max_dinamico_grupo_id'] ? (int) $gr['max_dinamico_grupo_id'] : null,
+                        'orden'                 => (int) $gr['orden'],
+                        'opciones'              => [],
+                    ];
+                }
+                if ($gr['op_id']) {
+                    $gruposMap[$pid][$gid]['opciones'][] = [
+                        'id'           => (int) $gr['op_id'],
+                        'nombre'       => $gr['op_nombre'],
+                        'precio_extra' => (float) $gr['precio_extra'],
+                        'max_override' => $gr['max_override'] !== null ? (int) $gr['max_override'] : null,
+                        'orden'        => (int) $gr['op_orden'],
+                    ];
+                }
+            }
+
+            foreach ($categoriasMap as &$cat) {
+                foreach ($cat['productos'] as &$prod) {
+                    if ($prod['tiene_personalizacion'] && isset($gruposMap[$prod['id']])) {
+                        $prod['grupos'] = array_values($gruposMap[$prod['id']]);
+                    }
+                }
+            }
+            unset($cat, $prod);
         }
 
         json_response([
@@ -561,7 +630,18 @@ switch ($route) {
                      FROM pedido_items WHERE pedido_id = :pid'
                 );
                 $stmtItems->execute([':pid' => $ped['id']]);
-                $ped['items'] = $stmtItems->fetchAll();
+                $items = $stmtItems->fetchAll();
+                // Cargar opciones de personalización por item
+                $stmtOpc = $pdo->prepare(
+                    'SELECT grupo_nombre, opcion_nombre, precio_extra
+                     FROM pedido_item_opciones WHERE pedido_item_id = :iid'
+                );
+                foreach ($items as &$item) {
+                    $stmtOpc->execute([':iid' => $item['id']]);
+                    $item['opciones'] = $stmtOpc->fetchAll();
+                }
+                unset($item);
+                $ped['items'] = $items;
                 $ped['subtotal']   = (float) $ped['subtotal'];
                 $ped['costo_envio'] = (float) $ped['costo_envio'];
                 $ped['total']      = (float) $ped['total'];
@@ -627,6 +707,10 @@ switch ($route) {
                 'INSERT INTO pedido_items (pedido_id, producto_id, nombre_producto, precio_unitario, cantidad, observacion, subtotal)
                  VALUES (:pid, :prod_id, :nombre, :precio, :cant, :obs, :sub)'
             );
+            $stmtOpc = $pdo->prepare(
+                'INSERT INTO pedido_item_opciones (pedido_item_id, grupo_nombre, opcion_nombre, precio_extra)
+                 VALUES (:iid, :gn, :on, :pe)'
+            );
             foreach ($items as $item) {
                 $cant = max(1, (int)($item['cantidad'] ?? 1));
                 $precio = (float)($item['precio'] ?? 0);
@@ -639,6 +723,19 @@ switch ($route) {
                     ':obs'    => $item['observacion'] ?? null,
                     ':sub'    => $precio * $cant,
                 ]);
+                // Guardar opciones de personalización si las tiene
+                $opciones = $item['opciones'] ?? [];
+                if (!empty($opciones)) {
+                    $item_id = (int)$pdo->lastInsertId();
+                    foreach ($opciones as $op) {
+                        $stmtOpc->execute([
+                            ':iid' => $item_id,
+                            ':gn'  => $op['grupo_nombre'] ?? '',
+                            ':on'  => $op['opcion_nombre'] ?? '',
+                            ':pe'  => (float)($op['precio_extra'] ?? 0),
+                        ]);
+                    }
+                }
             }
 
             json_response(['id' => (int)$pedido_id, 'numero_pedido' => $numero_pedido], 201);
@@ -658,6 +755,138 @@ switch ($route) {
             $pdo->prepare('UPDATE pedidos SET status = :s WHERE id = :id')
                 ->execute([':s' => $status, ':id' => (int)$id]);
             json_response(['success' => true]);
+        }
+
+        json_response(['error' => 'Método no soportado'], 405);
+        break;
+
+    case 'producto-grupos':
+        // GET: obtener grupos y opciones de un producto (público)
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            $producto_id = $_GET['producto_id'] ?? null;
+            if (!$producto_id) json_response(['error' => 'producto_id requerido'], 400);
+
+            $stmt = $pdo->prepare(
+                'SELECT pg.id, pg.nombre, pg.tipo, pg.obligatorio,
+                        pg.min_selecciones, pg.max_selecciones, pg.max_dinamico_grupo_id, pg.orden,
+                        po.id AS op_id, po.nombre AS op_nombre, po.precio_extra,
+                        po.max_override, po.orden AS op_orden
+                 FROM producto_grupos pg
+                 LEFT JOIN producto_opciones po ON po.grupo_id = pg.id AND po.activo = 1
+                 WHERE pg.producto_id = :pid AND pg.activo = 1
+                 ORDER BY pg.orden, po.orden'
+            );
+            $stmt->execute([':pid' => (int)$producto_id]);
+            $rows = $stmt->fetchAll();
+
+            $grupos = [];
+            foreach ($rows as $row) {
+                $gid = $row['id'];
+                if (!isset($grupos[$gid])) {
+                    $grupos[$gid] = [
+                        'id'                    => (int) $row['id'],
+                        'nombre'                => $row['nombre'],
+                        'tipo'                  => $row['tipo'],
+                        'obligatorio'           => (bool) $row['obligatorio'],
+                        'min_selecciones'       => (int) $row['min_selecciones'],
+                        'max_selecciones'       => (int) $row['max_selecciones'],
+                        'max_dinamico_grupo_id' => $row['max_dinamico_grupo_id'] ? (int) $row['max_dinamico_grupo_id'] : null,
+                        'orden'                 => (int) $row['orden'],
+                        'opciones'              => [],
+                    ];
+                }
+                if ($row['op_id']) {
+                    $grupos[$gid]['opciones'][] = [
+                        'id'           => (int) $row['op_id'],
+                        'nombre'       => $row['op_nombre'],
+                        'precio_extra' => (float) $row['precio_extra'],
+                        'max_override' => $row['max_override'] !== null ? (int) $row['max_override'] : null,
+                        'orden'        => (int) $row['op_orden'],
+                    ];
+                }
+            }
+            json_response(['grupos' => array_values($grupos)]);
+        }
+
+        // POST: reemplazar todos los grupos/opciones de un producto (auth requerida)
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            require_auth();
+            $body = json_decode(file_get_contents('php://input'), true) ?: [];
+            $producto_id           = $body['producto_id'] ?? null;
+            $tiene_personalizacion = !empty($body['tiene_personalizacion']) ? 1 : 0;
+            $aviso_complemento     = $body['aviso_complemento'] ?? null;
+            $aviso_categoria_id    = $body['aviso_categoria_id'] ?? null;
+            $grupos                = $body['grupos'] ?? [];
+
+            if (!$producto_id) json_response(['error' => 'producto_id requerido'], 400);
+
+            $pdo->beginTransaction();
+            try {
+                // Actualizar flags en el producto
+                $pdo->prepare(
+                    'UPDATE productos SET tiene_personalizacion=:tp, aviso_complemento=:ac, aviso_categoria_id=:acid WHERE id=:pid'
+                )->execute([
+                    ':tp'   => $tiene_personalizacion,
+                    ':ac'   => $aviso_complemento ?: null,
+                    ':acid' => $aviso_categoria_id ? (int)$aviso_categoria_id : null,
+                    ':pid'  => (int)$producto_id,
+                ]);
+
+                // Borrado lógico de grupos anteriores
+                $pdo->prepare('UPDATE producto_grupos SET activo=0 WHERE producto_id=:pid')
+                    ->execute([':pid' => (int)$producto_id]);
+
+                // Pasada 1: insertar grupos, guardar mapa índice → id insertado
+                $grupoIds = [];
+                $stmtGrupo = $pdo->prepare(
+                    'INSERT INTO producto_grupos (producto_id, nombre, tipo, obligatorio, min_selecciones, max_selecciones, orden, activo)
+                     VALUES (:pid, :n, :t, :ob, :min, :max, :ord, 1)'
+                );
+                foreach ($grupos as $idx => $g) {
+                    $stmtGrupo->execute([
+                        ':pid' => (int)$producto_id,
+                        ':n'   => $g['nombre'] ?? '',
+                        ':t'   => in_array($g['tipo'] ?? '', ['radio','checkbox']) ? $g['tipo'] : 'radio',
+                        ':ob'  => !empty($g['obligatorio']) ? 1 : 0,
+                        ':min' => (int)($g['min_selecciones'] ?? 0),
+                        ':max' => (int)($g['max_selecciones'] ?? 1),
+                        ':ord' => (int)($g['orden'] ?? $idx),
+                    ]);
+                    $grupoIds[$idx] = (int)$pdo->lastInsertId();
+                }
+
+                // Pasada 2: actualizar max_dinamico_grupo_id usando mapa de índices
+                $stmtDin = $pdo->prepare('UPDATE producto_grupos SET max_dinamico_grupo_id=:dinid WHERE id=:id');
+                foreach ($grupos as $idx => $g) {
+                    $dinIdx = $g['max_dinamico_grupo_index'] ?? null;
+                    if ($dinIdx !== null && isset($grupoIds[$dinIdx])) {
+                        $stmtDin->execute([':dinid' => $grupoIds[$dinIdx], ':id' => $grupoIds[$idx]]);
+                    }
+                }
+
+                // Insertar opciones
+                $stmtOp = $pdo->prepare(
+                    'INSERT INTO producto_opciones (grupo_id, nombre, precio_extra, max_override, orden, activo)
+                     VALUES (:gid, :n, :pe, :mo, :ord, 1)'
+                );
+                foreach ($grupos as $idx => $g) {
+                    foreach ($g['opciones'] ?? [] as $oidx => $op) {
+                        $stmtOp->execute([
+                            ':gid' => $grupoIds[$idx],
+                            ':n'   => $op['nombre'] ?? '',
+                            ':pe'  => (float)($op['precio_extra'] ?? 0),
+                            ':mo'  => isset($op['max_override']) && $op['max_override'] !== null ? (int)$op['max_override'] : null,
+                            ':ord' => (int)($op['orden'] ?? $oidx),
+                        ]);
+                    }
+                }
+
+                $pdo->commit();
+                json_response(['success' => true, 'producto_id' => (int)$producto_id]);
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                json_response(['error' => 'Error al guardar: ' . $e->getMessage()], 500);
+            }
         }
 
         json_response(['error' => 'Método no soportado'], 405);
