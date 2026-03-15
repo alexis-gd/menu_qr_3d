@@ -133,7 +133,7 @@ src/components/admin/tabs/
 
 **Archivos involucrados:** `src/views/admin/Dashboard.vue` (reducido), nuevos archivos en `src/components/admin/tabs/`
 
-**Estado:** Pendiente de implementar.
+**Estado:** Implementado (2026-03-15).
 
 ---
 
@@ -156,7 +156,7 @@ src/components/
     tabs/   ← ver sección anterior
 ```
 
-**Estado:** Pendiente de implementar.
+**Estado:** Implementado (2026-03-15).
 
 ---
 
@@ -168,7 +168,7 @@ src/components/
 
 **Archivo nuevo:** `src/stores/carrito.js`
 
-**Estado:** Pendiente de implementar.
+**Estado:** Implementado (2026-03-15).
 
 ---
 
@@ -189,5 +189,7 @@ Cada vez que Claude Code complete una tarea de las listadas arriba, debe:
 
 ## LOG DE CAMBIOS ARQUITECTÓNICOS
 
+- [2026-03-15] **PINIA — Carrito store con persistencia** — `src/stores/carrito.js` (store con `items`, `agregar()`, `vaciar()`). `main.js`: registra Pinia + `pinia-plugin-persistedstate`. `MenuPublico.vue`: `carrito` pasa de `ref([])` a `computed(() => carritoStore.items)`. El carrito sobrevive recargas del menú público.
+- [2026-03-15] **ARQUITECTURA — Dashboard particionado + reorganización components** — `Dashboard.vue` reducido de 1721 → ~170 líneas (solo orquestador). Creados: `src/components/admin/tabs/` (5 tabs) y `src/assets/admin.css` (estilos compartidos del admin). `src/components/` reorganizado: carpeta `menu/` para componentes del menú público, carpeta `admin/tabs/` para tabs. Props/emits: Dashboard pasa `restauranteId`, `categorias`, `restaurante`, `menuUrl`, `active` a cada tab; recibe `notif`, `categorias-changed`, `restaurante-updated`, `tema-preview`. Bug fix en imports relativos de componentes movidos (`../` → `../../`).
 - [2026-03-11] **AUTENTICACIÓN — Cookies HttpOnly** — Eliminado token en localStorage y query string. `helpers.php`: `require_auth()` lee `$_COOKIE['token']`; funciones `set_auth_cookie()`/`clear_auth_cookie()`. `api/index.php`: login emite cookie, nuevos endpoints `logout` y `auth-check`. `useApi.js`: `credentials: 'include'`, sin lógica de token. `router/index.js`: guard async con `checkAuth()` cacheado + `resetAuth()` exportado. `Dashboard.vue`: logout llama API + `resetAuth()`; uploads usan `credentials: 'include'`. `Login.vue`: sin `localStorage`.
 - [2026-03-11] **TEMA CSS — Sistema de dos capas** — Archivos creados/modificados: `src/assets/theme.css` (variables del sistema + clases globales `.btn-primary/.btn-secondary/.btn-danger/.btn-sm` + override `.tema-oscuro-admin`), `src/utils/themes.js` (fuente única de TEMAS y TEMAS_EXTRA, extraído de Dashboard.vue), `src/main.js` (importa theme.css). Componentes actualizados para usar `.btn-primary` como base: `ProductoCard.vue` (`.btn-ver`), `ProductoModal.vue` (`.btn-agregar-carrito`), `CheckoutModal.vue` (`.btn-confirmar`), `Dashboard.vue` (scoped `.btn-primary` eliminado — usa global). `ACCIONABLES_MEJORAS.md` eliminado — contenido fusionado en `CONTEXTO_PROYECTO.md` sección "Accionables técnicos pendientes".

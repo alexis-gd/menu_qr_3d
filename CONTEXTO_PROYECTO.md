@@ -23,8 +23,8 @@
 - [x] CRUD mesas por restaurante, QR generado en browser con lib `qrcode` (npm)
 - [x] QR descargable como PNG; URL = `{origin}/menu/?r={slug}&mesa={numero}`
 - [x] Badge "Mesa X" en header del menú público cuando URL incluye `?mesa=`
-- [x] Autenticación simple (token estático en localStorage + query string)
-- [x] Protección de rutas admin con beforeEach guard
+- [x] Autenticación via cookies HttpOnly (`Set-Cookie` en login, `$_COOKIE['token']` en helpers.php, `credentials: 'include'` en fetch)
+- [x] Protección de rutas admin con beforeEach guard async (caché de auth-check, `resetAuth()` exportado)
 - [x] CORS habilitado en `/uploads/` vía `.htaccess` (necesario para model-viewer en dev)
 - [x] **Panel Apariencia** en Dashboard: tema de color, frase QR, WiFi en QR, logo del restaurante
 - [x] **5 temas visuales** para el menú público: `calido`, `oscuro`, `moderno`, `rapida`, `rosa` — cada uno con sus CSS variables en MenuPublico.vue
@@ -53,9 +53,6 @@ La API de Meshy requiere plan Pro ($20/mes) para acceso programático. Se adopt�
 - `fotos_producto.ruta` → relativo a webroot, ej: `uploads/fotos/1/foto.jpg`
 
 ### Bugs/Workarounds Conocidos
-- ⚠️ **Auth headers no llegan** — Token se pasa por query string (INSEGURO, temporal)
-  - Afecta: `src/composables/useApi.js`, `api/helpers.php`
-  - Solución pendiente: cookies HttpOnly o configurar Apache para pasar headers
 - ⚠️ **URL de logo en GET restaurantes** — Corregido: la respuesta del endpoint GET `restaurantes` ahora antepone `UPLOADS_URL` a `logo_url` (igual que el endpoint `menu`). Sin este fix, la imagen se resolvía como ruta relativa y el servidor devolvía HTML (200 OK pero imagen rota).
 
 ### Funcionalidades Pendientes
@@ -65,7 +62,6 @@ La API de Meshy requiere plan Pro ($20/mes) para acceso programático. Se adopt�
 - [ ] **Feedback visual mejorado** — Loaders en botones, toasts de éxito/error
 - [ ] **Thumbnail de foto en admin** — Mostrar foto_principal en la tabla de productos del admin
 - [ ] **Cron registrado en cPanel** — Script existe (`cron/check_meshy_jobs.php`) pero no está en scheduler
-- [ ] **Auth por cookies** — Reemplazar token en query string por cookies HttpOnly
 - [ ] **Meshy API key** — Aún en placeholder; configurar cuando se tenga acceso al plan API
 
 ---
@@ -88,20 +84,21 @@ La API de Meshy requiere plan Pro ($20/mes) para acceso programático. Se adopt�
 - [x] `src/utils/themes.js` — fuente de verdad de los 5 temas (TEMAS + TEMAS_EXTRA). Importado por Dashboard.vue
 - [x] Botones estandarizados: `btn-ver`, `btn-agregar-carrito`, `btn-confirmar` extienden `.btn-primary` global
 
-#### A3 — Arquitectura de componentes (Prioridad: Media)
-- [ ] **Partir `Dashboard.vue` en componentes por tab**
-  - Crear `src/components/admin/tabs/`: `TabPlatillos.vue`, `TabCategorias.vue`, `TabApariencia.vue`, `TabNegocio.vue`, `TabPedidos.vue`
-  - Dashboard.vue queda como orquestador: tab activa + props/emits
-- [ ] **Reorganizar `src/components/`**
+#### A3 — Arquitectura de componentes (Prioridad: Media — ✅ Implementado 2026-03-15)
+- [x] **Dashboard.vue** particionado en 5 tabs + orquestador (~170 líneas vs 1721 originales)
+  - `src/components/admin/tabs/`: `TabPlatillos.vue`, `TabCategorias.vue`, `TabApariencia.vue`, `TabNegocio.vue`, `TabPedidos.vue`
+  - Dashboard pasa props (`restauranteId`, `categorias`, `restaurante`, `menuUrl`, `active`) y recibe emits (`notif`, `categorias-changed`, `restaurante-updated`, `tema-preview`)
+- [x] **`src/components/`** reorganizado por dominio
   - `src/components/menu/` — ProductoCard, ProductoModal, ModelViewer3D, CarritoFlotante, CheckoutModal
   - `src/components/admin/tabs/` — tabs del panel
+- [x] **`src/assets/admin.css`** — estilos compartidos del admin (`.card`, `.field`, `.sw`, `.btn-icon`, etc.)
 
-#### A4 — Estado global con Pinia (Prioridad: Media)
-- [ ] **Migrar carrito de `ref([])` en MenuPublico.vue a Pinia store**
-  - Nuevo archivo: `src/stores/carrito.js`
-  - Plugin `pinia-plugin-persistedstate` para persistir en localStorage
-- [ ] **Store de restaurante activo en admin**
-  - Nuevo archivo: `src/stores/admin.js` — centraliza `restaurante_id` activo
+#### A4 — Estado global con Pinia (Prioridad: Media — ✅ Implementado 2026-03-15)
+- [x] **Carrito migrado a Pinia store** con persistencia en localStorage
+  - `src/stores/carrito.js` — `items`, `agregar()`, `vaciar()`, `total()`
+  - `pinia-plugin-persistedstate` — carrito sobrevive recargas
+  - `MenuPublico.vue` — usa `carritoStore.agregar()` y `carritoStore.vaciar()`
+- [ ] **Store de restaurante activo en admin** — pendiente si se necesita multi-restaurante
 
 ### Testing Local
 - ✅ Base de datos: MySQL tablas creadas
@@ -130,8 +127,8 @@ Los modelos 3D se generan automáticamente desde fotos tomadas por el dueño del
 
 | Capa | Tecnología | Notas |
 |---|---|---|
-| Frontend cliente | Vue 3 + Vite | Compilado localmente, dist subido por FTP |
-| Frontend admin | Vue 3 + Vite | Mismo proyecto o módulo separado |
+| Frontend cliente | Vue 3 + Vite + Pinia | Compilado localmente, dist subido por FTP |
+| Frontend admin | Vue 3 + Vite | Mismo proyecto, mismo build |
 | 3D / AR | Google Model-Viewer (web component) | Sin Three.js, sin A-Frame |
 | Generación 3D | Meshy.ai API (image-to-3d) | Genera .glb automáticamente desde fotos |
 | Backend | PHP 8.1+ nativo | Sin Laravel, sin frameworks |
@@ -199,11 +196,23 @@ Los modelos 3D se generan automáticamente desde fotos tomadas por el dueño del
 │   │       ├── Mesas.vue           ← NO USADA (ruta /admin/restaurantes/:id/mesas — inactiva)
 │   │       └── Restaurantes.vue
 │   ├── components/
-│   │   ├── ProductoCard.vue
-│   │   ├── ProductoModal.vue      ← Contiene <model-viewer>
-│   │   └── ModelViewer3D.vue     ← Wrapper del web component
+│   │   ├── menu/                  ← Componentes del menú público
+│   │   │   ├── ProductoCard.vue
+│   │   │   ├── ProductoModal.vue  ← Contiene <model-viewer>
+│   │   │   ├── ModelViewer3D.vue  ← Wrapper del web component
+│   │   │   ├── CarritoFlotante.vue
+│   │   │   └── CheckoutModal.vue
+│   │   └── admin/
+│   │       └── tabs/              ← Tabs del panel admin
+│   │           ├── TabPlatillos.vue
+│   │           ├── TabCategorias.vue
+│   │           ├── TabApariencia.vue
+│   │           ├── TabNegocio.vue
+│   │           └── TabPedidos.vue
+│   ├── stores/
+│   │   └── carrito.js             ← Pinia store con persistedstate
 │   ├── composables/
-│   │   └── useApi.js              ← Fetch a /api/
+│   │   └── useApi.js              ← Fetch a /api/ con credentials: include
 │   ├── router/
 │   │   └── index.js
 │   └── main.js
@@ -277,10 +286,13 @@ RewriteRule ^ index.html [QSA,L]
 
 ## 7. AUTENTICACIÓN ADMIN
 
-Simple por ahora: token estático en header `Authorization: Bearer {ADMIN_TOKEN}`.
-El token se define en `config.php` como constante.
-Login: el admin ingresa usuario/password → PHP valida contra tabla `usuarios` → devuelve el token → Vue lo guarda en `localStorage`.
-No usar JWT por ahora. Sesiones PHP simples o token estático por restaurante.
+Token estático comparado contra `ADMIN_TOKEN` en `config.php`. Flujo con **cookies HttpOnly**:
+- Login: PHP valida credenciales → emite `Set-Cookie: token=...; HttpOnly; SameSite=Strict; Secure (si HTTPS)`
+- Requests autenticados: browser envía la cookie automáticamente (`credentials: 'include'` en fetch)
+- `helpers.php`: `require_auth()` lee `$_COOKIE['token']`; `set_auth_cookie()` / `clear_auth_cookie()`
+- Endpoints: `auth-check` (valida sesión activa), `logout` (limpia cookie)
+- Router guard: llama `auth-check` una vez por carga de página (resultado cacheado en `authenticated`); exporta `resetAuth()` para limpiar caché tras login/logout
+- Cookie sin `Secure` en local (HTTP), con `Secure` en producción (HTTPS) — detección automática por `$_SERVER['HTTPS']`
 
 ---
 
