@@ -364,6 +364,8 @@
         <p class="preview-nombre">{{ preview.nombre }}</p>
       </div>
     </div>
+
+    <UploadToast :model-value="uploadToast" />
   </div>
 </template>
 
@@ -375,9 +377,11 @@ import {
   mdiRadioboxMarked, mdiCheckboxMarked, mdiPin, mdiLink, mdiMessageText,
 } from '@mdi/js'
 import { useApi } from '../../../composables/useApi.js'
+import { useUpload } from '../../../composables/useUpload.js'
 import { ucfirst } from '../../../utils/ucfirst.js'
 import { resolverIcono } from '../../../utils/iconosCategorias.js'
 import SvgIcon from '../../SvgIcon.vue'
+import UploadToast from '../UploadToast.vue'
 
 const props = defineProps({
   restauranteId: { type: Number, required: true },
@@ -388,6 +392,7 @@ const props = defineProps({
 const emit = defineEmits(['notif'])
 
 const { get, post, put, del } = useApi()
+const { uploadToast, xhrUpload } = useUpload()
 
 const productos        = ref([])
 const loadingProductos = ref(false)
@@ -665,12 +670,14 @@ async function subirFotos(prodId, event) {
   fd.append('producto_id', prodId)
   for (let i = 0; i < files.length; i++) fd.append('fotos[]', files[i])
   try {
-    const res = await fetch(`${import.meta.env.BASE_URL}api/?route=upload-fotos`, { method: 'POST', body: fd, credentials: 'include' })
-    if (!res.ok) throw new Error('Error al subir fotos')
-    event.target.value = ''
+    await xhrUpload(`${import.meta.env.BASE_URL}api/?route=upload-fotos`, fd, 'Subiendo foto…')
     await loadProductos()
     emit('notif', { texto: 'Foto subida correctamente', tipo: 'ok' })
-  } catch (err) { emit('notif', { texto: err.message, tipo: 'error' }) }
+  } catch (err) {
+    emit('notif', { texto: err.message, tipo: 'error' })
+  } finally {
+    event.target.value = ''
+  }
 }
 
 async function subirGlb(prodId, event) {
@@ -680,13 +687,14 @@ async function subirGlb(prodId, event) {
   fd.append('producto_id', prodId)
   fd.append('modelo', file)
   try {
-    const res = await fetch(`${import.meta.env.BASE_URL}api/?route=upload-glb`, { method: 'POST', body: fd, credentials: 'include' })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Error al subir el modelo')
-    event.target.value = ''
+    await xhrUpload(`${import.meta.env.BASE_URL}api/?route=upload-glb`, fd, 'Subiendo modelo 3D…')
     await loadProductos()
     emit('notif', { texto: 'Modelo 3D subido. ¡Ya disponible en el menú!', tipo: 'ok' })
-  } catch (err) { emit('notif', { texto: err.message, tipo: 'error' }) }
+  } catch (err) {
+    emit('notif', { texto: err.message, tipo: 'error' })
+  } finally {
+    event.target.value = ''
+  }
 }
 
 const abrirPreview = (prod) => {

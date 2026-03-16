@@ -176,6 +176,8 @@
         {{ guardando ? 'Guardando...' : 'Guardar cambios' }}
       </button>
     </div>
+
+    <UploadToast :model-value="uploadToast" />
   </div>
 </template>
 
@@ -183,6 +185,8 @@
 import { ref, computed, watch } from 'vue'
 import { mdiSilverwareForkKnife, mdiUpload, mdiQrcode, mdiCheck } from '@mdi/js'
 import { useApi } from '../../../composables/useApi.js'
+import { useUpload } from '../../../composables/useUpload.js'
+import UploadToast from '../UploadToast.vue'
 import { ucfirst } from '../../../utils/ucfirst.js'
 import { THEMES as temas, THEMES_EXTRA as TEMAS_EXTRA } from '../../../utils/themes.js'
 import SvgIcon from '../../SvgIcon.vue'
@@ -199,9 +203,10 @@ const props = defineProps({
 const emit = defineEmits(['notif', 'restaurante-updated', 'tema-preview'])
 
 const { put } = useApi()
+const { uploadToast, xhrUpload } = useUpload()
 
 const guardando    = ref(false)
-const logoSubiendo = ref(false)
+const logoSubiendo = computed(() => uploadToast.value !== null)
 const qrCardDmEl   = ref(null)
 const escalaDescarga = ref(2)
 const qrDataUrl    = ref(null)
@@ -273,21 +278,16 @@ const copiarUrl = async () => {
 const uploadLogo = async (event) => {
   const file = event.target.files?.[0]
   if (!file) return
-  logoSubiendo.value = true
+  const fd = new FormData()
+  fd.append('logo', file)
+  fd.append('restaurante_id', props.restauranteId)
   try {
-    const fd = new FormData()
-    fd.append('logo', file)
-    fd.append('restaurante_id', props.restauranteId)
-    const apiBase = import.meta.env.BASE_URL + 'api/'
-    const res = await fetch(`${apiBase}?route=upload-logo`, { method: 'POST', body: fd, credentials: 'include' })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Error al subir el logo')
+    const data = await xhrUpload(`${import.meta.env.BASE_URL}api/?route=upload-logo`, fd, 'Subiendo logo…')
     emit('restaurante-updated', { logo_url: data.logo_url })
     emit('notif', { texto: 'Logo actualizado', tipo: 'ok' })
   } catch (err) {
     emit('notif', { texto: err.message, tipo: 'error' })
   } finally {
-    logoSubiendo.value = false
     event.target.value = ''
   }
 }

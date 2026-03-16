@@ -35,7 +35,7 @@
       <!-- ── Navegación de categorías (sticky) ── -->
       <nav class="cat-nav">
         <button
-          v-for="cat in categorias"
+          v-for="cat in categoriasVisibles"
           :key="cat.id"
           :class="['cat-nav-btn', { active: catActiva === cat.id }]"
           @click="irACategoria(cat.id)"
@@ -49,8 +49,15 @@
 
       <!-- ── Contenido del menú ── -->
       <main class="menu-contenido">
+        <!-- Placeholder sin contenido -->
+        <div v-if="!categoriasVisibles.length" class="menu-vacio">
+          <SvgIcon :path="mdiStorefront" :size="64" color="var(--accent)" />
+          <p class="menu-vacio-titulo">Menú en preparación</p>
+          <p class="menu-vacio-desc">Pronto encontrarás aquí nuestros platillos.</p>
+        </div>
+
         <section
-          v-for="cat in categorias"
+          v-for="cat in categoriasVisibles"
           :key="cat.id"
           :id="`cat-${cat.id}`"
           class="categoria-seccion"
@@ -133,6 +140,7 @@ import { useRoute } from 'vue-router'
 import { useApi } from '../composables/useApi.js'
 import { useCarritoStore } from '../stores/carrito.js'
 import { resolverIcono } from '../utils/iconosCategorias.js'
+import { mdiStorefront } from '@mdi/js'
 import SvgIcon from '../components/SvgIcon.vue'
 import ProductoCard from '../components/menu/ProductoCard.vue'
 import ProductoModal from '../components/menu/ProductoModal.vue'
@@ -145,6 +153,7 @@ const { get, loading, error } = useApi()
 
 const restaurante = ref(null)
 const categorias = ref([])
+const categoriasVisibles = computed(() => categorias.value.filter(c => c.productos?.length))
 const productoSeleccionado     = ref(null)
 const productoPersonalizacion  = ref(null)
 const catActiva  = ref(null)
@@ -635,6 +644,28 @@ const abrirModal = (producto) => {
     grid-template-columns: repeat(3, 1fr);
     gap: 16px;
   }
+}
+
+/* ── Placeholder menú vacío ── */
+.menu-vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  gap: 12px;
+  text-align: center;
+}
+.menu-vacio-titulo {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+.menu-vacio-desc {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  margin: 0;
 }
 
 /* ── Footer ── */

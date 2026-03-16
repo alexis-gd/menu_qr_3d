@@ -49,8 +49,8 @@ switch ($route) {
                 p.aviso_complemento,
                 p.aviso_categoria_id
              FROM restaurantes r
-             JOIN categorias c ON c.restaurante_id = r.id AND c.activo = 1
-             JOIN productos p ON p.categoria_id = c.id AND p.activo = 1 AND p.disponible = 1
+             LEFT JOIN categorias c ON c.restaurante_id = r.id AND c.activo = 1
+             LEFT JOIN productos p ON p.categoria_id = c.id AND p.activo = 1 AND p.disponible = 1
              WHERE r.slug = :slug AND r.activo = 1
              ORDER BY c.orden ASC, p.orden ASC, p.nombre ASC'
         );
@@ -60,6 +60,9 @@ switch ($route) {
         if (!$rows) {
             json_response(['error' => 'Restaurante no encontrado'], 404);
         }
+
+        // Con LEFT JOIN puede haber fila con cat_id NULL si no hay categorías aún
+        $tieneContenido = !empty($rows[0]['cat_id']);
 
         $restauranteData = [
             'id'                    => (int) $rows[0]['restaurante_id'],
@@ -81,6 +84,8 @@ switch ($route) {
 
         $categoriasMap = [];
         foreach ($rows as $row) {
+            if (!$row['cat_id']) continue; // restaurante sin categorías aún
+            if (!$row['prod_id']) continue; // categoría sin productos aún
             $catId = $row['cat_id'];
             if (!isset($categoriasMap[$catId])) {
                 $categoriasMap[$catId] = [
