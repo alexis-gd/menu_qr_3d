@@ -113,7 +113,6 @@
     <!-- Checkout -->
     <CheckoutModal
       v-show="mostrarCheckout"
-      :carrito="carrito"
       :pedidos-config="pedidosConfig"
       :mesa="mesaNumero"
       :restaurante-id="restaurante?.id"

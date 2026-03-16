@@ -184,12 +184,12 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { useApi } from '../../composables/useApi.js'
 import { ucfirst } from '../../utils/ucfirst.js'
+import { useCarritoStore } from '../../stores/carrito.js'
 
 const props = defineProps({
-  carrito:       { type: Array,  required: true },
   pedidosConfig: { type: Object, required: true },
   mesa:          { type: String, default: null  },
   restauranteId: { type: [Number, String], required: true }
@@ -197,14 +197,10 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'confirmado'])
 const { post } = useApi()
+const carritoStore = useCarritoStore()
 
-// Copia local del carrito para poder editar cantidades y observaciones
-const carritoLocal = ref(props.carrito.map(i => ({ ...i, observacion: i.observacion || '' })))
-
-// Sincronizar cuando el padre agrega/quita items (necesario con v-show que no remonta el componente)
-watch(() => props.carrito, (newCarrito) => {
-  carritoLocal.value = newCarrito.map(i => ({ ...i, observacion: i.observacion || '' }))
-}, { deep: true })
+// Alias directo al store — los cambios se reflejan inmediatamente en el badge
+const carritoLocal = carritoStore.items
 
 const tipoEntrega  = ref('recoger')
 const metodoPago   = ref('efectivo')
@@ -228,7 +224,7 @@ const costoEnvio = computed(() =>
 )
 
 const subtotal = computed(() =>
-  carritoLocal.value.reduce((s, i) => s + (i.precio_unitario ?? Number(i.producto.precio)) * i.cantidad, 0)
+  carritoLocal.reduce((s, i) => s + (i.precio_unitario ?? Number(i.producto.precio)) * i.cantidad, 0)
 )
 
 const total = computed(() => subtotal.value + costoEnvio.value)
@@ -244,15 +240,15 @@ const faltante = computed(() => {
 })
 
 const reducir = (idx) => {
-  if (carritoLocal.value[idx].cantidad > 1) {
-    carritoLocal.value[idx].cantidad--
+  if (carritoLocal[idx].cantidad > 1) {
+    carritoLocal[idx].cantidad--
   } else {
-    carritoLocal.value.splice(idx, 1)
+    carritoLocal.splice(idx, 1)
   }
 }
 
 const validar = () => {
-  if (!carritoLocal.value.length) return 'El carrito está vacío.'
+  if (!carritoLocal.length) return 'El carrito está vacío.'
   if (!nombre.value.trim()) return 'Por favor escribe tu nombre.'
   if (tipoEntrega.value === 'envio') {
     if (!telefono.value.trim()) return 'El teléfono es requerido para envío a domicilio.'
@@ -267,7 +263,7 @@ const confirmar = async () => {
 
   enviando.value = true
   try {
-    const items = carritoLocal.value.map(i => ({
+    const items = carritoLocal.map(i => ({
       producto_id: i.producto.id,
       nombre: i.producto.nombre,
       precio: i.precio_unitario ?? i.producto.precio,
@@ -300,7 +296,7 @@ const confirmar = async () => {
       `*#${res.numero_pedido}*`,
       ``,
       `*Pedido:*`,
-      ...carritoLocal.value.flatMap(i => {
+      ...carritoLocal.flatMap(i => {
         const precioUnit = i.precio_unitario ?? Number(i.producto.precio)
         const obs = i.observacion ? ` _(${i.observacion})_` : ''
         const linea = `  ${i.cantidad}x ${i.producto.nombre}${obs} — $${(precioUnit * i.cantidad).toFixed(2)}`

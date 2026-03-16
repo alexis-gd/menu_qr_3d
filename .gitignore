@@ -15,6 +15,9 @@ api/.env
 .env.local
 .env.*.local
 DEPLOY.md
+CLAUDE.md
+CONTEXTO_PROYECTO.md
+CONTEXTO_BASE_DE_DATOS.md
 
 # -------------------------------------------------------
 # UPLOADS — Archivos generados por usuarios

@@ -34,73 +34,123 @@
         <!-- Descripción -->
         <p v-if="producto.descripcion" class="prod-desc">{{ producto.descripcion }}</p>
 
-        <!-- ── Grupos de opciones ── -->
+        <!-- ── Grupos de opciones (acordeón progresivo) ── -->
         <div
-          v-for="grupo in producto.grupos"
+          v-for="(grupo, idx) in producto.grupos"
           :key="grupo.id"
-          :class="['grupo-section', { 'grupo-error': intentoEnvio && grupo.requerido && !tieneSeleccion(grupo) }]"
+          :class="[
+            'grupo-section',
+            {
+              'grupo-activo':     idx === pasoActivo,
+              'grupo-completado': idx < pasoActivo && tieneSeleccionValida(grupo),
+              'grupo-bloqueado':  idx > pasoActivo && !grupoDesbloqueado(idx),
+              'grupo-error':      intentoEnvio && esRequerido(grupo) && !tieneSeleccionValida(grupo)
+            }
+          ]"
           :ref="el => { if (el) grupoRefs[grupo.id] = el }"
         >
-          <div class="grupo-header">
+          <!-- Header: siempre visible, clickeable para re-abrir o volver -->
+          <div
+            class="grupo-header"
+            @click="toggleGrupo(idx)"
+            :style="idx > pasoActivo && !grupoDesbloqueado(idx) ? 'cursor:default' : 'cursor:pointer'"
+          >
             <div class="grupo-titulo-row">
-              <span class="grupo-nombre">{{ grupo.nombre }}</span>
-              <span :class="grupo.requerido ? 'badge-req' : 'badge-opc'">
-                {{ grupo.requerido ? 'Requerido' : 'Opcional' }}
-              </span>
-            </div>
-            <div v-if="grupo.tipo === 'checkbox'" class="grupo-hint">
-              Elige hasta {{ maxEfectivo(grupo) }}
-              <template v-if="cantCheck(grupo)">
-                · {{ cantCheck(grupo) }} elegido{{ cantCheck(grupo) !== 1 ? 's' : '' }}
-              </template>
-            </div>
-            <div v-if="intentoEnvio && grupo.requerido && !tieneSeleccion(grupo)" class="grupo-error-msg">
-              Debes elegir una opción
-            </div>
-          </div>
-
-          <!-- Opciones tipo radio -->
-          <div v-if="grupo.tipo === 'radio'" class="opciones-lista">
-            <button
-              v-for="op in grupo.opciones"
-              :key="op.id"
-              :class="['opcion-row', { selected: seleccionRadio[grupo.id] === op.id }]"
-              @click="seleccionarRadio(grupo.id, op.id)"
-            >
-              <span class="opcion-indicator radio">
-                <span v-if="seleccionRadio[grupo.id] === op.id" class="indicator-inner" />
-              </span>
-              <span class="opcion-nombre">{{ op.nombre }}</span>
-              <span v-if="Number(op.precio_extra) > 0" class="opcion-extra">
-                +${{ Number(op.precio_extra).toFixed(2) }}
-              </span>
-            </button>
-          </div>
-
-          <!-- Opciones tipo checkbox -->
-          <div v-else class="opciones-lista">
-            <button
-              v-for="op in grupo.opciones"
-              :key="op.id"
-              :class="[
-                'opcion-row',
-                { selected: esCheck(grupo.id, op.id) },
-                { 'opcion-disabled': !esCheck(grupo.id, op.id) && cantCheck(grupo) >= maxEfectivo(grupo) }
-              ]"
-              @click="toggleCheck(grupo, op.id)"
-            >
-              <span :class="['opcion-indicator', 'check', { checked: esCheck(grupo.id, op.id) }]">
-                <svg v-if="esCheck(grupo.id, op.id)" width="12" height="12" viewBox="0 0 12 12">
-                  <polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2" fill="none"
+              <span :class="['grupo-step', { 'step-done': idx < pasoActivo && tieneSeleccionValida(grupo), 'step-activo': idx === pasoActivo }]">
+                <svg v-if="idx < pasoActivo && tieneSeleccionValida(grupo)" width="12" height="12" viewBox="0 0 12 12">
+                  <polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" fill="none"
                     stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
+                <template v-else>{{ idx + 1 }}</template>
               </span>
-              <span class="opcion-nombre">{{ op.nombre }}</span>
-              <span v-if="Number(op.precio_extra) > 0" class="opcion-extra">
-                +${{ Number(op.precio_extra).toFixed(2) }}
+              <span class="grupo-nombre">{{ grupo.nombre }}</span>
+              <span :class="esRequerido(grupo) ? 'badge-req' : 'badge-opc'">
+                {{ esRequerido(grupo) ? 'Requerido' : 'Opcional' }}
               </span>
-            </button>
+              <span :class="['grupo-chevron', { 'chevron-abierto': idx === pasoActivo }]">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </span>
+            </div>
+
+            <!-- Resumen de selección cuando está colapsado -->
+            <div v-if="idx !== pasoActivo && tieneSeleccionValida(grupo)" class="grupo-resumen">
+              {{ resumenGrupo(grupo) }}
+            </div>
+
+            <!-- Error -->
+            <div v-if="intentoEnvio && esRequerido(grupo) && !tieneSeleccionValida(grupo)" class="grupo-error-msg">
+              {{ grupo.tipo === 'checkbox'
+                  ? `Elige al menos ${grupo.min_selecciones || 1}`
+                  : 'Debes elegir una opción' }}
+            </div>
           </div>
+
+          <!-- Body: solo visible cuando es el paso activo -->
+          <div v-show="idx === pasoActivo" class="grupo-body">
+
+            <!-- Hint para checkbox -->
+            <div v-if="grupo.tipo === 'checkbox'" class="grupo-hint">
+              <template v-if="grupo.min_selecciones > 0 && maxEfectivo(grupo) > grupo.min_selecciones">
+                Elige entre {{ grupo.min_selecciones }} y {{ maxEfectivo(grupo) }}
+              </template>
+              <template v-else-if="grupo.min_selecciones > 0">
+                Elige {{ grupo.min_selecciones }}
+              </template>
+              <template v-else>
+                Elige hasta {{ maxEfectivo(grupo) }}
+              </template>
+              <template v-if="cantCheck(grupo) > 0">
+                &nbsp;·&nbsp;<strong>{{ cantCheck(grupo) }}</strong> elegido{{ cantCheck(grupo) !== 1 ? 's' : '' }}
+              </template>
+            </div>
+
+            <!-- Opciones radio -->
+            <div v-if="grupo.tipo === 'radio'" class="opciones-lista">
+              <button
+                v-for="op in grupo.opciones"
+                :key="op.id"
+                :class="['opcion-row', { selected: seleccionRadio[grupo.id] === op.id }]"
+                @click="seleccionarRadio(grupo.id, op.id)"
+              >
+                <span class="opcion-indicator radio">
+                  <span v-if="seleccionRadio[grupo.id] === op.id" class="indicator-inner" />
+                </span>
+                <span class="opcion-nombre">{{ op.nombre }}</span>
+                <span v-if="Number(op.precio_extra) > 0" class="opcion-extra">
+                  +${{ Number(op.precio_extra).toFixed(2) }}
+                </span>
+              </button>
+            </div>
+
+            <!-- Opciones checkbox -->
+            <div v-else class="opciones-lista">
+              <button
+                v-for="op in grupo.opciones"
+                :key="op.id"
+                :class="[
+                  'opcion-row',
+                  { selected: esCheck(grupo.id, op.id) },
+                  { 'opcion-disabled': !esCheck(grupo.id, op.id) && cantCheck(grupo) >= maxEfectivo(grupo) }
+                ]"
+                @click="toggleCheck(grupo, op.id)"
+              >
+                <span :class="['opcion-indicator', 'check', { checked: esCheck(grupo.id, op.id) }]">
+                  <svg v-if="esCheck(grupo.id, op.id)" width="12" height="12" viewBox="0 0 12 12">
+                    <polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2" fill="none"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+                <span class="opcion-nombre">{{ op.nombre }}</span>
+                <span v-if="Number(op.precio_extra) > 0" class="opcion-extra">
+                  +${{ Number(op.precio_extra).toFixed(2) }}
+                </span>
+              </button>
+            </div>
+
+
+          </div><!-- /.grupo-body -->
         </div>
 
         <!-- Observación libre -->
@@ -115,30 +165,42 @@
           ></textarea>
         </div>
 
-        <!-- Aviso complemento -->
-        <div v-if="producto.aviso_complemento" class="aviso-complemento">
-          <span class="aviso-texto">{{ producto.aviso_complemento }}</span>
-          <button
-            v-if="producto.aviso_categoria_id"
-            class="aviso-btn"
-            @click="$emit('ir-categoria', producto.aviso_categoria_id)"
-          >
-            Ver →
-          </button>
-        </div>
-
       </div><!-- /.modal-scroll -->
 
       <!-- ── Sticky footer CTA ── -->
       <div class="modal-footer">
-        <button class="btn-agregar" @click="emitirAgregar">
+        <button
+          :class="['btn-agregar', { 'btn-agregar--listo': puedeAgregar }]"
+          @click="emitirAgregar"
+        >
           <span>+ Agregar al carrito</span>
           <span class="btn-precio">${{ precioTotal.toFixed(2) }}</span>
         </button>
       </div>
 
+    </div><!-- /.modal-panel -->
+  </div><!-- /.modal-overlay -->
+
+  <!-- ── Popup aviso complemento (e.g. "¿Agregas una bebida?") ── -->
+  <Teleport to="body">
+    <div v-if="mostrarAvisoPopup" class="aviso-overlay" @click.self="cerrarConAviso">
+      <div class="aviso-popup">
+        <p class="aviso-popup-texto">{{ producto.aviso_complemento }}</p>
+        <div class="aviso-popup-acciones">
+          <button
+            v-if="producto.aviso_categoria_id"
+            class="btn-aviso-ver"
+            @click="irCategoria"
+          >
+            Ver &rarr;
+          </button>
+          <button class="btn-aviso-cerrar" @click="cerrarConAviso">
+            No, gracias
+          </button>
+        </div>
+      </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script setup>
@@ -152,13 +214,17 @@ const props = defineProps({
 const emit = defineEmits(['close', 'agregar', 'ir-categoria'])
 
 // ── Estado ──
-const seleccionRadio = reactive({})     // { [grupoId]: opcionId }
-const seleccionCheck = reactive({})     // { [grupoId]: number[] }
-const observacion    = ref('')
-const intentoEnvio   = ref(false)
-const grupoRefs      = {}
+const seleccionRadio   = reactive({})
+const seleccionCheck   = reactive({})
+const observacion      = ref('')
+const intentoEnvio     = ref(false)
+const grupoRefs        = {}
+const pasoActivo       = ref(0)
+const mostrarAvisoPopup = ref(false)
 
-// ── Max efectivo (puede ser controlado por un grupo radio externo) ──
+// ── Helpers ──
+const esRequerido = (grupo) => !!(grupo.obligatorio || grupo.requerido) || (grupo.min_selecciones > 0)
+
 const maxEfectivo = (grupo) => {
   const controlador = props.producto.grupos.find(
     g => g.max_dinamico_grupo_id === grupo.id && g.tipo === 'radio'
@@ -173,28 +239,78 @@ const maxEfectivo = (grupo) => {
   return grupo.max_selecciones
 }
 
-// ── Helpers ──
 const cantCheck      = (grupo) => (seleccionCheck[grupo.id] || []).length
 const esCheck        = (grupoId, opId) => (seleccionCheck[grupoId] || []).includes(opId)
-const tieneSeleccion = (grupo) =>
-  grupo.tipo === 'radio'
-    ? seleccionRadio[grupo.id] != null
-    : cantCheck(grupo) > 0
+
+const tieneSeleccionValida = (grupo) => {
+  if (grupo.tipo === 'radio') return seleccionRadio[grupo.id] != null
+  const cnt = cantCheck(grupo)
+  const min = grupo.min_selecciones > 0 ? grupo.min_selecciones : (esRequerido(grupo) ? 1 : 0)
+  return cnt >= min
+}
+
+const grupoDesbloqueado = (idx) => {
+  for (let i = 0; i < idx; i++) {
+    const g = props.producto.grupos[i]
+    if (esRequerido(g) && !tieneSeleccionValida(g)) return false
+  }
+  return true
+}
+
+const resumenGrupo = (grupo) => {
+  if (grupo.tipo === 'radio') {
+    const id = seleccionRadio[grupo.id]
+    return grupo.opciones?.find(o => o.id === id)?.nombre || ''
+  }
+  const ids = seleccionCheck[grupo.id] || []
+  return ids.map(id => grupo.opciones?.find(o => o.id === id)?.nombre).filter(Boolean).join(', ')
+}
+
+// ── Navegación acordeón ──
+const toggleGrupo = (idx) => {
+  if (idx === pasoActivo.value) return
+  if (!grupoDesbloqueado(idx)) return
+  pasoActivo.value = idx
+}
+
+const avanzarSiguiente = (idx) => {
+  const next = idx + 1
+  if (next < props.producto.grupos.length) {
+    setTimeout(() => { pasoActivo.value = next }, 220)
+  }
+}
 
 // ── Mutaciones ──
 const seleccionarRadio = (grupoId, opId) => {
   seleccionRadio[grupoId] = opId
+  const idx = props.producto.grupos.findIndex(g => g.id === grupoId)
+  if (idx === pasoActivo.value) {
+    avanzarSiguiente(idx)
+  }
 }
 
 const toggleCheck = (grupo, opId) => {
   if (!seleccionCheck[grupo.id]) seleccionCheck[grupo.id] = []
   const arr = seleccionCheck[grupo.id]
-  const idx = arr.indexOf(opId)
-  if (idx !== -1) {
-    arr.splice(idx, 1)
+  const pos = arr.indexOf(opId)
+
+  if (pos !== -1) {
+    arr.splice(pos, 1)
   } else {
     if (arr.length >= maxEfectivo(grupo)) return
     arr.push(opId)
+  }
+
+  // Auto-avanzar cuando se alcanza el máximo (o cuando max=1, comportamiento radio)
+  const max = maxEfectivo(grupo)
+  const grupoIdx = props.producto.grupos.findIndex(g => g.id === grupo.id)
+  if (
+    max > 0 &&
+    grupoIdx === pasoActivo.value &&
+    arr.length >= max &&
+    grupoIdx < props.producto.grupos.length - 1
+  ) {
+    avanzarSiguiente(grupoIdx)
   }
 }
 
@@ -230,24 +346,47 @@ const extraTotal  = computed(() => opcionesSeleccionadas.value.reduce((s, o) => 
 const precioTotal = computed(() => Number(props.producto.precio) + extraTotal.value)
 
 const puedeAgregar = computed(() =>
-  props.producto.grupos.filter(g => g.requerido).every(g => tieneSeleccion(g))
+  props.producto.grupos.every(g => !esRequerido(g) || tieneSeleccionValida(g))
 )
 
-// ── Emitir ──
+// ── Flujo principal ──
 const emitirAgregar = () => {
   if (!puedeAgregar.value) {
     intentoEnvio.value = true
-    const primerError = props.producto.grupos.find(g => g.requerido && !tieneSeleccion(g))
-    if (primerError && grupoRefs[primerError.id]) {
-      grupoRefs[primerError.id].scrollIntoView({ behavior: 'smooth', block: 'center' })
+    const idxError = props.producto.grupos.findIndex(g => esRequerido(g) && !tieneSeleccionValida(g))
+    if (idxError !== -1) {
+      pasoActivo.value = idxError
+      const grupo = props.producto.grupos[idxError]
+      if (grupoRefs[grupo.id]) {
+        setTimeout(() => grupoRefs[grupo.id].scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)
+      }
     }
     return
   }
+
+  // Agregar al carrito primero
   emit('agregar', {
     producto:    props.producto,
     observacion: observacion.value.trim(),
     opciones:    opcionesSeleccionadas.value
   })
+
+  // Si hay aviso complemento → mostrar popup (el producto ya está en carrito)
+  if (props.producto.aviso_complemento) {
+    mostrarAvisoPopup.value = true
+  } else {
+    emit('close')
+  }
+}
+
+const cerrarConAviso = () => {
+  mostrarAvisoPopup.value = false
+  emit('close')
+}
+
+const irCategoria = () => {
+  mostrarAvisoPopup.value = false
+  emit('ir-categoria', props.producto.aviso_categoria_id)
 }
 </script>
 
@@ -270,7 +409,7 @@ const emitirAgregar = () => {
   to   { opacity: 1; }
 }
 
-/* ── Panel — flex column para sticky header/footer ── */
+/* ── Panel ── */
 .modal-panel {
   display: flex;
   flex-direction: column;
@@ -288,7 +427,7 @@ const emitirAgregar = () => {
   to   { transform: translateY(0);    opacity: 1; }
 }
 
-/* ── Top bar sticky ── */
+/* ── Top bar ── */
 .modal-topbar {
   flex-shrink: 0;
   display: flex;
@@ -326,33 +465,19 @@ const emitirAgregar = () => {
 }
 .btn-close:hover { background: rgba(0,0,0,0.14); }
 
-/* ── Área scrollable ── */
+/* ── Scroll ── */
 .modal-scroll {
   flex: 1;
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
-
 .modal-scroll::-webkit-scrollbar { width: 4px; }
-.modal-scroll::-webkit-scrollbar-thumb {
-  background: var(--divider, #ddd);
-  border-radius: 2px;
-}
+.modal-scroll::-webkit-scrollbar-thumb { background: var(--divider, #ddd); border-radius: 2px; }
 
-/* ── Imagen compacta ── */
-.modal-visual {
-  width: 100%;
-  height: 180px;
-  overflow: hidden;
-  background: var(--accent-light, #f5f5f5);
-}
-
-.modal-foto {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
+/* ── Imagen ── */
+.modal-visual { width: 100%; height: 180px; overflow: hidden; background: var(--accent-light, #f5f5f5); }
+.modal-foto   { width: 100%; height: 100%; object-fit: cover; }
 
 /* ── Precio dinámico ── */
 .precio-dinamico {
@@ -363,252 +488,153 @@ const emitirAgregar = () => {
   padding: 14px 18px;
   border-bottom: 1px solid var(--divider, #f0f0f0);
 }
-
-.precio-main {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.precio-label {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: var(--text-sub, #aaa);
-  font-weight: 600;
-}
-
-.precio-valor {
-  font-size: 1.6rem;
-  font-weight: 800;
-  color: var(--accent, #FF6B35);
-  line-height: 1;
-}
-
-.precio-detalle {
-  font-size: 0.78rem;
-  color: var(--text-sub, #aaa);
-  text-align: right;
-}
+.precio-main   { display: flex; align-items: baseline; gap: 8px; }
+.precio-label  { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-sub, #aaa); font-weight: 600; }
+.precio-valor  { font-size: 1.6rem; font-weight: 800; color: var(--accent, #FF6B35); line-height: 1; }
+.precio-detalle { font-size: 0.78rem; color: var(--text-sub, #aaa); text-align: right; }
 
 /* ── Descripción ── */
-.prod-desc {
-  padding: 14px 18px 0;
-  font-size: 0.9rem;
-  color: var(--text-sub, #777);
-  line-height: 1.5;
-  margin: 0;
-}
+.prod-desc { padding: 14px 18px 0; font-size: 0.9rem; color: var(--text-sub, #777); line-height: 1.5; margin: 0; }
 
-/* ── Grupos de opciones ── */
+/* ── Grupos — acordeón ── */
 .grupo-section {
-  margin: 14px 0 0;
   border-top: 1px solid var(--divider, #f0f0f0);
-  padding: 14px 18px 6px;
   transition: background 0.2s;
 }
-
-.grupo-section.grupo-error {
+.grupo-section.grupo-completado > .grupo-header {
+  background: rgba(34, 197, 94, 0.04);
+}
+.grupo-section.grupo-bloqueado { opacity: 0.42; }
+.grupo-section.grupo-error > .grupo-header {
   background: rgba(220, 38, 38, 0.04);
-  border-top-color: rgba(220, 38, 38, 0.3);
+  border-left: 3px solid rgba(220, 38, 38, 0.4);
 }
 
+/* ── Header del grupo ── */
 .grupo-header {
-  margin-bottom: 10px;
+  padding: 14px 18px 10px;
+  user-select: none;
+  transition: background 0.15s;
 }
 
-.grupo-titulo-row {
+.grupo-titulo-row { display: flex; align-items: center; gap: 8px; }
+
+/* Badge de paso */
+.grupo-step {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--divider, #e8e8e8);
+  color: var(--text-sub, #888);
+  font-size: 0.72rem;
+  font-weight: 700;
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
+  justify-content: center;
+  transition: background 0.25s, color 0.25s;
+}
+.grupo-step.step-activo { background: var(--accent, #FF6B35); color: #fff; }
+.grupo-step.step-done   { background: #22c55e; color: #fff; }
+
+.grupo-nombre { flex: 1; font-size: 0.95rem; font-weight: 700; color: var(--text-main, #222); }
+
+.badge-req, .badge-opc {
+  font-size: 0.7rem; font-weight: 700;
+  padding: 2px 8px; border-radius: 20px;
+}
+.badge-req { background: rgba(220, 38, 38, 0.1); color: #dc2626; }
+.badge-opc { background: rgba(0,0,0,0.06); color: var(--text-sub, #888); }
+
+.grupo-chevron {
+  flex-shrink: 0;
+  color: var(--text-sub, #bbb);
+  transition: transform 0.25s;
+  display: flex; align-items: center;
+}
+.grupo-chevron.chevron-abierto { transform: rotate(180deg); }
+
+/* Resumen cuando está colapsado */
+.grupo-resumen {
+  margin-top: 4px;
+  padding-left: 30px;
+  font-size: 0.82rem;
+  color: var(--accent, #FF6B35);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.grupo-nombre {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--text-main, #222);
-}
-
-.badge-req,
-.badge-opc {
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 20px;
-}
-
-.badge-req {
-  background: rgba(220, 38, 38, 0.1);
-  color: #dc2626;
-}
-
-.badge-opc {
-  background: rgba(0,0,0,0.06);
-  color: var(--text-sub, #888);
-}
-
-.grupo-hint {
-  font-size: 0.78rem;
-  color: var(--text-sub, #aaa);
-}
+.grupo-hint { font-size: 0.78rem; color: var(--text-sub, #aaa); padding: 0 18px 8px; }
 
 .grupo-error-msg {
+  margin-top: 4px;
+  padding-left: 30px;
   font-size: 0.78rem;
   color: #dc2626;
   font-weight: 600;
-  margin-top: 2px;
 }
+
+/* ── Body expandible ── */
+.grupo-body { padding: 0 18px 14px; }
 
 /* ── Lista de opciones ── */
-.opciones-lista {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
+.opciones-lista { display: flex; flex-direction: column; gap: 6px; }
 
 .opcion-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  display: flex; align-items: center; gap: 12px;
   padding: 11px 14px;
   background: var(--card-bg, #fff);
   border: 1.5px solid var(--divider, #e8e8e8);
   border-radius: 10px;
-  cursor: pointer;
-  text-align: left;
-  width: 100%;
+  cursor: pointer; text-align: left; width: 100%;
   transition: border-color 0.15s, background 0.15s;
 }
-
 .opcion-row:hover:not(.opcion-disabled) {
   border-color: var(--accent, #FF6B35);
   background: var(--accent-light, #fff5f0);
 }
-
 .opcion-row.selected {
   border-color: var(--accent, #FF6B35);
   background: var(--accent-light, #fff5f0);
 }
+.opcion-row.opcion-disabled { opacity: 0.45; cursor: default; }
 
-.opcion-row.opcion-disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-/* Indicadores radio / check */
 .opcion-indicator {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
+  flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%;
   border: 2px solid var(--divider, #ccc);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: flex; align-items: center; justify-content: center;
   transition: border-color 0.15s, background 0.15s;
 }
+.opcion-row.selected .opcion-indicator { border-color: var(--accent, #FF6B35); }
 
-.opcion-row.selected .opcion-indicator {
-  border-color: var(--accent, #FF6B35);
-}
+.indicator-inner { width: 10px; height: 10px; border-radius: 50%; background: var(--accent, #FF6B35); }
 
-/* Radio inner dot */
-.indicator-inner {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--accent, #FF6B35);
-}
+.opcion-indicator.check { border-radius: 5px; }
+.opcion-indicator.check.checked { background: var(--accent, #FF6B35); border-color: var(--accent, #FF6B35); }
 
-/* Checkbox */
-.opcion-indicator.check {
-  border-radius: 5px;
-}
+.opcion-nombre { flex: 1; font-size: 0.9rem; color: var(--text-main, #333); font-weight: 500; }
+.opcion-extra  { font-size: 0.85rem; font-weight: 700; color: var(--accent, #FF6B35); white-space: nowrap; }
 
-.opcion-indicator.check.checked {
-  background: var(--accent, #FF6B35);
-  border-color: var(--accent, #FF6B35);
-}
-
-.opcion-nombre {
-  flex: 1;
-  font-size: 0.9rem;
-  color: var(--text-main, #333);
-  font-weight: 500;
-}
-
-.opcion-extra {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--accent, #FF6B35);
-  white-space: nowrap;
-}
 
 /* ── Observación ── */
 .obs-section {
-  padding: 14px 18px 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  padding: 14px 18px 18px;
+  border-top: 1px solid var(--divider, #f0f0f0);
+  display: flex; flex-direction: column; gap: 6px;
 }
-
-.obs-label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-sub, #888);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
+.obs-label { font-size: 0.8rem; font-weight: 600; color: var(--text-sub, #888); text-transform: uppercase; letter-spacing: 0.5px; }
 .obs-input {
-  width: 100%;
-  box-sizing: border-box;
+  width: 100%; box-sizing: border-box;
   padding: 10px 12px;
   border: 1.5px solid var(--divider, #e0e0e0);
   border-radius: 10px;
-  font-size: 0.88rem;
-  font-family: inherit;
-  resize: none;
-  outline: none;
-  background: var(--card-bg, #fafafa);
-  color: var(--text-main, #333);
+  font-size: 0.88rem; font-family: inherit; resize: none; outline: none;
+  background: var(--card-bg, #fafafa); color: var(--text-main, #333);
   transition: border-color 0.2s;
 }
-
 .obs-input:focus { border-color: var(--accent, #FF6B35); }
-
-/* ── Aviso complemento ── */
-.aviso-complemento {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 14px 18px 18px;
-  padding: 12px 14px;
-  background: var(--accent-light, #fff8f0);
-  border: 1px solid var(--divider, #ffe0c8);
-  border-radius: 10px;
-}
-
-.aviso-texto {
-  font-size: 0.88rem;
-  color: var(--text-main, #333);
-  flex: 1;
-}
-
-.aviso-btn {
-  flex-shrink: 0;
-  padding: 6px 14px;
-  background: var(--accent, #FF6B35);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-}
 
 /* ── Footer sticky ── */
 .modal-footer {
@@ -620,37 +646,92 @@ const emitirAgregar = () => {
 
 .btn-agregar {
   width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between;
   padding: 14px 20px;
+  background: rgba(0,0,0,0.12);
+  color: rgba(0,0,0,0.35);
+  border: none; border-radius: 14px;
+  font-size: 1rem; font-weight: 700;
+  cursor: pointer;
+  transition: background 0.25s, color 0.25s, transform 0.1s;
+}
+
+/* Activo cuando todos los requeridos están llenos */
+.btn-agregar.btn-agregar--listo {
+  background: var(--accent, #FF6B35);
+  color: #fff;
+}
+.btn-agregar.btn-agregar--listo:active { transform: scale(0.98); }
+
+.btn-precio { font-size: 1.05rem; font-weight: 800; }
+
+/* ── Popup aviso complemento ── */
+.aviso-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 1100;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.aviso-popup {
+  background: var(--card-bg, #fff);
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  max-width: 640px;
+  padding: 24px 20px 32px;
+  animation: slideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.aviso-popup-texto {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-main, #222);
+  margin: 0 0 20px;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.aviso-popup-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.btn-aviso-ver {
+  padding: 14px;
   background: var(--accent, #FF6B35);
   color: #fff;
   border: none;
-  border-radius: 14px;
-  font-size: 1rem;
+  border-radius: 12px;
+  font-size: 0.95rem;
   font-weight: 700;
   cursor: pointer;
-  transition: background 0.2s, transform 0.1s;
+  transition: opacity 0.15s;
 }
+.btn-aviso-ver:hover { opacity: 0.9; }
 
-.btn-agregar:active { transform: scale(0.98); }
-
-.btn-precio {
-  font-size: 1.05rem;
-  font-weight: 800;
+.btn-aviso-cerrar {
+  padding: 13px;
+  background: transparent;
+  border: 1.5px solid var(--divider, #ddd);
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-sub, #888);
+  cursor: pointer;
+  transition: border-color 0.15s;
 }
+.btn-aviso-cerrar:hover { border-color: var(--accent, #FF6B35); color: var(--accent, #FF6B35); }
 
 /* ── Desktop ── */
 @media (min-width: 640px) {
-  .modal-overlay {
-    align-items: center;
-    padding: 20px;
-  }
-
-  .modal-panel {
-    border-radius: 20px;
-    max-height: 88vh;
-  }
+  .modal-overlay { align-items: center; padding: 20px; }
+  .modal-panel   { border-radius: 20px; max-height: 88vh; }
+  .aviso-overlay { align-items: center; padding: 20px; }
+  .aviso-popup   { border-radius: 20px; }
 }
 </style>
