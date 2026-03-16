@@ -1,6 +1,6 @@
 <template>
   <button class="carrito-flotante" @click="$emit('abrir')">
-    <span class="carrito-icon">🛒</span>
+    <SvgIcon :path="mdiCart" :size="20" color="#fff" />
     <span class="carrito-texto">Ver pedido</span>
     <span class="carrito-badge">{{ totalItems }}</span>
   </button>
@@ -8,6 +8,8 @@
 
 <script setup>
 import { computed } from 'vue'
+import { mdiCart } from '@mdi/js'
+import SvgIcon from '../SvgIcon.vue'
 
 const props = defineProps({
   carrito: { type: Array, required: true }
@@ -45,7 +47,6 @@ const totalItems = computed(() => props.carrito.reduce((s, i) => s + i.cantidad,
   opacity: 0.92;
 }
 
-.carrito-icon { font-size: 1.1rem; }
 
 .carrito-badge {
   background: #fff;

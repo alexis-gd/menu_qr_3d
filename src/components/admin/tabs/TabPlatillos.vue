@@ -12,9 +12,7 @@
             <label>Categoría *</label>
             <select v-model="formProd.categoria_id">
               <option value="" disabled>Selecciona categoría</option>
-              <option v-for="cat in categorias" :key="cat.id" :value="cat.id">
-                {{ cat.icono || '' }} {{ cat.nombre }}
-              </option>
+              <option v-for="cat in categorias" :key="cat.id" :value="cat.id">{{ cat.nombre }}</option>
             </select>
           </div>
           <div class="field">
@@ -59,7 +57,8 @@
           :class="['filter-pill', { active: categoriaFiltro === cat.id }]"
           @click="categoriaFiltro = cat.id"
         >
-          {{ cat.icono || '' }} {{ cat.nombre }}
+          <SvgIcon v-if="cat.icono" :path="resolverIcono(cat.icono)" :size="13" />
+          {{ cat.nombre }}
           <span class="pill-num">{{ productos.filter(p => p.categoria_id === cat.id).length }}</span>
         </button>
       </div>
@@ -116,7 +115,7 @@
 
     <!-- ═══ Modal de edición ═══ -->
     <Teleport to="body">
-      <div v-if="prodEditando !== null" class="edit-modal-overlay" @click.self="cancelarEdicion">
+      <div v-if="prodEditando !== null" class="edit-modal-overlay" :style="{ '--accent': accent }" @click.self="cancelarEdicion">
         <div class="edit-modal">
 
           <!-- Header -->
@@ -181,9 +180,9 @@
             <div class="edit-section">
               <div class="edit-section-label pers-label-row">
                 <span>Personalización por pasos</span>
-                <label class="toggle-check-label">
+                <label class="sw">
                   <input type="checkbox" v-model="formEdit.tiene_personalizacion" />
-                  <span class="toggle-text">{{ formEdit.tiene_personalizacion ? 'Activada' : 'Desactivada' }}</span>
+                  <span class="sw-track" :style="formEdit.tiene_personalizacion ? { background: accent } : {}"></span>
                 </label>
               </div>
 
@@ -197,27 +196,27 @@
                   </button>
                   <div v-show="guiaAbierta" class="guia-body">
                     <div class="guia-item">
-                      <span class="guia-icon">🔘</span>
+                      <span class="guia-icon"><SvgIcon :path="mdiRadioboxMarked" :size="18" /></span>
                       <div>
                         <strong>Única</strong> — El cliente elige <em>solo una</em> opción.<br>
                         <span class="guia-ej">Ej: Tamaño → Chico / Mediano / Grande</span>
                       </div>
                     </div>
                     <div class="guia-item">
-                      <span class="guia-icon">☑️</span>
+                      <span class="guia-icon"><SvgIcon :path="mdiCheckboxMarked" :size="18" /></span>
                       <div>
                         <strong>Múltiple</strong> — El cliente puede elegir <em>varias</em> opciones hasta el máximo que configures.<br>
                         <span class="guia-ej">Ej: Ingredientes → Aguacate, Queso, Jalapeño...</span>
                       </div>
                     </div>
                     <div class="guia-item">
-                      <span class="guia-icon">📌</span>
+                      <span class="guia-icon"><SvgIcon :path="mdiPin" :size="18" /></span>
                       <div>
                         <strong>Requerido</strong> — El cliente no puede agregar al carrito sin elegir algo en este grupo.
                       </div>
                     </div>
                     <div class="guia-item">
-                      <span class="guia-icon">🔗</span>
+                      <span class="guia-icon"><SvgIcon :path="mdiLink" :size="18" /></span>
                       <div>
                         <strong>Controla máx de</strong> — Un grupo Única puede definir cuántas opciones permite un grupo Múltiple.<br>
                         <span class="guia-ej">Ej: Tamaño Chico → máx 2 ingredientes / Grande → máx 5.</span><br>
@@ -225,7 +224,7 @@
                       </div>
                     </div>
                     <div class="guia-item">
-                      <span class="guia-icon">💬</span>
+                      <span class="guia-icon"><SvgIcon :path="mdiMessageText" :size="18" /></span>
                       <div>
                         <strong>Aviso sugerido</strong> — Texto que aparece después de agregar al carrito. Ideal para sugerir bebidas o complementos.<br>
                         <span class="guia-ej">Ej: "¿Quieres agregar una bebida?" → apunta a la categoría Bebidas.</span>
@@ -243,9 +242,7 @@
                   <label>Categoría a la que lleva el aviso</label>
                   <select v-model="formEdit.aviso_categoria_id">
                     <option value="">Sin categoría</option>
-                    <option v-for="cat in categorias" :key="cat.id" :value="cat.id">
-                      {{ cat.icono || '' }} {{ cat.nombre }}
-                    </option>
+                    <option v-for="cat in categorias" :key="cat.id" :value="cat.id">{{ cat.nombre }}</option>
                   </select>
                 </div>
 
@@ -262,22 +259,33 @@
                         placeholder="Nombre del grupo (ej: Tamaño)"
                         class="grupo-nombre-input"
                       />
-                      <select
-                        v-model="grupo.tipo"
-                        class="grupo-tipo"
-                        title="Única: elige solo una opción (ej: Tamaño). Múltiple: puede elegir varias (ej: Ingredientes)."
-                      >
-                        <option value="radio">🔘 Única</option>
-                        <option value="checkbox">☑️ Múltiple</option>
-                      </select>
+                      <div class="grupo-tipo-btns" title="Única: elige solo una opción (ej: Tamaño). Múltiple: puede elegir varias (ej: Ingredientes).">
+                        <button
+                          type="button"
+                          :class="['tipo-btn', { active: grupo.tipo === 'radio' }]"
+                          @click="grupo.tipo = 'radio'"
+                        >
+                          <SvgIcon :path="mdiRadioboxMarked" :size="14" /> Única
+                        </button>
+                        <button
+                          type="button"
+                          :class="['tipo-btn', { active: grupo.tipo === 'checkbox' }]"
+                          @click="grupo.tipo = 'checkbox'"
+                        >
+                          <SvgIcon :path="mdiCheckboxMarked" :size="14" /> Múltiple
+                        </button>
+                      </div>
                       <button type="button" @click="eliminarGrupo(gi)" class="btn-del-grupo" title="Eliminar grupo"><SvgIcon :path="mdiClose" :size="14" /></button>
                     </div>
 
                     <div class="grupo-config">
-                      <label class="config-check" title="Si está activo, el cliente no puede continuar sin elegir algo aquí">
-                        <input type="checkbox" v-model="grupo.obligatorio" />
-                        <span>Requerido</span>
-                      </label>
+                      <div class="config-check" title="Si está activo, el cliente no puede continuar sin elegir algo aquí">
+                        <span class="config-check-label">Requerido</span>
+                        <label class="sw">
+                          <input type="checkbox" v-model="grupo.obligatorio" />
+                          <span class="sw-track" :style="grupo.obligatorio ? { background: accent } : {}"></span>
+                        </label>
+                      </div>
                       <label v-if="grupo.tipo === 'checkbox'" class="config-max" title="Cuántas opciones puede seleccionar el cliente como máximo">
                         Máx opciones:
                         <input type="number" v-model.number="grupo.max_selecciones" min="1" max="20" class="input-max" />
@@ -364,14 +372,17 @@ import { ref, computed, onMounted } from 'vue'
 import {
   mdiSilverwareForkKnife, mdiCamera, mdiEye, mdiPencil, mdiImagePlus,
   mdiCubeOutline, mdiTrashCanOutline, mdiClose, mdiCheck,
+  mdiRadioboxMarked, mdiCheckboxMarked, mdiPin, mdiLink, mdiMessageText,
 } from '@mdi/js'
 import { useApi } from '../../../composables/useApi.js'
 import { ucfirst } from '../../../utils/ucfirst.js'
+import { resolverIcono } from '../../../utils/iconosCategorias.js'
 import SvgIcon from '../../SvgIcon.vue'
 
 const props = defineProps({
   restauranteId: { type: Number, required: true },
   categorias:    { type: Array, default: () => [] },
+  accent:        { type: String, default: '#FF6B35' },
 })
 
 const emit = defineEmits(['notif'])
@@ -833,13 +844,6 @@ onMounted(loadProductos)
 .stock-btn:hover { background: #f0f0f0; }
 .stock-num { font-size: 0.95rem; font-weight: 800; min-width: 28px; text-align: center; color: #1a1a1a; }
 
-/* Toggle personalización */
-.toggle-check-label {
-  display: flex; align-items: center; gap: 6px;
-  font-size: 0.82rem; font-weight: 600; color: #555; cursor: pointer; user-select: none;
-}
-.toggle-check-label input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
-.toggle-text { color: var(--accent); }
 
 /* ─── Sección personalización ─── */
 .pers-section { display: flex; flex-direction: column; gap: 10px; padding-top: 4px; }
@@ -863,7 +867,7 @@ onMounted(loadProductos)
   background: #fff; border-top: 1px solid #f0f0f0;
 }
 .guia-item { display: flex; gap: 10px; align-items: flex-start; font-size: 0.82rem; color: #555; line-height: 1.5; }
-.guia-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+.guia-icon { display: inline-flex; flex-shrink: 0; margin-top: 1px; color: #888; }
 .guia-ej { font-size: 0.77rem; color: #aaa; font-style: normal; }
 
 /* Grupos */
@@ -876,15 +880,19 @@ onMounted(loadProductos)
 }
 .grupo-head { display: flex; align-items: center; gap: 6px; }
 .grupo-nombre-input {
-  flex: 1; padding: 6px 9px; border: 1.5px solid #e0e0e0; border-radius: 6px;
+  flex: 1; min-width: 0; padding: 6px 9px; border: 1.5px solid #e0e0e0; border-radius: 6px;
   font-size: 0.85rem; font-family: inherit; outline: none; background: #fff;
 }
 .grupo-nombre-input:focus { border-color: var(--accent); }
 
-.grupo-tipo {
-  padding: 6px 7px; border: 1.5px solid #e0e0e0; border-radius: 6px;
-  font-size: 0.82rem; background: #fff; outline: none; cursor: pointer; flex-shrink: 0;
+.grupo-tipo-btns { display: flex; border: 1.5px solid #e0e0e0; border-radius: 6px; overflow: hidden; flex-shrink: 0; }
+.tipo-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 5px 10px; border: none; background: #fff; color: #888;
+  font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: background 0.15s, color 0.15s;
 }
+.tipo-btn + .tipo-btn { border-left: 1.5px solid #e0e0e0; }
+.tipo-btn.active { background: var(--accent); color: #fff; }
 .btn-del-grupo {
   flex-shrink: 0; width: 26px; height: 26px; border: none; border-radius: 50%;
   background: #fdecea; color: #c62828; font-size: 0.8rem; cursor: pointer;
@@ -893,8 +901,8 @@ onMounted(loadProductos)
 .btn-del-grupo:hover { background: #ffcdd2; }
 
 .grupo-config { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.config-check { display: flex; align-items: center; gap: 5px; font-size: 0.82rem; color: #555; cursor: pointer; }
-.config-check input[type="checkbox"] { accent-color: var(--accent); }
+.config-check { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: #555; }
+.config-check-label { font-size: 0.82rem; color: #555; }
 .config-max, .config-din { display: flex; align-items: center; gap: 5px; font-size: 0.82rem; color: #555; }
 .input-max { width: 52px; padding: 4px 6px; border: 1.5px solid #e0e0e0; border-radius: 5px; font-size: 0.82rem; text-align: center; outline: none; }
 .input-max:focus { border-color: var(--accent); }

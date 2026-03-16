@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS categorias (
   id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   restaurante_id  INT UNSIGNED  NOT NULL,
   nombre          VARCHAR(100)  NOT NULL,
-  icono           VARCHAR(50),                     -- emoji o nombre de ícono
+  icono           VARCHAR(100),                    -- nombre de export MDI (ej: 'mdiPizza'). Antes era emoji unicode.
   orden           SMALLINT      NOT NULL DEFAULT 0, -- orden de aparición en menú
   activo          TINYINT(1)    NOT NULL DEFAULT 1,
   created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,

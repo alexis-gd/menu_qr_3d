@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 import piniaPersistedstate from 'pinia-plugin-persistedstate'
 import App from './App.vue'
 import router from './router/index.js'
+import './assets/base.css'
 import './assets/theme.css'
 import './assets/admin.css'
 

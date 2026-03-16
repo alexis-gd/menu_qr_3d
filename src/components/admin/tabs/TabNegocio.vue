@@ -14,13 +14,14 @@
         <p class="compartir-hint">Se adjuntará: <strong>{{ restaurante?.nombre }}</strong> · {{ menuUrl }}</p>
         <div class="compartir-actions">
           <a :href="'https://wa.me/?text=' + encodeURIComponent(textoCompartir)" target="_blank" rel="noopener" class="btn-wa">
-            📲 Compartir por WhatsApp
+            <SvgIcon :path="mdiWhatsapp" :size="18" /> Compartir por WhatsApp
           </a>
           <button @click="copiarTexto" class="btn-copy-link">
-            {{ copiado ? '✓ Copiado' : '🔗 Copiar' }}
+            <SvgIcon :path="copiado ? mdiCheck : mdiContentCopy" :size="16" />
+            {{ copiado ? 'Copiado' : 'Copiar' }}
           </button>
           <a :href="menuUrl" target="_blank" rel="noopener" class="btn-ver-menu">
-            👁 Ver menú
+            <SvgIcon :path="mdiOpenInNew" :size="16" /> Ver menú
           </a>
         </div>
       </div>
@@ -102,6 +103,7 @@
 
     <div style="padding: 0 0 24px;">
       <button @click="guardarRestaurante" class="btn-primary" :disabled="guardando">
+        <SvgIcon v-if="!guardando" :path="mdiContentSave" :size="17" />
         {{ guardando ? 'Guardando...' : 'Guardar cambios' }}
       </button>
     </div>
@@ -110,8 +112,10 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { mdiWhatsapp, mdiContentCopy, mdiCheck, mdiOpenInNew, mdiContentSave } from '@mdi/js'
 import { useApi } from '../../../composables/useApi.js'
 import { THEMES as temas } from '../../../utils/themes.js'
+import SvgIcon from '../../SvgIcon.vue'
 
 const props = defineProps({
   restauranteId: { type: Number, required: true },

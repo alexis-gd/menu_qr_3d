@@ -66,7 +66,7 @@
             <div class="tema-label" :style="{ color: tema.text }">
               <strong>{{ tema.nombre }}</strong>
               <span>{{ tema.desc }}</span>
-              <span v-if="formRest.tema === tema.id" class="tema-activo">✓ Activo</span>
+              <span v-if="formRest.tema === tema.id" class="tema-activo"><SvgIcon :path="mdiCheck" :size="11" /></span>
             </div>
           </div>
         </div>
@@ -181,7 +181,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { mdiSilverwareForkKnife, mdiUpload, mdiQrcode } from '@mdi/js'
+import { mdiSilverwareForkKnife, mdiUpload, mdiQrcode, mdiCheck } from '@mdi/js'
 import { useApi } from '../../../composables/useApi.js'
 import { ucfirst } from '../../../utils/ucfirst.js'
 import { THEMES as temas, THEMES_EXTRA as TEMAS_EXTRA } from '../../../utils/themes.js'
@@ -357,7 +357,12 @@ async function guardarRestaurante() {
 .tema-label  { padding: 8px 12px; display: flex; flex-direction: column; gap: 2px; background: rgba(255,255,255,0.12); border-top: 1px solid rgba(0,0,0,0.05); }
 .tema-label strong { font-size: 0.85rem; }
 .tema-label span   { font-size: 0.72rem; opacity: 0.65; }
-.tema-activo { color: #2e7d32 !important; font-weight: 700 !important; opacity: 1 !important; }
+.tema-activo {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #2e7d32; color: #fff;
+  opacity: 1 !important; flex-shrink: 0;
+}
 
 /* ─── QR ─── */
 .qr-dashboard-body  { display: flex; flex-direction: column; gap: 16px; }

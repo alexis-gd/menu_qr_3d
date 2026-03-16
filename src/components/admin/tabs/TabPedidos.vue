@@ -3,12 +3,12 @@
     <div class="card">
       <div class="card-header">
         <h2>Pedidos recibidos</h2>
-        <button @click="loadPedidos" class="btn-refresh">↺ Actualizar</button>
+        <button @click="loadPedidos" class="btn-refresh"><SvgIcon :path="mdiRefresh" :size="16" /> Actualizar</button>
       </div>
       <div class="card-body no-pad">
         <div v-if="loadingPedidos" class="loading-inline"><div class="spinner"></div></div>
         <div v-else-if="!pedidos.length" class="empty-state" style="padding:40px">
-          <span>🛒</span>
+          <SvgIcon :path="mdiCart" :size="40" />
           <p>Sin pedidos todavía.</p>
         </div>
         <div v-else class="pedidos-lista">
@@ -22,16 +22,20 @@
             </div>
             <div class="pedido-body">
               <div class="pedido-cliente">
-                <span>👤 {{ ped.nombre_cliente }}</span>
-                <span v-if="ped.telefono">📞 {{ ped.telefono }}</span>
-                <span v-if="ped.mesa">🪑 Mesa {{ ped.mesa }}</span>
+                <span><SvgIcon :path="mdiAccount" :size="14" /> {{ ped.nombre_cliente }}</span>
+                <span v-if="ped.telefono"><SvgIcon :path="mdiPhone" :size="14" /> {{ ped.telefono }}</span>
+                <span v-if="ped.mesa"><SvgIcon :path="mdiSeat" :size="14" /> Mesa {{ ped.mesa }}</span>
               </div>
               <div class="pedido-entrega">
                 <span class="pedido-tag" :class="ped.tipo_entrega === 'envio' ? 'tag-envio' : 'tag-recoger'">
-                  {{ ped.tipo_entrega === 'envio' ? '🛵 Envío a domicilio' : '🏠 Recoger en local' }}
+                  <SvgIcon :path="ped.tipo_entrega === 'envio' ? mdiMoped : mdiHome" :size="13" />
+                  {{ ped.tipo_entrega === 'envio' ? 'Envío a domicilio' : 'Recoger en local' }}
                 </span>
                 <span v-if="ped.tipo_entrega === 'envio' && ped.direccion" class="pedido-dir">{{ ped.direccion }}</span>
-                <span class="pedido-tag tag-pago">{{ ped.metodo_pago === 'transferencia' ? '🏦 Transferencia' : '💵 Efectivo' }}</span>
+                <span class="pedido-tag tag-pago">
+                  <SvgIcon :path="ped.metodo_pago === 'transferencia' ? mdiBank : mdiCash" :size="13" />
+                  {{ ped.metodo_pago === 'transferencia' ? 'Transferencia' : 'Efectivo' }}
+                </span>
                 <span v-if="ped.denominacion" class="pedido-denominacion">Con ${{ Number(ped.denominacion).toFixed(0) }}</span>
               </div>
               <div class="pedido-items-list">
@@ -50,8 +54,8 @@
             <div class="pedido-acciones">
               <button v-if="ped.status === 'nuevo'"          @click="cambiarStatus(ped.id, 'visto')"          class="btn-status btn-visto">Visto</button>
               <button v-if="ped.status === 'visto'"          @click="cambiarStatus(ped.id, 'en_preparacion')" class="btn-status btn-prep">En preparación</button>
-              <button v-if="ped.status === 'en_preparacion'" @click="cambiarStatus(ped.id, 'listo')"          class="btn-status btn-listo">Listo ✓</button>
-              <button v-if="ped.status === 'listo'"          @click="cambiarStatus(ped.id, 'entregado')"      class="btn-status btn-entregado">Entregado ✓</button>
+              <button v-if="ped.status === 'en_preparacion'" @click="cambiarStatus(ped.id, 'listo')"          class="btn-status btn-listo"><SvgIcon :path="mdiCheck" :size="14" /> Listo</button>
+              <button v-if="ped.status === 'listo'"          @click="cambiarStatus(ped.id, 'entregado')"      class="btn-status btn-entregado"><SvgIcon :path="mdiCheckCircle" :size="14" /> Entregado</button>
               <button v-if="!['entregado','cancelado'].includes(ped.status)" @click="cambiarStatus(ped.id, 'cancelado')" class="btn-status btn-cancelar">Cancelar</button>
             </div>
           </div>
@@ -63,7 +67,12 @@
 
 <script setup>
 import { ref, watch, onUnmounted } from 'vue'
+import {
+  mdiCart, mdiRefresh, mdiAccount, mdiPhone, mdiSeat,
+  mdiMoped, mdiHome, mdiBank, mdiCash, mdiCheck, mdiCheckCircle,
+} from '@mdi/js'
 import { useApi } from '../../../composables/useApi.js'
+import SvgIcon from '../../SvgIcon.vue'
 
 const props = defineProps({
   restauranteId: { type: Number, required: true },
@@ -118,7 +127,7 @@ onUnmounted(() => clearInterval(pedidosInterval))
 </script>
 
 <style scoped>
-.btn-refresh { background: #f5f5f5; border: 1px solid #e0e0e0; color: #555; padding: 5px 12px; border-radius: 7px; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+.btn-refresh { display: inline-flex; align-items: center; gap: 5px; background: #f5f5f5; border: 1px solid #e0e0e0; color: #555; padding: 5px 12px; border-radius: 7px; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: background 0.15s; }
 .btn-refresh:hover { background: #ebebeb; }
 
 .pedidos-lista { display: flex; flex-direction: column; }

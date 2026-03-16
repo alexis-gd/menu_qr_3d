@@ -86,8 +86,8 @@
                 </div>
               </div>
               <input :value="formCatEdit.nombre" @input="formCatEdit.nombre = ucfirst($event.target.value)" placeholder="Nombre" class="input-nombre" @keyup.enter="guardarEdicionCategoria(cat.id)" />
-              <button @click="guardarEdicionCategoria(cat.id)" class="btn-save-sm">✓</button>
-              <button @click="catEditando = null" class="btn-cancel-sm">✕</button>
+              <button @click="guardarEdicionCategoria(cat.id)" class="btn-save-sm"><SvgIcon :path="mdiCheck" :size="15" /></button>
+              <button @click="catEditando = null" class="btn-cancel-sm"><SvgIcon :path="mdiClose" :size="15" /></button>
             </div>
 
             <!-- Modo normal -->
@@ -113,7 +113,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import { mdiFormatListBulleted, mdiPencil, mdiTrashCanOutline } from '@mdi/js'
+import { mdiFormatListBulleted, mdiPencil, mdiTrashCanOutline, mdiCheck, mdiClose } from '@mdi/js'
 import { useApi } from '../../../composables/useApi.js'
 import { ucfirst } from '../../../utils/ucfirst.js'
 import { ICONO_GRUPOS, resolverIcono } from '../../../utils/iconosCategorias.js'

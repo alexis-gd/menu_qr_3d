@@ -12,7 +12,7 @@
           <span class="header-sub">Panel de administración</span>
         </div>
       </div>
-      <button @click="logout" class="btn-logout">Salir</button>
+      <button @click="logout" class="btn-logout"><SvgIcon :path="mdiLogout" :size="16" /> Salir</button>
     </header>
 
     <!-- Loading inicial -->
@@ -48,6 +48,7 @@
         v-show="tabActivo === 'platillos'"
         :restaurante-id="restauranteId"
         :categorias="categorias"
+        :accent="temaAccent"
         @notif="mostrarNotif"
       />
 
@@ -92,7 +93,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { mdiSilverwareForkKnife, mdiFormatListBulleted, mdiPalette, mdiCog, mdiCart } from '@mdi/js'
+import { mdiSilverwareForkKnife, mdiFormatListBulleted, mdiPalette, mdiCog, mdiCart, mdiLogout } from '@mdi/js'
 import { resetAuth } from '../../router/index.js'
 import { useApi } from '../../composables/useApi.js'
 import { THEMES as temas, THEMES_EXTRA as TEMAS_EXTRA } from '../../utils/themes.js'
@@ -209,6 +210,7 @@ onMounted(async () => {
 .header-title    { font-size: 1.1rem; font-weight: 700; color: #1a1a1a; margin: 0; }
 .header-sub      { font-size: 0.75rem; color: #aaa; }
 .btn-logout {
+  display: inline-flex; align-items: center; gap: 6px;
   background: transparent; border: 1.5px solid #ddd; color: #777;
   padding: 7px 16px; border-radius: 8px; font-size: 0.85rem;
   font-weight: 600; cursor: pointer; transition: all 0.2s;

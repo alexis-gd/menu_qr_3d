@@ -14,7 +14,7 @@
         <section class="checkout-section">
           <h3 class="section-title">Platillos</h3>
           <div class="items-lista">
-            <div v-for="(item, idx) in carritoLocal" :key="idx" class="item-row">
+            <div v-for="(item, idx) in carritoStore.items" :key="idx" class="item-row">
               <div class="item-cant-ctrl">
                 <button class="cant-btn" @click="reducir(idx)">−</button>
                 <span class="cant-num">{{ item.cantidad }}</span>
@@ -175,7 +175,7 @@
           :disabled="enviando"
           @click="confirmar"
         >
-          {{ enviando ? 'Enviando...' : '✓ Confirmar y enviar pedido por WhatsApp' }}
+          {{ enviando ? 'Enviando...' : '✓ Confirmar pedido por WhatsApp' }}
         </button>
 
       </div>
@@ -199,9 +199,6 @@ const emit = defineEmits(['close', 'confirmado'])
 const { post } = useApi()
 const carritoStore = useCarritoStore()
 
-// Alias directo al store — los cambios se reflejan inmediatamente en el badge
-const carritoLocal = carritoStore.items
-
 const tipoEntrega  = ref('recoger')
 const metodoPago   = ref('efectivo')
 const nombre       = ref('')
@@ -224,7 +221,7 @@ const costoEnvio = computed(() =>
 )
 
 const subtotal = computed(() =>
-  carritoLocal.reduce((s, i) => s + (i.precio_unitario ?? Number(i.producto.precio)) * i.cantidad, 0)
+  carritoStore.items.reduce((s, i) => s + (i.precio_unitario ?? Number(i.producto.precio)) * i.cantidad, 0)
 )
 
 const total = computed(() => subtotal.value + costoEnvio.value)
@@ -240,15 +237,15 @@ const faltante = computed(() => {
 })
 
 const reducir = (idx) => {
-  if (carritoLocal[idx].cantidad > 1) {
-    carritoLocal[idx].cantidad--
+  if (carritoStore.items[idx].cantidad > 1) {
+    carritoStore.items[idx].cantidad--
   } else {
-    carritoLocal.splice(idx, 1)
+    carritoStore.items.splice(idx, 1)
   }
 }
 
 const validar = () => {
-  if (!carritoLocal.length) return 'El carrito está vacío.'
+  if (!carritoStore.items.length) return 'El carrito está vacío.'
   if (!nombre.value.trim()) return 'Por favor escribe tu nombre.'
   if (tipoEntrega.value === 'envio') {
     if (!telefono.value.trim()) return 'El teléfono es requerido para envío a domicilio.'
@@ -263,7 +260,7 @@ const confirmar = async () => {
 
   enviando.value = true
   try {
-    const items = carritoLocal.map(i => ({
+    const items = carritoStore.items.map(i => ({
       producto_id: i.producto.id,
       nombre: i.producto.nombre,
       precio: i.precio_unitario ?? i.producto.precio,
@@ -296,7 +293,7 @@ const confirmar = async () => {
       `*#${res.numero_pedido}*`,
       ``,
       `*Pedido:*`,
-      ...carritoLocal.flatMap(i => {
+      ...carritoStore.items.flatMap(i => {
         const precioUnit = i.precio_unitario ?? Number(i.producto.precio)
         const obs = i.observacion ? ` _(${i.observacion})_` : ''
         const linea = `  ${i.cantidad}x ${i.producto.nombre}${obs} — $${(precioUnit * i.cantidad).toFixed(2)}`
@@ -323,6 +320,16 @@ const confirmar = async () => {
     const waPhone = props.pedidosConfig.pedidos_whatsapp?.replace(/\D/g, '') || ''
     const waUrl   = `https://wa.me/${waPhone}?text=${encodeURIComponent(lineas.join('\n'))}`
     window.open(waUrl, '_blank')
+
+    // Resetear form para el próximo pedido
+    nombre.value       = ''
+    telefono.value     = ''
+    direccion.value    = ''
+    referencia.value   = ''
+    denominacion.value = ''
+    tipoEntrega.value  = 'recoger'
+    metodoPago.value   = 'efectivo'
+    errorMsg.value     = ''
 
     emit('confirmado')
   } catch (err) {

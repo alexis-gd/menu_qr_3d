@@ -41,7 +41,7 @@
           @click="irACategoria(cat.id)"
         >
           <span v-if="cat.icono" class="cat-nav-icon">
-            <SvgIcon :path="resolverIcono(cat.icono)" :size="14" />
+            <SvgIcon :path="resolverIcono(cat.icono)" :size="22" />
           </span>
           {{ cat.nombre }}
         </button>
@@ -79,6 +79,7 @@
       <!-- ── Footer ── -->
       <footer class="menu-footer">
         <p>Menú digital con tecnología 3D • Toca cualquier platillo para ver más</p>
+        <a href="https://nodosmx.com/" target="_blank" rel="noopener noreferrer">Desarrollado por NodosMX</a>
       </footer>
     </template>
 
@@ -127,7 +128,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useApi } from '../composables/useApi.js'
 import { useCarritoStore } from '../stores/carrito.js'
@@ -193,6 +194,13 @@ const onPedidoConfirmado = () => {
   carritoStore.vaciar()
   mostrarCheckout.value = false
 }
+
+watch(() => restaurante.value?.logo_url, (url) => {
+  if (!url) return
+  let link = document.querySelector("link[rel~='icon']")
+  if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link) }
+  link.href = url
+}, { immediate: true })
 
 onMounted(async () => {
   const slug = route.query.r
@@ -637,7 +645,23 @@ const abrirModal = (producto) => {
   padding: 20px;
   color: var(--footer-text);
   font-size: 0.78rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
 }
+.menu-footer a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: none;
+  opacity: 0.85;
+  transition: opacity 0.2s;
+}
+.menu-footer a:hover { opacity: 1; }
 
 /* ── Responsive ── */
 @media (min-width: 600px) {

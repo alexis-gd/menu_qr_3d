@@ -14,6 +14,7 @@
 - [x] **Fase 5** — QR & Mesas: endpoint mesas, admin Mesas.vue, QR por mesa, badge de mesa en menú
 - [x] **Fase 6** — Sistema de Pedidos: carrito sin sesión, checkout con WhatsApp deep link, tabs Negocio/Pedidos en admin
 - [x] **Fase 7** — Personalización por pasos (estilo Rappi/Uber Eats): BD ✅, API ✅, Vue ✅ completo
+- [x] **Fase 8** — Migración completa emojis → Material Design Icons (MDI): UI chrome + picker categorías
 
 ### Funcionalidades Implementadas
 - [x] API endpoints: `menu`, `login`, `restaurantes`, `categorias`, `productos`, `mesas`, `upload-fotos`, `upload-glb`, `upload-logo`, `job-status`
@@ -36,6 +37,10 @@
 - [x] **Utilería ucfirst** — `src/utils/ucfirst.js`. Primera letra mayúscula al tipear. Patrón: `:value + @input` con `ucfirst($event.target.value)`. Usada en Dashboard (CRUD), CheckoutModal (nombre, dirección, observación) y ProductoModal (observación).
 - [x] **Personalización por pasos (Fase 7)** — Sistema genérico de grupos de opciones por producto estilo Rappi/Uber Eats. BD: `producto_grupos`, `producto_opciones`, `pedido_item_opciones` + columnas en `productos` (`tiene_personalizacion`, `aviso_complemento`, `aviso_categoria_id`). API: `GET/POST producto-grupos`, `menu` GET con grupos embebidos, `pedidos` POST/GET con opciones. Vue: `PersonalizacionModal.vue` (acordeón progresivo, radio auto-avanza al seleccionar, checkbox auto-avanza al alcanzar max, botón agregar muted/accent según validación, popup aviso complemento post-agregar), `carrito.js` con `opciones[]` y `precio_unitario`, `MenuPublico.vue` rutea a modal correcto según `tiene_personalizacion`, `CheckoutModal.vue` usa `carritoStore.items` directo (fix bug badge), `TabPlatillos.vue` con editor inline de grupos/opciones.
 - [x] **Fix campo obligatorio** — API devuelve `obligatorio` (nombre real de columna en BD), no `requerido`. PersonalizacionModal usa `esRequerido(grupo)` que acepta ambos como fallback.
+- [x] **Fase 8 — MDI icons** — Migración completa de emojis unicode a `@mdi/js`. Nuevo: `src/components/SvgIcon.vue` (wrapper genérico), `src/utils/iconosCategorias.js` (63 íconos en 6 grupos, `ICONOS_MDI`, `resolverIcono()`, `ICONO_GRUPOS`). Picker de categorías guarda nombre MDI en BD (ej: `"mdiPizza"`) en lugar de emoji unicode. Columna `categorias.emoji` renombrada a `icono VARCHAR(100)`. Todos los componentes admin y menú público migrados a SvgIcon. `btn-primary`/`btn-secondary` tienen `display: inline-flex; align-items: center` para alinear íconos con texto. Favicion: `public/favicon.svg` + `src/assets/base.css` (estilos base migrados de inline en index.html a import en main.js).
+- [x] **Fix CheckoutModal — carritoLocal stale** — `const carritoLocal = carritoStore.items` capturaba referencia al array viejo tras `vaciar()`. Fix: usar `carritoStore.items` directo en template y JS. Además, form fields (nombre, telefono, dirección, etc.) se resetean en `confirmar()` exitoso para el próximo pedido.
+- [x] **Fix sw-track en Teleport** — El modal de edición de TabPlatillos usa `<Teleport to="body">` — `var(--accent)` no llegaba al overlay. Fix: prop `accent` en TabPlatillos, `--accent` aplicado como CSS var en el overlay teleportado. Dashboard pasa `:accent="temaAccent"`.
+- [x] **Fix grupo-tipo selector** — Reemplazado `<select>` con emojis en `<option>` (HTML no permite SVG) por grupo de botones personalizados con SvgIcon (`.grupo-tipo-btns` / `.tipo-btn`). Fix alineación: `min-width: 0` en `.grupo-nombre-input`.
 
 ### Decisión: Flujo 3D sin Meshy API
 La API de Meshy requiere plan Pro ($20/mes) para acceso programático. Se adoptó **flujo semi-manual (Opción B)**:
@@ -57,7 +62,7 @@ La API de Meshy requiere plan Pro ($20/mes) para acceso programático. Se adopt�
 
 ### Bugs/Workarounds Conocidos
 - ⚠️ **URL de logo en GET restaurantes** — Corregido: la respuesta del endpoint GET `restaurantes` ahora antepone `UPLOADS_URL` a `logo_url` (igual que el endpoint `menu`). Sin este fix, la imagen se resolvía como ruta relativa y el servidor devolvía HTML (200 OK pero imagen rota).
-- ✅ **carritoLocal aislado en CheckoutModal** — Corregido: `carritoLocal` era una copia `ref()` del prop, los cambios (reducir/eliminar items) no actualizaban el badge del carrito. Fix: `CheckoutModal` usa `carritoStore.items` directamente, sin prop `:carrito`.
+- ✅ **carritoLocal stale en CheckoutModal** — Corregido dos veces: (1) Era copia del prop → migrado a `carritoStore.items` directo. (2) `carritoStore.items` era alias `= carritoStore.items` que quedaba stale tras `vaciar()` (crea nuevo array). Fix final: `carritoStore.items` referenciado directamente en template y JS, sin alias local.
 - ✅ **campo `obligatorio` vs `requerido` en grupos** — La columna BD se llama `obligatorio`, la API la devuelve como `obligatorio`. PersonalizacionModal usaba `grupo.requerido` (undefined). Fix: `esRequerido(grupo)` verifica ambos.
 - ✅ **Validación editor inline grupos/opciones** — `guardarEdicionProducto` valida: nombre de grupo vacío, nombre de opción vacío, max_selecciones < 1 en checkbox, precio_extra negativo, precio del platillo negativo. Mensajes específicos por campo.
 - ✅ **POST producto-grupos feedback granular** — `guardarEdicionProducto` separado en dos try-catch independientes. Si PUT básico falla → error claro, no guarda nada. Si POST grupos falla después de PUT exitoso → mensaje "Datos básicos guardados. Error al guardar personalización" + recarga lista.
@@ -113,6 +118,14 @@ La API de Meshy requiere plan Pro ($20/mes) para acceso programático. Se adopt�
   - `pinia-plugin-persistedstate` — carrito sobrevive recargas
   - `MenuPublico.vue` — usa `carritoStore.agregar()` y `carritoStore.vaciar()`
 - [ ] **Store de restaurante activo en admin** — pendiente si se necesita multi-restaurante
+
+### Gap QA vs Local — Pendiente de migrar en QA
+- ⚠️ **Fase 7 tablas faltantes en QA**: ejecutar `database/migrations/fase7_personalizacion.sql`
+  - Crea: `producto_grupos`, `producto_opciones`, `pedido_item_opciones`
+  - Agrega columnas en `productos`: `tiene_personalizacion`, `aviso_complemento`, `aviso_categoria_id`
+- ⚠️ **Columna `stock` faltante en QA**: `ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock SMALLINT DEFAULT NULL AFTER aviso_categoria_id;`
+- ⚠️ **Status `visto` faltante en QA**: `ALTER TABLE pedidos MODIFY COLUMN status ENUM('nuevo','visto','en_preparacion','listo','entregado','cancelado') NOT NULL DEFAULT 'nuevo';`
+- ⚠️ **Fase 8 — íconos categorías en QA**: en QA la columna ya se llama `icono` (no `emoji`). Ejecutar solo los `UPDATE` del `database/migrations/fase8_iconos_mdi.sql` (el `ALTER TABLE` está comentado).
 
 ### Testing Local
 - ✅ Base de datos: MySQL tablas creadas
