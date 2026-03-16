@@ -67,7 +67,7 @@
       <div class="card-body no-pad">
         <div v-if="loadingProductos" class="loading-inline"><div class="spinner"></div></div>
         <div v-else-if="!productosFiltrados.length" class="empty-state">
-          <span>🍽️</span>
+          <SvgIcon :path="mdiSilverwareForkKnife" :size="40" />
           <p>{{ categoriaFiltro ? 'Sin platillos en esta categoría.' : 'Sin platillos todavía.\nAgrega el primero arriba.' }}</p>
         </div>
         <div v-else class="prod-lista">
@@ -79,8 +79,8 @@
                 :alt="prod.nombre"
                 @error="($e) => $e.target.style.display='none'"
               />
-              <span v-else class="thumb-empty">📷</span>
-              <div v-if="prod.foto_principal" class="thumb-overlay">👁</div>
+              <span v-else class="thumb-empty"><SvgIcon :path="mdiCamera" :size="18" /></span>
+              <div v-if="prod.foto_principal" class="thumb-overlay"><SvgIcon :path="mdiEye" :size="14" /></div>
             </div>
             <div class="prod-info">
               <strong class="prod-nombre">{{ prod.nombre }}</strong>
@@ -98,14 +98,16 @@
               </label>
             </div>
             <div class="prod-actions">
-              <button @click="iniciarEdicion(prod)" class="btn-icon btn-edit" title="Editar platillo">✏️</button>
+              <button @click="iniciarEdicion(prod)" class="btn-icon btn-edit" title="Editar platillo"><SvgIcon :path="mdiPencil" :size="15" /></button>
               <label class="btn-icon btn-foto" title="Subir foto">
-                📷 <input type="file" multiple accept="image/*" @change="subirFotos(prod.id, $event)" hidden />
+                <SvgIcon :path="mdiImagePlus" :size="15" />
+                <input type="file" multiple accept="image/*" @change="subirFotos(prod.id, $event)" hidden />
               </label>
               <label v-if="!prod.tiene_ar" class="btn-icon btn-3d" title="Subir modelo 3D (.glb)">
-                📦 <input type="file" accept=".glb" @change="subirGlb(prod.id, $event)" hidden />
+                <SvgIcon :path="mdiCubeOutline" :size="15" />
+                <input type="file" accept=".glb" @change="subirGlb(prod.id, $event)" hidden />
               </label>
-              <button @click="eliminarProducto(prod.id)" class="btn-icon btn-del" title="Eliminar">🗑</button>
+              <button @click="eliminarProducto(prod.id)" class="btn-icon btn-del" title="Eliminar"><SvgIcon :path="mdiTrashCanOutline" :size="15" /></button>
             </div>
           </div>
         </div>
@@ -122,14 +124,14 @@
             <div class="edit-modal-title-row">
               <div class="edit-modal-thumb">
                 <img v-if="prodEditandoObj?.foto_principal" :src="prodEditandoObj.foto_principal" :alt="prodEditandoObj?.nombre" />
-                <span v-else>📷</span>
+                <span v-else><SvgIcon :path="mdiCamera" :size="20" /></span>
               </div>
               <div class="edit-modal-title-text">
                 <span class="edit-modal-label">Editando</span>
                 <strong class="edit-modal-nombre">{{ prodEditandoObj?.nombre }}</strong>
               </div>
             </div>
-            <button @click="cancelarEdicion" class="modal-close-btn" title="Cerrar">✕</button>
+            <button @click="cancelarEdicion" class="modal-close-btn" title="Cerrar"><SvgIcon :path="mdiClose" :size="18" /></button>
           </div>
 
           <!-- Body scrollable -->
@@ -268,7 +270,7 @@
                         <option value="radio">🔘 Única</option>
                         <option value="checkbox">☑️ Múltiple</option>
                       </select>
-                      <button type="button" @click="eliminarGrupo(gi)" class="btn-del-grupo" title="Eliminar grupo">✕</button>
+                      <button type="button" @click="eliminarGrupo(gi)" class="btn-del-grupo" title="Eliminar grupo"><SvgIcon :path="mdiClose" :size="14" /></button>
                     </div>
 
                     <div class="grupo-config">
@@ -320,7 +322,7 @@
                         >
                           Máx:<input type="number" v-model.number="op.max_override" min="0" class="op-override" placeholder="—" />
                         </span>
-                        <button type="button" @click="eliminarOpcion(gi, oi)" class="btn-del-op" title="Eliminar opción">✕</button>
+                        <button type="button" @click="eliminarOpcion(gi, oi)" class="btn-del-op" title="Eliminar opción"><SvgIcon :path="mdiClose" :size="13" /></button>
                       </div>
                       <button type="button" @click="agregarOpcion(gi)" class="btn-add-op">+ agregar opción</button>
                     </div>
@@ -337,7 +339,8 @@
           <div class="edit-modal-footer">
             <button @click="cancelarEdicion" class="btn-secondary">Cancelar</button>
             <button @click="guardarEdicionProducto" class="btn-primary" :disabled="guardando">
-              {{ guardando ? 'Guardando...' : '✓ Guardar cambios' }}
+              <SvgIcon v-if="!guardando" :path="mdiCheck" :size="16" />
+              {{ guardando ? 'Guardando...' : 'Guardar cambios' }}
             </button>
           </div>
 
@@ -348,7 +351,7 @@
     <!-- Modal preview de foto -->
     <div v-if="preview" class="preview-overlay" @click="preview = null">
       <div class="preview-box" @click.stop>
-        <button class="preview-close" @click="preview = null">✕</button>
+        <button class="preview-close" @click="preview = null"><SvgIcon :path="mdiClose" :size="16" /></button>
         <img :src="preview.url" :alt="preview.nombre" class="preview-img" />
         <p class="preview-nombre">{{ preview.nombre }}</p>
       </div>
@@ -358,8 +361,13 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import {
+  mdiSilverwareForkKnife, mdiCamera, mdiEye, mdiPencil, mdiImagePlus,
+  mdiCubeOutline, mdiTrashCanOutline, mdiClose, mdiCheck,
+} from '@mdi/js'
 import { useApi } from '../../../composables/useApi.js'
 import { ucfirst } from '../../../utils/ucfirst.js'
+import SvgIcon from '../../SvgIcon.vue'
 
 const props = defineProps({
   restauranteId: { type: Number, required: true },

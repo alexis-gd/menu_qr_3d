@@ -23,12 +23,13 @@
           class="modal-foto"
         />
         <div v-else class="modal-placeholder">
-          <span>🍽️</span>
+          <SvgIcon :path="mdiSilverwareForkKnife" :size="80" />
         </div>
 
         <!-- Indicador de 3D -->
         <div v-if="producto.tiene_ar" class="hint-3d">
-          <span>🔄 Arrastra para rotar</span>
+          <SvgIcon :path="mdiRefresh" :size="14" />
+          <span>Arrastra para rotar</span>
         </div>
 
         <!-- Flecha hacia el botón AR -->
@@ -51,7 +52,9 @@
             <span class="precio-label">Precio</span>
             <span class="precio-valor">${{ Number(producto.precio).toFixed(2) }}</span>
           </div>
-          <div v-if="producto.es_destacado" class="dest-badge">⭐ Destacado</div>
+          <div v-if="producto.es_destacado" class="dest-badge">
+          <SvgIcon :path="mdiStar" :size="14" /> Destacado
+        </div>
         </div>
 
         <div v-if="producto.tiene_ar" class="ar-info">
@@ -81,7 +84,9 @@
 
 <script setup>
 import { ref } from 'vue'
+import { mdiSilverwareForkKnife, mdiRefresh, mdiStar } from '@mdi/js'
 import ModelViewer3D from './ModelViewer3D.vue'
+import SvgIcon from '../SvgIcon.vue'
 import { ucfirst } from '../../utils/ucfirst.js'
 
 const props = defineProps({
@@ -196,7 +201,7 @@ const emitirAgregar = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 5rem;
+  color: var(--accent, #FF6B35);
   opacity: 0.2;
 }
 
@@ -213,6 +218,9 @@ const emitirAgregar = () => {
   font-weight: 600;
   white-space: nowrap;
   pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .hint-ar-arrow {

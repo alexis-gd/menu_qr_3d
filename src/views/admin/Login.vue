@@ -2,7 +2,9 @@
   <div class="login-page">
     <div class="login-card">
       <div class="login-brand">
-        <span class="brand-icon">🍽️</span>
+        <span class="brand-icon">
+          <SvgIcon :path="mdiSilverwareForkKnife" :size="44" color="#FF6B35" />
+        </span>
         <h1>Panel Admin</h1>
         <p>Gestiona el menú de tu restaurante</p>
       </div>
@@ -28,8 +30,10 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { mdiSilverwareForkKnife } from '@mdi/js'
 import { useApi } from '../../composables/useApi.js'
 import { resetAuth } from '../../router/index.js'
+import SvgIcon from '../../components/SvgIcon.vue'
 
 const email = ref('')
 const password = ref('')
@@ -80,8 +84,8 @@ const submit = async () => {
 }
 
 .brand-icon {
-  font-size: 2.8rem;
-  display: block;
+  display: flex;
+  justify-content: center;
   margin-bottom: 12px;
 }
 

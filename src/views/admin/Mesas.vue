@@ -45,7 +45,7 @@
               <div class="hdr-deco hdr-deco-1" :style="{ background: tema.decoColor }"></div>
               <div class="hdr-deco hdr-deco-2" :style="{ background: tema.decoColor }"></div>
               <div class="hdr-content">
-                <span class="hdr-emoji">🍽️</span>
+                <span class="hdr-emoji"><SvgIcon :path="mdiSilverwareForkKnife" :size="32" :color="tema.headerText" /></span>
                 <span class="hdr-nombre" :style="{ color: tema.headerText }">{{ restauranteNombre }}</span>
               </div>
             </div>
@@ -131,7 +131,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { mdiSilverwareForkKnife } from '@mdi/js'
 import { useApi } from '../../composables/useApi.js'
+import SvgIcon from '../../components/SvgIcon.vue'
 import QRCode from 'qrcode'
 
 const route = useRoute()
@@ -261,11 +263,19 @@ async function descargarPNG() {
   ctx.beginPath(); ctx.arc(-50, headerH + 50, 140, 0, Math.PI * 2); ctx.fill()
   ctx.restore()
 
-  // Emoji + nombre en header
+  // Ícono MDI + nombre en header
+  const iconSize = 52
+  const iconX = W / 2 - iconSize / 2
+  const iconY = headerH * 0.44 - iconSize * 0.75
+  const iconScale = iconSize / 24
+  ctx.save()
+  ctx.fillStyle = t.headerText
+  ctx.translate(iconX, iconY)
+  ctx.scale(iconScale, iconScale)
+  ctx.fill(new Path2D(mdiSilverwareForkKnife))
+  ctx.restore()
   ctx.textAlign = 'center'
   ctx.fillStyle = t.headerText
-  ctx.font = '52px serif'
-  ctx.fillText('🍽️', W / 2, headerH * 0.44)
   ctx.font = `bold 30px system-ui, -apple-system, sans-serif`
   ctx.fillText(restauranteNombre.value, W / 2, headerH * 0.68)
 

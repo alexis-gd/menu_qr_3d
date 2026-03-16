@@ -23,12 +23,15 @@
         <div class="logo-upload-row">
           <div class="logo-preview-wrap">
             <img v-if="restaurante?.logo_url" :src="restaurante.logo_url" class="logo-preview-img" alt="Logo actual" />
-            <div v-else class="logo-preview-empty">🍽️</div>
+            <div v-else class="logo-preview-empty">
+              <SvgIcon :path="mdiSilverwareForkKnife" :size="32" />
+            </div>
           </div>
           <div class="logo-upload-actions">
             <label class="btn-upload-logo" :class="{ loading: logoSubiendo }">
               <input type="file" accept="image/jpeg,image/png,image/webp" @change="uploadLogo" :disabled="logoSubiendo" style="display:none" />
-              {{ logoSubiendo ? 'Subiendo...' : '📂 Subir logo' }}
+              <SvgIcon :path="mdiUpload" :size="15" />
+              {{ logoSubiendo ? 'Subiendo...' : 'Subir logo' }}
             </label>
             <span class="logo-hint">JPG, PNG o WebP · máx. 2 MB</span>
           </div>
@@ -49,7 +52,9 @@
             @click="seleccionarTema(tema.id)"
           >
             <div class="tema-mockup" :style="{ background: tema.headerBg }">
-              <div class="mock-title" :style="{ color: tema.headerText }">🍽️ Restaurante</div>
+              <div class="mock-title" :style="{ color: tema.headerText }">
+                <SvgIcon :path="mdiSilverwareForkKnife" :size="10" :color="tema.headerText" /> Restaurante
+              </div>
               <div class="mock-card" :style="{ background: tema.cardBg }">
                 <div class="mock-img" :style="{ background: tema.accent + '40' }"></div>
                 <div class="mock-info">
@@ -70,7 +75,7 @@
 
     <!-- QR del menú -->
     <div class="card">
-      <div class="card-header"><h2>🔲 Código QR del menú</h2></div>
+      <div class="card-header"><h2><SvgIcon :path="mdiQrcode" :size="18" style="vertical-align:-3px" /> Código QR del menú</h2></div>
       <div class="card-body qr-dashboard-body">
         <p class="helper-text">Imprime esta tarjeta y colócala en tus mesas. Tus clientes escanean el QR para ver el menú.</p>
         <div class="qr-url-box">
@@ -86,7 +91,9 @@
               <div class="qr-card-dm-hdr" :style="{ background: temaActualData.headerBg }">
                 <div class="qr-hdr-inner">
                   <img v-if="restaurante?.logo_url" :src="restaurante.logo_url" class="qr-hdr-logo" alt="logo" />
-                  <span v-else class="qr-hdr-emoji">🍽️</span>
+                  <span v-else class="qr-hdr-emoji">
+                    <SvgIcon :path="mdiSilverwareForkKnife" :size="22" :color="temaActualData.headerText" />
+                  </span>
                   <span class="qr-hdr-nombre" :style="{ color: temaActualData.headerText }">{{ restaurante?.nombre }}</span>
                 </div>
               </div>
@@ -174,9 +181,11 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { mdiSilverwareForkKnife, mdiUpload, mdiQrcode } from '@mdi/js'
 import { useApi } from '../../../composables/useApi.js'
 import { ucfirst } from '../../../utils/ucfirst.js'
 import { THEMES as temas, THEMES_EXTRA as TEMAS_EXTRA } from '../../../utils/themes.js'
+import SvgIcon from '../../SvgIcon.vue'
 import QRCode from 'qrcode'
 import html2canvas from 'html2canvas'
 

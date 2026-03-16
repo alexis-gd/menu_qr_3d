@@ -40,7 +40,9 @@
           :class="['cat-nav-btn', { active: catActiva === cat.id }]"
           @click="irACategoria(cat.id)"
         >
-          <span v-if="cat.icono" class="cat-nav-icon">{{ cat.icono }}</span>
+          <span v-if="cat.icono" class="cat-nav-icon">
+            <SvgIcon :path="resolverIcono(cat.icono)" :size="14" />
+          </span>
           {{ cat.nombre }}
         </button>
       </nav>
@@ -54,7 +56,9 @@
           class="categoria-seccion"
         >
           <div class="cat-titulo">
-            <span v-if="cat.icono" class="cat-icono">{{ cat.icono }}</span>
+            <span v-if="cat.icono" class="cat-icono">
+              <SvgIcon :path="resolverIcono(cat.icono)" :size="20" />
+            </span>
             <h2>{{ cat.nombre }}</h2>
             <div class="cat-linea"></div>
           </div>
@@ -127,6 +131,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useApi } from '../composables/useApi.js'
 import { useCarritoStore } from '../stores/carrito.js'
+import { resolverIcono } from '../utils/iconosCategorias.js'
+import SvgIcon from '../components/SvgIcon.vue'
 import ProductoCard from '../components/menu/ProductoCard.vue'
 import ProductoModal from '../components/menu/ProductoModal.vue'
 import PersonalizacionModal from '../components/menu/PersonalizacionModal.vue'
@@ -562,7 +568,9 @@ const abrirModal = (producto) => {
 }
 
 .cat-nav-icon {
-  font-size: 1rem;
+  display: inline-flex;
+  align-items: center;
+  color: inherit;
 }
 
 /* ── Contenido ── */
@@ -586,7 +594,9 @@ const abrirModal = (producto) => {
 }
 
 .cat-icono {
-  font-size: 1.4rem;
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent, #FF6B35);
 }
 
 .cat-titulo h2 {

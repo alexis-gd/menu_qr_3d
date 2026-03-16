@@ -12,18 +12,26 @@
           </div>
           <div class="field">
             <label>Ícono</label>
-            <div class="emoji-wrap">
-              <button type="button" class="emoji-btn" @click.stop="togglePicker('nuevo')">
-                <span class="emoji-display">{{ formCat.icono || '📋' }}</span>
+            <div class="icono-wrap">
+              <button type="button" class="icono-btn" @click.stop="togglePicker('nuevo')">
+                <SvgIcon v-if="formCat.icono" :path="resolverIcono(formCat.icono)" :size="20" />
+                <SvgIcon v-else :path="mdiFormatListBulleted" :size="20" />
                 <span class="picker-caret">▾</span>
               </button>
-              <div v-if="pickerAbierto === 'nuevo'" class="emoji-picker" @click.stop>
-                <div v-for="g in emojiGrupos" :key="g.nombre" class="emoji-grupo">
-                  <div class="emoji-grupo-titulo">{{ g.nombre }}</div>
-                  <div class="emoji-grid">
-                    <button v-for="e in g.emojis" :key="e" type="button" class="emoji-opt"
-                      :class="{ selected: formCat.icono === e }"
-                      @click="seleccionarEmoji(e, 'nuevo')">{{ e }}</button>
+              <div v-if="pickerAbierto === 'nuevo'" class="icono-picker" @click.stop>
+                <div v-for="g in ICONO_GRUPOS" :key="g.nombre" class="icono-grupo">
+                  <div class="icono-grupo-titulo">{{ g.nombre }}</div>
+                  <div class="icono-grid">
+                    <button
+                      v-for="ic in g.iconos" :key="ic.key"
+                      type="button"
+                      class="icono-opt"
+                      :class="{ selected: formCat.icono === ic.key }"
+                      :title="ic.label"
+                      @click="seleccionarIcono(ic.key, 'nuevo')"
+                    >
+                      <SvgIcon :path="ic.path" :size="18" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -46,25 +54,33 @@
       </div>
       <div class="card-body no-pad">
         <div v-if="!categorias.length" class="empty-state" style="padding:32px">
-          <span>📋</span>
+          <SvgIcon :path="mdiFormatListBulleted" :size="36" />
           <p>Sin categorías todavía.</p>
         </div>
         <div v-else class="cat-lista">
           <div v-for="(cat, idx) in categorias" :key="cat.id" class="cat-item">
             <!-- Modo edición -->
             <div v-if="catEditando === cat.id" class="cat-edit-form">
-              <div class="emoji-wrap">
-                <button type="button" class="emoji-btn emoji-btn-sm" @click.stop="togglePicker(cat.id)">
-                  <span class="emoji-display">{{ formCatEdit.icono || '📋' }}</span>
+              <div class="icono-wrap">
+                <button type="button" class="icono-btn icono-btn-sm" @click.stop="togglePicker(cat.id)">
+                  <SvgIcon v-if="formCatEdit.icono" :path="resolverIcono(formCatEdit.icono)" :size="18" />
+                  <SvgIcon v-else :path="mdiFormatListBulleted" :size="18" />
                   <span class="picker-caret">▾</span>
                 </button>
-                <div v-if="pickerAbierto === cat.id" class="emoji-picker emoji-picker-right" @click.stop>
-                  <div v-for="g in emojiGrupos" :key="g.nombre" class="emoji-grupo">
-                    <div class="emoji-grupo-titulo">{{ g.nombre }}</div>
-                    <div class="emoji-grid">
-                      <button v-for="e in g.emojis" :key="e" type="button" class="emoji-opt"
-                        :class="{ selected: formCatEdit.icono === e }"
-                        @click="seleccionarEmoji(e, cat.id)">{{ e }}</button>
+                <div v-if="pickerAbierto === cat.id" class="icono-picker icono-picker-right" @click.stop>
+                  <div v-for="g in ICONO_GRUPOS" :key="g.nombre" class="icono-grupo">
+                    <div class="icono-grupo-titulo">{{ g.nombre }}</div>
+                    <div class="icono-grid">
+                      <button
+                        v-for="ic in g.iconos" :key="ic.key"
+                        type="button"
+                        class="icono-opt"
+                        :class="{ selected: formCatEdit.icono === ic.key }"
+                        :title="ic.label"
+                        @click="seleccionarIcono(ic.key, cat.id)"
+                      >
+                        <SvgIcon :path="ic.path" :size="18" />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -76,14 +92,17 @@
 
             <!-- Modo normal -->
             <template v-else>
-              <span class="cat-emoji">{{ cat.icono || '📋' }}</span>
+              <span class="cat-icono">
+                <SvgIcon v-if="cat.icono" :path="resolverIcono(cat.icono)" :size="20" />
+                <SvgIcon v-else :path="mdiFormatListBulleted" :size="20" />
+              </span>
               <span class="cat-nombre">{{ cat.nombre }}</span>
               <div class="cat-ord-btns">
                 <button @click="moverCategoria(idx, -1)" class="btn-ord" :disabled="idx === 0" title="Subir">▲</button>
                 <button @click="moverCategoria(idx, 1)" class="btn-ord" :disabled="idx === categorias.length - 1" title="Bajar">▼</button>
               </div>
-              <button @click="iniciarEdicionCategoria(cat)" class="btn-icon btn-edit" title="Editar">✏️</button>
-              <button @click="eliminarCategoria(cat.id)" class="btn-icon btn-del" title="Eliminar">🗑</button>
+              <button @click="iniciarEdicionCategoria(cat)" class="btn-icon btn-edit" title="Editar"><SvgIcon :path="mdiPencil" :size="15" /></button>
+              <button @click="eliminarCategoria(cat.id)" class="btn-icon btn-del" title="Eliminar"><SvgIcon :path="mdiTrashCanOutline" :size="15" /></button>
             </template>
           </div>
         </div>
@@ -94,8 +113,11 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import { mdiFormatListBulleted, mdiPencil, mdiTrashCanOutline } from '@mdi/js'
 import { useApi } from '../../../composables/useApi.js'
 import { ucfirst } from '../../../utils/ucfirst.js'
+import { ICONO_GRUPOS, resolverIcono } from '../../../utils/iconosCategorias.js'
+import SvgIcon from '../../SvgIcon.vue'
 
 const props = defineProps({
   restauranteId: { type: Number, required: true },
@@ -112,26 +134,18 @@ const pickerAbierto = ref(null)
 const formCat       = ref({ nombre: '', icono: '' })
 const guardando     = ref(false)
 
-const emojiGrupos = [
-  { nombre: 'Platos',    emojis: ['🍕','🍔','🌮','🌯','🥗','🍖','🥩','🍗','🍱','🍜','🍝','🍲','🥘','🌭','🥙','🍛'] },
-  { nombre: 'Mariscos',  emojis: ['🍣','🦐','🦞','🦀','🐟','🍤','🦑','🍙','🦪','🐠'] },
-  { nombre: 'Bebidas',   emojis: ['🥤','☕','🧃','🍵','🍺','🍷','🍹','🥛','🍸','🧉'] },
-  { nombre: 'Postres',   emojis: ['🍰','🎂','🍮','🍦','🧁','🍩','🍪','🍫','🍬','🍭','🥧','🍡'] },
-  { nombre: 'Extras',    emojis: ['⭐','🔥','💎','🌿','🥇','❤️','🌶️','🥑','✨','🆕','🎯'] },
-]
-
 const togglePicker = (id) => {
   pickerAbierto.value = pickerAbierto.value === id ? null : id
 }
 
-const seleccionarEmoji = (emoji, target) => {
-  if (target === 'nuevo') formCat.value.icono = emoji
-  else formCatEdit.value.icono = emoji
+const seleccionarIcono = (key, target) => {
+  if (target === 'nuevo') formCat.value.icono = key
+  else formCatEdit.value.icono = key
   pickerAbierto.value = null
 }
 
 const cerrarPickerGlobal = (e) => {
-  if (!e.target.closest('.emoji-wrap')) pickerAbierto.value = null
+  if (!e.target.closest('.icono-wrap')) pickerAbierto.value = null
 }
 
 const iniciarEdicionCategoria = (cat) => {
@@ -143,7 +157,7 @@ async function crearCategoria() {
   if (!formCat.value.nombre.trim()) { emit('notif', { texto: 'Escribe un nombre', tipo: 'error' }); return }
   guardando.value = true
   try {
-    await post('categorias', { restaurante_id: props.restauranteId, nombre: formCat.value.nombre.trim(), icono: formCat.value.icono.trim() || null })
+    await post('categorias', { restaurante_id: props.restauranteId, nombre: formCat.value.nombre.trim(), icono: formCat.value.icono || null })
     formCat.value = { nombre: '', icono: '' }
     emit('categorias-changed')
     emit('notif', { texto: 'Categoría creada', tipo: 'ok' })
@@ -154,7 +168,7 @@ async function crearCategoria() {
 async function guardarEdicionCategoria(id) {
   if (!formCatEdit.value.nombre?.trim()) { emit('notif', { texto: 'El nombre es requerido', tipo: 'error' }); return }
   try {
-    await put('categorias', { nombre: formCatEdit.value.nombre.trim(), icono: formCatEdit.value.icono.trim() || null }, { id })
+    await put('categorias', { nombre: formCatEdit.value.nombre.trim(), icono: formCatEdit.value.icono || null }, { id })
     catEditando.value = null
     emit('categorias-changed')
     emit('notif', { texto: 'Categoría actualizada', tipo: 'ok' })
@@ -184,7 +198,7 @@ async function moverCategoria(idx, dir) {
     emit('categorias-changed')
   } catch (err) {
     emit('notif', { texto: err.message, tipo: 'error' })
-    emit('categorias-changed') // re-fetch para restaurar orden
+    emit('categorias-changed')
   }
 }
 
@@ -200,7 +214,7 @@ onUnmounted(() => document.removeEventListener('click', cerrarPickerGlobal))
   padding: 12px 16px; border-bottom: 1px solid #f5f5f5;
 }
 .cat-item:last-child { border-bottom: none; }
-.cat-emoji  { font-size: 1.3rem; width: 28px; text-align: center; flex-shrink: 0; }
+.cat-icono  { width: 28px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--accent, #FF6B35); }
 .cat-nombre { flex: 1; font-weight: 600; font-size: 0.9rem; color: #333; }
 .cat-ord-btns { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
 .btn-ord { width: 22px; height: 18px; border: 1px solid #e0e0e0; border-radius: 4px; background: #fafafa; font-size: 0.6rem; cursor: pointer; line-height: 1; padding: 0; }
@@ -212,34 +226,35 @@ onUnmounted(() => document.removeEventListener('click', cerrarPickerGlobal))
 .input-nombre { flex: 1; padding: 7px 10px; border: 1.5px solid #e0e0e0; border-radius: 7px; font-size: 0.9rem; outline: none; }
 .input-nombre:focus { border-color: var(--accent); }
 
-/* ─── Emoji picker ─── */
-.emoji-wrap { position: relative; display: inline-block; }
-.emoji-btn {
+/* ─── Icon picker ─── */
+.icono-wrap { position: relative; display: inline-block; }
+.icono-btn {
   display: flex; align-items: center; gap: 6px;
   padding: 9px 12px; border: 1.5px solid #e0e0e0; border-radius: 8px;
   background: #fafafa; cursor: pointer; transition: border-color 0.2s, background 0.2s; white-space: nowrap;
+  color: var(--accent, #FF6B35);
 }
-.emoji-btn:hover { border-color: var(--accent); background: #fff; }
-.emoji-btn-sm { padding: 6px 10px; }
-.emoji-display { font-size: 1.2rem; line-height: 1; }
+.icono-btn:hover { border-color: var(--accent); background: #fff; }
+.icono-btn-sm { padding: 6px 10px; }
 .picker-caret  { font-size: 0.65rem; color: #bbb; }
 
-.emoji-picker {
+.icono-picker {
   position: absolute; top: calc(100% + 6px); left: 0; z-index: 300;
   background: #fff; border: 1px solid #e8e8e8; border-radius: 14px;
   box-shadow: 0 10px 36px rgba(0,0,0,0.16); padding: 14px;
-  width: 305px; max-height: 360px; overflow-y: auto; scrollbar-width: thin;
+  width: 300px; max-height: 360px; overflow-y: auto; scrollbar-width: thin;
 }
-.emoji-picker-right { left: 0; right: auto; }
-.emoji-grupo { margin-bottom: 12px; }
-.emoji-grupo:last-child { margin-bottom: 0; }
-.emoji-grupo-titulo { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; color: #bbb; margin-bottom: 6px; padding-left: 2px; }
-.emoji-grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 1px; }
-.emoji-opt {
-  width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
-  border: none; background: transparent; cursor: pointer; font-size: 1.05rem;
+.icono-picker-right { left: 0; right: auto; }
+.icono-grupo { margin-bottom: 12px; }
+.icono-grupo:last-child { margin-bottom: 0; }
+.icono-grupo-titulo { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; color: #bbb; margin-bottom: 6px; padding-left: 2px; }
+.icono-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; }
+.icono-opt {
+  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+  border: none; background: transparent; cursor: pointer;
   border-radius: 6px; transition: background 0.12s, transform 0.12s; padding: 0;
+  color: #555;
 }
-.emoji-opt:hover { background: #f0f0f0; transform: scale(1.25); }
-.emoji-opt.selected { background: #fff3e0; outline: 2px solid var(--accent); }
+.icono-opt:hover { background: #f0f0f0; transform: scale(1.2); color: var(--accent, #FF6B35); }
+.icono-opt.selected { background: #fff3e0; outline: 2px solid var(--accent); color: var(--accent, #FF6B35); }
 </style>

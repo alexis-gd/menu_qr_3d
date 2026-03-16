@@ -8,6 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mdi/js": "^7.4.47",
     "html2canvas": "^1.4.1",
     "pinia": "^3.0.4",
     "pinia-plugin-persistedstate": "^4.7.1",

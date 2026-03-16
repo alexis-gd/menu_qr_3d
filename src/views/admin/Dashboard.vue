@@ -4,7 +4,9 @@
     <header class="panel-header">
       <div class="header-left">
         <img v-if="restaurante?.logo_url" :src="restaurante.logo_url" class="header-logo-img" alt="logo" />
-        <span v-else class="header-icon">🍽️</span>
+        <span v-else class="header-icon">
+          <SvgIcon :path="mdiSilverwareForkKnife" :size="28" />
+        </span>
         <div>
           <h1 class="header-title">{{ restaurante?.nombre || 'Mi Restaurante' }}</h1>
           <span class="header-sub">Panel de administración</span>
@@ -31,7 +33,7 @@
           :class="['tab-btn', { active: tabActivo === tab.id }]"
           @click="tabActivo = tab.id"
         >
-          <span class="tab-icon">{{ tab.icon }}</span>
+          <span class="tab-icon"><SvgIcon :path="tab.icon" :size="18" /></span>
           <span class="tab-label">{{ tab.label }}</span>
         </button>
       </nav>
@@ -90,9 +92,11 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { mdiSilverwareForkKnife, mdiFormatListBulleted, mdiPalette, mdiCog, mdiCart } from '@mdi/js'
 import { resetAuth } from '../../router/index.js'
 import { useApi } from '../../composables/useApi.js'
 import { THEMES as temas, THEMES_EXTRA as TEMAS_EXTRA } from '../../utils/themes.js'
+import SvgIcon       from '../../components/SvgIcon.vue'
 import TabPlatillos  from '../../components/admin/tabs/TabPlatillos.vue'
 import TabCategorias from '../../components/admin/tabs/TabCategorias.vue'
 import TabApariencia from '../../components/admin/tabs/TabApariencia.vue'
@@ -113,11 +117,11 @@ const tabActivo       = ref('platillos')
 const temaPreview     = ref(null) // live preview al seleccionar tema en TabApariencia
 
 const tabs = [
-  { id: 'platillos',  icon: '🍽️', label: 'Platillos'  },
-  { id: 'categorias', icon: '📋', label: 'Categorías' },
-  { id: 'apariencia', icon: '🎨', label: 'Apariencia' },
-  { id: 'negocio',    icon: '⚙️', label: 'Negocio'    },
-  { id: 'pedidos',    icon: '🛒', label: 'Pedidos'    },
+  { id: 'platillos',  icon: mdiSilverwareForkKnife,   label: 'Platillos'  },
+  { id: 'categorias', icon: mdiFormatListBulleted,     label: 'Categorías' },
+  { id: 'apariencia', icon: mdiPalette,                label: 'Apariencia' },
+  { id: 'negocio',    icon: mdiCog,                   label: 'Negocio'    },
+  { id: 'pedidos',    icon: mdiCart,                  label: 'Pedidos'    },
 ]
 
 // Tema para el wrapper (live preview en Apariencia, valor guardado en el resto)

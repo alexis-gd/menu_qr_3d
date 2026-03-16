@@ -10,7 +10,7 @@
         loading="lazy"
       />
       <div v-else class="img-placeholder">
-        <span>🍽️</span>
+        <SvgIcon :path="mdiSilverwareForkKnife" :size="36" />
       </div>
 
       <!-- Badges superpuestos -->
@@ -21,7 +21,9 @@
           </svg>
           3D/AR
         </span>
-        <span v-if="producto.es_destacado" class="badge badge-dest">⭐ Destacado</span>
+        <span v-if="producto.es_destacado" class="badge badge-dest">
+          <SvgIcon :path="mdiStar" :size="11" /> Destacado
+        </span>
       </div>
     </div>
 
@@ -53,6 +55,9 @@
 </template>
 
 <script setup>
+import { mdiSilverwareForkKnife, mdiStar } from '@mdi/js'
+import SvgIcon from '../SvgIcon.vue'
+
 defineProps({
   producto: { type: Object, required: true },
   pedidosActivos: { type: Boolean, default: false }
@@ -114,7 +119,7 @@ const truncar = (texto, len) =>
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2rem;
+  color: var(--accent, #FF6B35);
   opacity: 0.35;
 }
 
