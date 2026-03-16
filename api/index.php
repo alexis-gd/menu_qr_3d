@@ -443,13 +443,22 @@ switch ($route) {
         $allowed_mime = ['image/jpeg', 'image/png', 'image/webp'];
         $allowed_ext  = ['jpg', 'jpeg', 'png', 'webp'];
 
+        // Borrar fotos anteriores del disco y de la BD
+        $stmtViejas = $pdo->prepare('SELECT ruta FROM fotos_producto WHERE producto_id = :pid');
+        $stmtViejas->execute([':pid' => intval($producto_id)]);
+        foreach ($stmtViejas->fetchAll() as $vieja) {
+            $rutaFisica = __DIR__ . '/../' . $vieja['ruta'];
+            if (file_exists($rutaFisica)) @unlink($rutaFisica);
+        }
+        $pdo->prepare('DELETE FROM fotos_producto WHERE producto_id = :pid')
+            ->execute([':pid' => intval($producto_id)]);
+
         $saved = [];
-        $urls = [];
         foreach ($_FILES['fotos']['tmp_name'] as $idx => $tmp) {
             // Validar MIME real (no el que manda el cliente)
             $mime = mime_content_type($tmp);
             if (!in_array($mime, $allowed_mime, true)) {
-                continue; // ignorar archivo inválido silenciosamente
+                continue;
             }
 
             // Construir nombre seguro: solo ID, índice y extensión permitida
@@ -466,9 +475,9 @@ switch ($route) {
                 $url = BASE_URL . '/' . $ruta_rel;
                 $pdo->prepare('INSERT INTO fotos_producto (producto_id, ruta, url_publica, orden) VALUES (:pid,:ruta,:url,0)')
                     ->execute([':pid'=>$producto_id,':ruta'=>$ruta_rel,':url'=>$url]);
-                // Asignar como foto_principal si el producto aún no tiene una
+                // Primera foto subida → siempre se convierte en foto_principal
                 if (empty($saved)) {
-                    $pdo->prepare('UPDATE productos SET foto_principal = :path WHERE id = :pid AND (foto_principal IS NULL OR foto_principal = "")')
+                    $pdo->prepare('UPDATE productos SET foto_principal = :path WHERE id = :pid')
                         ->execute([':path' => $foto_rel, ':pid' => intval($producto_id)]);
                 }
                 $saved[] = $url;
@@ -502,6 +511,16 @@ switch ($route) {
         }
         $dir = __DIR__ . '/../uploads/logos/';
         if (!is_dir($dir)) mkdir($dir, 0755, true);
+
+        // Borrar logo anterior del disco
+        $stmtLogoViejo = $pdo->prepare('SELECT logo_url FROM restaurantes WHERE id = :id');
+        $stmtLogoViejo->execute([':id' => intval($restaurante_id)]);
+        $logoViejo = $stmtLogoViejo->fetchColumn();
+        if ($logoViejo) {
+            $rutaFisica = __DIR__ . '/../uploads/' . $logoViejo;
+            if (file_exists($rutaFisica)) @unlink($rutaFisica);
+        }
+
         $filename = sprintf('logo_%d_%d.%s', intval($restaurante_id), time(), $original_ext);
         $dest = $dir . $filename;
         if (!move_uploaded_file($tmp, $dest)) {
