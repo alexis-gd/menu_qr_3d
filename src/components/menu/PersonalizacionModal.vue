@@ -15,9 +15,25 @@
       <!-- ── Área scrollable ── -->
       <div class="modal-scroll">
 
-        <!-- Imagen compacta -->
-        <div v-if="producto.foto_principal" class="modal-visual">
-          <img :src="producto.foto_principal" :alt="producto.nombre" class="modal-foto" />
+        <!-- Visual: 3D o foto -->
+        <div v-if="producto.tiene_ar || producto.foto_principal" class="modal-visual">
+          <ModelViewer3D
+            v-if="producto.tiene_ar"
+            :modelo-url="producto.modelo_glb_url"
+          />
+          <img
+            v-else
+            :src="producto.foto_principal"
+            :alt="producto.nombre"
+            class="modal-foto"
+          />
+          <div v-if="producto.tiene_ar" class="hint-3d">
+            <SvgIcon :path="mdiRefresh" :size="14" />
+            <span>Arrastra para rotar</span>
+          </div>
+          <div v-if="producto.tiene_ar" class="hint-ar-arrow">
+            Toca el botón para verlo en tu espacio real ↓
+          </div>
         </div>
 
         <!-- Precio dinámico -->
@@ -181,31 +197,14 @@
     </div><!-- /.modal-panel -->
   </div><!-- /.modal-overlay -->
 
-  <!-- ── Popup aviso complemento (e.g. "¿Agregas una bebida?") ── -->
-  <Teleport to="body">
-    <div v-if="mostrarAvisoPopup" class="aviso-overlay" @click.self="cerrarConAviso">
-      <div class="aviso-popup">
-        <p class="aviso-popup-texto">{{ producto.aviso_complemento }}</p>
-        <div class="aviso-popup-acciones">
-          <button
-            v-if="producto.aviso_categoria_id"
-            class="btn-aviso-ver"
-            @click="irCategoria"
-          >
-            Ver &rarr;
-          </button>
-          <button class="btn-aviso-cerrar" @click="cerrarConAviso">
-            No, gracias
-          </button>
-        </div>
-      </div>
-    </div>
-  </Teleport>
 </template>
 
 <script setup>
 import { ref, reactive, computed } from 'vue'
+import { mdiRefresh } from '@mdi/js'
 import { ucfirst } from '../../utils/ucfirst.js'
+import ModelViewer3D from './ModelViewer3D.vue'
+import SvgIcon from '../SvgIcon.vue'
 
 const props = defineProps({
   producto: { type: Object, required: true }
@@ -220,7 +219,6 @@ const observacion      = ref('')
 const intentoEnvio     = ref(false)
 const grupoRefs        = {}
 const pasoActivo       = ref(0)
-const mostrarAvisoPopup = ref(false)
 
 // ── Helpers ──
 const esRequerido = (grupo) => !!(grupo.obligatorio || grupo.requerido) || (grupo.min_selecciones > 0)
@@ -282,6 +280,12 @@ const avanzarSiguiente = (idx) => {
 
 // ── Mutaciones ──
 const seleccionarRadio = (grupoId, opId) => {
+  const grupo = props.producto.grupos.find(g => g.id === grupoId)
+  // Grupo opcional: tocar la opción ya seleccionada la desmarca
+  if (seleccionRadio[grupoId] === opId && !esRequerido(grupo)) {
+    seleccionRadio[grupoId] = null
+    return
+  }
   seleccionRadio[grupoId] = opId
   const idx = props.producto.grupos.findIndex(g => g.id === grupoId)
   if (idx === pasoActivo.value) {
@@ -364,29 +368,12 @@ const emitirAgregar = () => {
     return
   }
 
-  // Agregar al carrito primero
   emit('agregar', {
     producto:    props.producto,
     observacion: observacion.value.trim(),
     opciones:    opcionesSeleccionadas.value
   })
-
-  // Si hay aviso complemento → mostrar popup (el producto ya está en carrito)
-  if (props.producto.aviso_complemento) {
-    mostrarAvisoPopup.value = true
-  } else {
-    emit('close')
-  }
-}
-
-const cerrarConAviso = () => {
-  mostrarAvisoPopup.value = false
   emit('close')
-}
-
-const irCategoria = () => {
-  mostrarAvisoPopup.value = false
-  emit('ir-categoria', props.producto.aviso_categoria_id)
 }
 </script>
 
@@ -475,9 +462,20 @@ const irCategoria = () => {
 .modal-scroll::-webkit-scrollbar { width: 4px; }
 .modal-scroll::-webkit-scrollbar-thumb { background: var(--divider, #ddd); border-radius: 2px; }
 
-/* ── Imagen ── */
-.modal-visual { width: 100%; height: 180px; overflow: hidden; background: var(--accent-light, #f5f5f5); }
+/* ── Visual (3D o foto) ── */
+.modal-visual { position: relative; width: 100%; height: 220px; overflow: hidden; background: var(--accent-light, #f5f5f5); }
 .modal-foto   { width: 100%; height: 100%; object-fit: cover; }
+.hint-3d {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.45); color: #fff;
+  padding: 5px 12px; border-radius: 20px; font-size: 0.75rem; white-space: nowrap;
+  display: flex; align-items: center; gap: 4px;
+}
+.hint-ar-arrow {
+  position: absolute; bottom: 62px; left: 50%; transform: translateX(-50%);
+  color: rgba(255,255,255,0.85); font-size: 0.72rem;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5); white-space: nowrap;
+}
 
 /* ── Precio dinámico ── */
 .precio-dinamico {
@@ -665,73 +663,9 @@ const irCategoria = () => {
 
 .btn-precio { font-size: 1.05rem; font-weight: 800; }
 
-/* ── Popup aviso complemento ── */
-.aviso-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.55);
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  z-index: 1100;
-  animation: fadeIn 0.2s ease-out;
-}
-
-.aviso-popup {
-  background: var(--card-bg, #fff);
-  border-radius: 20px 20px 0 0;
-  width: 100%;
-  max-width: 640px;
-  padding: 24px 20px 32px;
-  animation: slideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.aviso-popup-texto {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-main, #222);
-  margin: 0 0 20px;
-  text-align: center;
-  line-height: 1.5;
-}
-
-.aviso-popup-acciones {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.btn-aviso-ver {
-  padding: 14px;
-  background: var(--accent, #FF6B35);
-  color: #fff;
-  border: none;
-  border-radius: 12px;
-  font-size: 0.95rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-.btn-aviso-ver:hover { opacity: 0.9; }
-
-.btn-aviso-cerrar {
-  padding: 13px;
-  background: transparent;
-  border: 1.5px solid var(--divider, #ddd);
-  border-radius: 12px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-sub, #888);
-  cursor: pointer;
-  transition: border-color 0.15s;
-}
-.btn-aviso-cerrar:hover { border-color: var(--accent, #FF6B35); color: var(--accent, #FF6B35); }
-
 /* ── Desktop ── */
 @media (min-width: 640px) {
   .modal-overlay { align-items: center; padding: 20px; }
   .modal-panel   { border-radius: 20px; max-height: 88vh; }
-  .aviso-overlay { align-items: center; padding: 20px; }
-  .aviso-popup   { border-radius: 20px; }
 }
 </style>

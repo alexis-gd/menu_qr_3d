@@ -117,7 +117,7 @@
 
     <!-- Carrito flotante -->
     <CarritoFlotante
-      v-if="pedidosActivos && carrito.length"
+      v-if="pedidosActivos"
       :carrito="carrito"
       @abrir="mostrarCheckout = true"
     />
@@ -132,6 +132,21 @@
       @confirmado="onPedidoConfirmado"
     />
   </div>
+
+  <!-- Popup aviso complemento -->
+  <Teleport to="body">
+    <div v-if="avisoProducto" class="aviso-overlay" @click.self="cerrarAviso">
+      <div class="aviso-popup">
+        <p class="aviso-popup-texto">{{ avisoProducto.aviso_complemento }}</p>
+        <div class="aviso-popup-acciones">
+          <button v-if="avisoProducto.aviso_categoria_id" class="btn-aviso-ver" @click="irCategoriaDesdeAviso(avisoProducto.aviso_categoria_id)">
+            Ver &rarr;
+          </button>
+          <button class="btn-aviso-cerrar" @click="cerrarAviso">No, gracias</button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup>
@@ -164,6 +179,7 @@ const carritoStore    = useCarritoStore()
 const carrito         = computed(() => carritoStore.items)
 const mostrarCheckout = ref(false)
 const toastNombre     = ref('')
+const avisoProducto   = ref(null)
 let toastTimer = null
 
 const pedidosActivos = computed(() => !!restaurante.value?.pedidos_activos)
@@ -176,6 +192,19 @@ const agregarAlCarrito = (producto, observacion = '', opciones = []) => {
   toastNombre.value = producto.nombre
   clearTimeout(toastTimer)
   toastTimer = setTimeout(() => { toastNombre.value = '' }, 1800)
+
+  // Evaluar aviso complemento (una vez por categoría sugerida por carrito)
+  const catId = producto.aviso_categoria_id
+  if (
+    producto.aviso_complemento &&
+    catId &&
+    producto.categoria_id !== catId &&
+    !carritoStore.tieneCategoriaEnCarrito(catId) &&
+    !carritoStore.avisoYaMostrado(catId)
+  ) {
+    carritoStore.marcarAvisoMostrado(catId)
+    avisoProducto.value = producto
+  }
 }
 
 // Llamado desde PersonalizacionModal al confirmar opciones
@@ -196,6 +225,13 @@ const onCardAgregar = (prod) => {
 // Botón "Ver X" del aviso complemento: cierra modal + scroll a categoría
 const onIrCategoria = (catId) => {
   productoPersonalizacion.value = null
+  irACategoria(catId)
+}
+
+// Handlers del popup de aviso sugerido
+const cerrarAviso = () => { avisoProducto.value = null }
+const irCategoriaDesdeAviso = (catId) => {
+  avisoProducto.value = null
   irACategoria(catId)
 }
 
@@ -734,4 +770,65 @@ const abrirModal = (producto) => {
 .toast-anim-leave-active { transition: opacity 0.3s ease, transform 0.3s ease; }
 .toast-anim-enter-from   { opacity: 0; transform: translateX(-50%) translateY(10px); }
 .toast-anim-leave-to     { opacity: 0; transform: translateX(-50%) translateY(10px); }
+
+/* ── Popup aviso complemento ── */
+.aviso-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 1100;
+  animation: fadeIn 0.2s ease-out;
+}
+.aviso-popup {
+  background: var(--card-bg, #fff);
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  max-width: 640px;
+  padding: 24px 20px 32px;
+  animation: slideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.aviso-popup-texto {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-main, #222);
+  margin: 0 0 20px;
+  text-align: center;
+  line-height: 1.5;
+}
+.aviso-popup-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.btn-aviso-ver {
+  padding: 14px;
+  background: var(--accent, #FF6B35);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn-aviso-ver:hover { opacity: 0.9; }
+.btn-aviso-cerrar {
+  padding: 13px;
+  background: transparent;
+  border: 1.5px solid var(--divider, #ddd);
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-sub, #888);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.btn-aviso-cerrar:hover { border-color: var(--accent, #FF6B35); color: var(--accent, #FF6B35); }
+@media (min-width: 640px) {
+  .aviso-overlay { align-items: center; padding: 20px; }
+  .aviso-popup   { border-radius: 20px; }
+}
 </style>

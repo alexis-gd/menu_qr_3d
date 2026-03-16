@@ -1,7 +1,7 @@
 <template>
   <button class="carrito-flotante" @click="$emit('abrir')">
     <SvgIcon :path="mdiCart" :size="20" color="#fff" />
-    <span class="carrito-texto">Ver pedido</span>
+    <span class="carrito-texto">{{ totalItems > 0 ? 'Ver pedido' : 'Carrito vacío' }}</span>
     <span class="carrito-badge">{{ totalItems }}</span>
   </button>
 </template>

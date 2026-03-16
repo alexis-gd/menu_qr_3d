@@ -58,7 +58,12 @@
               <input type="radio" v-model="tipoEntrega" value="envio" />
               <span class="opcion-icon">🛵</span>
               <span class="opcion-label">Envío a domicilio</span>
-              <span class="opcion-sub">+${{ Number(pedidosConfig.pedidos_envio_costo || 0).toFixed(2) }}</span>
+              <span v-if="envioEsGratis" class="opcion-sub envio-gratis-badge">¡Envío gratis!</span>
+              <span v-else-if="umbralGratis !== null" class="opcion-sub">
+                +${{ Number(pedidosConfig.pedidos_envio_costo || 0).toFixed(2) }}
+                <small class="envio-gratis-hint">Gratis desde ${{ umbralGratis.toFixed(0) }}</small>
+              </span>
+              <span v-else class="opcion-sub">+${{ Number(pedidosConfig.pedidos_envio_costo || 0).toFixed(2) }}</span>
             </label>
           </div>
         </section>
@@ -91,19 +96,30 @@
         <!-- ── 4. Método de pago ── -->
         <section class="checkout-section">
           <h3 class="section-title">Método de pago</h3>
-          <div class="opciones-grid">
-            <label :class="['opcion-card', { selected: metodoPago === 'efectivo' }]">
+          <div class="opciones-filas">
+            <label :class="['opcion-fila', { selected: metodoPago === 'efectivo' }]">
               <input type="radio" v-model="metodoPago" value="efectivo" />
-              <span class="opcion-icon">💵</span>
-              <span class="opcion-label">Efectivo</span>
+              <span class="opcion-fila-icon">💵</span>
+              <span class="opcion-fila-label">Efectivo</span>
+              <span v-if="metodoPago === 'efectivo'" class="opcion-fila-check">✓</span>
             </label>
             <label
               v-if="pedidosConfig.pedidos_trans_activo"
-              :class="['opcion-card', { selected: metodoPago === 'transferencia' }]"
+              :class="['opcion-fila', { selected: metodoPago === 'transferencia' }]"
             >
               <input type="radio" v-model="metodoPago" value="transferencia" />
-              <span class="opcion-icon">🏦</span>
-              <span class="opcion-label">Transferencia</span>
+              <span class="opcion-fila-icon">🏦</span>
+              <span class="opcion-fila-label">Transferencia bancaria</span>
+              <span v-if="metodoPago === 'transferencia'" class="opcion-fila-check">✓</span>
+            </label>
+            <label
+              v-if="pedidosConfig.pedidos_terminal_activo && tipoEntrega === 'envio'"
+              :class="['opcion-fila', { selected: metodoPago === 'terminal' }]"
+            >
+              <input type="radio" v-model="metodoPago" value="terminal" />
+              <span class="opcion-fila-icon">💳</span>
+              <span class="opcion-fila-label">Terminal a domicilio</span>
+              <span v-if="metodoPago === 'terminal'" class="opcion-fila-check">✓</span>
             </label>
           </div>
 
@@ -156,9 +172,10 @@
             <span>Subtotal</span>
             <span>${{ subtotal.toFixed(2) }}</span>
           </div>
-          <div v-if="costoEnvio > 0" class="total-row">
+          <div v-if="tipoEntrega === 'envio'" class="total-row">
             <span>Envío</span>
-            <span>${{ costoEnvio.toFixed(2) }}</span>
+            <span v-if="envioEsGratis" class="envio-gratis-total">¡Gratis!</span>
+            <span v-else>${{ costoEnvio.toFixed(2) }}</span>
           </div>
           <div class="total-row total-final">
             <strong>Total</strong>
@@ -184,7 +201,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useApi } from '../../composables/useApi.js'
 import { ucfirst } from '../../utils/ucfirst.js'
 import { useCarritoStore } from '../../stores/carrito.js'
@@ -216,9 +233,20 @@ const copiarDato = async (campo, valor) => {
   setTimeout(() => { copiados.value[campo] = false }, 2000)
 }
 
-const costoEnvio = computed(() =>
-  tipoEntrega.value === 'envio' ? parseFloat(props.pedidosConfig.pedidos_envio_costo || 0) : 0
+const umbralGratis = computed(() => {
+  const v = props.pedidosConfig.pedidos_envio_gratis_desde
+  return v !== null && v !== undefined ? parseFloat(v) : null
+})
+
+const envioEsGratis = computed(() =>
+  tipoEntrega.value === 'envio' && umbralGratis.value !== null && subtotal.value >= umbralGratis.value
 )
+
+const costoEnvio = computed(() => {
+  if (tipoEntrega.value !== 'envio') return 0
+  if (envioEsGratis.value) return 0
+  return parseFloat(props.pedidosConfig.pedidos_envio_costo || 0)
+})
 
 const subtotal = computed(() =>
   carritoStore.items.reduce((s, i) => s + (i.precio_unitario ?? Number(i.producto.precio)) * i.cantidad, 0)
@@ -234,6 +262,13 @@ const faltante = computed(() => {
   const den = parseFloat(denominacion.value)
   if (!den || den <= 0) return 0
   return Math.max(0, total.value - den)
+})
+
+// Si cambia a recoger y tenía terminal seleccionado, volver a efectivo
+watch(tipoEntrega, (val) => {
+  if (val !== 'envio' && metodoPago.value === 'terminal') {
+    metodoPago.value = 'efectivo'
+  }
 })
 
 const reducir = (idx) => {
@@ -293,25 +328,26 @@ const confirmar = async () => {
       `*#${res.numero_pedido}*`,
       ``,
       `*Pedido:*`,
-      ...carritoStore.items.flatMap(i => {
+      ...carritoStore.items.flatMap((i, idx, arr) => {
         const precioUnit = i.precio_unitario ?? Number(i.producto.precio)
         const obs = i.observacion ? ` _(${i.observacion})_` : ''
         const linea = `  ${i.cantidad}x ${i.producto.nombre}${obs} — $${(precioUnit * i.cantidad).toFixed(2)}`
         const opLines = (i.opciones || []).map(o =>
           `    · ${o.opcion_nombre}${o.precio_extra > 0 ? ` +$${Number(o.precio_extra).toFixed(2)}` : ''}`
         )
-        return [linea, ...opLines]
+        const sep = idx < arr.length - 1 ? ['──────────'] : []
+        return [linea, ...opLines, ...sep]
       }),
       ``,
       `Subtotal: $${subtotal.value.toFixed(2)}`,
-      ...(costoEnvio.value > 0 ? [`Envio: $${costoEnvio.value.toFixed(2)}`] : []),
+      ...(tipoEntrega.value === 'envio' ? [envioEsGratis.value ? `Envio: GRATIS` : `Envio: $${costoEnvio.value.toFixed(2)}`] : []),
       `*Total: $${total.value.toFixed(2)}*`,
       ``,
       `*Entrega:* ${tipoEntrega.value === 'envio' ? 'A domicilio' : 'Recoger en local'}`,
       ...(tipoEntrega.value === 'envio' && direccion.value ? [`*Direccion:* ${direccion.value.trim()}`] : []),
       ...(tipoEntrega.value === 'envio' && referencia.value ? [`*Referencia:* ${referencia.value.trim()}`] : []),
       ...(telefono.value ? [`*Tel:* ${telefono.value.trim()}`] : []),
-      `*Pago:* ${metodoPago.value === 'transferencia' ? 'Transferencia' : 'Efectivo'}`,
+      `*Pago:* ${metodoPago.value === 'transferencia' ? 'Transferencia' : metodoPago.value === 'terminal' ? 'Terminal a domicilio' : 'Efectivo'}`,
       ...(metodoPago.value === 'efectivo' && denominacion.value ? [`Con: $${parseFloat(denominacion.value).toFixed(0)}`] : []),
       `*Nombre:* ${nombre.value.trim()}`,
       ...(props.mesa ? [`*Mesa:* ${props.mesa}`] : []),
@@ -470,7 +506,7 @@ const confirmar = async () => {
 
 .item-subtotal { font-size: 0.9rem; font-weight: 800; color: var(--accent, #FF6B35); flex-shrink: 0; }
 
-/* ── Opciones card ── */
+/* ── Opciones card (entrega) ── */
 .opciones-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -500,6 +536,43 @@ const confirmar = async () => {
 .opcion-icon { font-size: 1.6rem; }
 .opcion-label { font-size: 0.88rem; font-weight: 700; color: #1a1a1a; }
 .opcion-sub { font-size: 0.75rem; color: #999; }
+
+/* ── Opciones filas (pago) ── */
+.opciones-filas {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.opcion-fila {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.opcion-fila input { display: none; }
+
+.opcion-fila.selected {
+  border-color: var(--accent, #FF6B35);
+  background: #fff8f4;
+}
+
+.opcion-fila-icon { font-size: 1.4rem; flex-shrink: 0; }
+.opcion-fila-label { font-size: 0.9rem; font-weight: 700; color: #1a1a1a; flex: 1; }
+.opcion-fila-check {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--accent, #FF6B35);
+  flex-shrink: 0;
+}
+.envio-gratis-badge { color: #2e7d32; font-weight: 700; }
+.envio-gratis-hint { display: block; color: #4caf50; margin-top: 2px; }
+.envio-gratis-total { color: #2e7d32; font-weight: 700; }
 
 /* ── Campos ── */
 .campos { display: flex; flex-direction: column; gap: 12px; }

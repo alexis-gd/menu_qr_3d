@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
+// Variable de módulo — no persiste en localStorage, se resetea en cada recarga
+let _avisosMostrados = new Set()
+
 export const useCarritoStore = defineStore('carrito', () => {
   const items = ref([])
 
@@ -31,6 +34,7 @@ export const useCarritoStore = defineStore('carrito', () => {
 
   const vaciar = () => {
     items.value = []
+    _avisosMostrados = new Set() // resetear al vaciar el carrito
   }
 
   // precio_unitario con fallback para items migrados de localStorage (formato anterior sin opciones)
@@ -39,7 +43,14 @@ export const useCarritoStore = defineStore('carrito', () => {
     0
   )
 
-  return { items, agregar, vaciar, total }
+  const tieneCategoriaEnCarrito = (catId) =>
+    items.value.some(i => i.producto.categoria_id === catId)
+
+  const marcarAvisoMostrado = (catId) => { _avisosMostrados.add(catId) }
+
+  const avisoYaMostrado = (catId) => _avisosMostrados.has(catId)
+
+  return { items, agregar, vaciar, total, tieneCategoriaEnCarrito, marcarAvisoMostrado, avisoYaMostrado }
 }, {
-  persist: true, // pinia-plugin-persistedstate → localStorage
+  persist: { paths: ['items'] },
 })

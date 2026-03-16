@@ -26,12 +26,14 @@ switch ($route) {
                 r.pedidos_activos,
                 r.pedidos_envio_activo,
                 r.pedidos_envio_costo,
+                r.pedidos_envio_gratis_desde,
                 r.pedidos_whatsapp,
                 r.pedidos_trans_clabe,
                 r.pedidos_trans_cuenta,
                 r.pedidos_trans_titular,
                 r.pedidos_trans_banco,
                 r.pedidos_trans_activo,
+                r.pedidos_terminal_activo,
                 c.id AS cat_id,
                 c.nombre AS cat_nombre,
                 c.icono AS cat_icono,
@@ -72,14 +74,16 @@ switch ($route) {
             'color_primario'        => $rows[0]['color_primario'],
             'tema'                  => $rows[0]['tema'] ?? 'calido',
             'pedidos_activos'       => (bool) $rows[0]['pedidos_activos'],
-            'pedidos_envio_activo'  => (bool) $rows[0]['pedidos_envio_activo'],
-            'pedidos_envio_costo'   => (float) $rows[0]['pedidos_envio_costo'],
-            'pedidos_whatsapp'      => $rows[0]['pedidos_whatsapp'],
+            'pedidos_envio_activo'        => (bool) $rows[0]['pedidos_envio_activo'],
+            'pedidos_envio_costo'         => (float) $rows[0]['pedidos_envio_costo'],
+            'pedidos_envio_gratis_desde'  => $rows[0]['pedidos_envio_gratis_desde'] !== null ? (float) $rows[0]['pedidos_envio_gratis_desde'] : null,
+            'pedidos_whatsapp'            => $rows[0]['pedidos_whatsapp'],
             'pedidos_trans_clabe'   => $rows[0]['pedidos_trans_clabe'],
             'pedidos_trans_cuenta'  => $rows[0]['pedidos_trans_cuenta'],
             'pedidos_trans_titular' => $rows[0]['pedidos_trans_titular'],
             'pedidos_trans_banco'   => $rows[0]['pedidos_trans_banco'],
-            'pedidos_trans_activo'  => (bool) $rows[0]['pedidos_trans_activo'],
+            'pedidos_trans_activo'     => (bool) $rows[0]['pedidos_trans_activo'],
+            'pedidos_terminal_activo'  => (bool) $rows[0]['pedidos_terminal_activo'],
         ];
 
         $categoriasMap = [];
@@ -223,7 +227,7 @@ switch ($route) {
         // GET: lista restaurantes (auth requerida)
         if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             require_auth();
-            $stmt = $pdo->prepare('SELECT id, slug, nombre, descripcion, logo_url, color_primario, tema, qr_frase, qr_frase_activa, qr_wifi_nombre, qr_wifi_clave, qr_wifi_activo, pedidos_activos, pedidos_envio_activo, pedidos_envio_costo, pedidos_whatsapp, pedidos_trans_clabe, pedidos_trans_cuenta, pedidos_trans_titular, pedidos_trans_banco, pedidos_trans_activo, compartir_mensaje FROM restaurantes WHERE activo = 1 ORDER BY nombre');
+            $stmt = $pdo->prepare('SELECT id, slug, nombre, descripcion, logo_url, color_primario, tema, qr_frase, qr_frase_activa, qr_wifi_nombre, qr_wifi_clave, qr_wifi_activo, pedidos_activos, pedidos_envio_activo, pedidos_envio_costo, pedidos_envio_gratis_desde, pedidos_whatsapp, pedidos_trans_clabe, pedidos_trans_cuenta, pedidos_trans_titular, pedidos_trans_banco, pedidos_trans_activo, pedidos_terminal_activo, compartir_mensaje FROM restaurantes WHERE activo = 1 ORDER BY nombre');
             $stmt->execute();
             $rows = $stmt->fetchAll();
             foreach ($rows as &$r) {
@@ -265,7 +269,7 @@ switch ($route) {
                 json_response(['error' => 'id requerido'], 400);
             }
             $body = json_decode(file_get_contents('php://input'), true) ?: [];
-            $allowed = ['nombre', 'descripcion', 'tema', 'color_primario', 'qr_frase', 'qr_frase_activa', 'qr_wifi_nombre', 'qr_wifi_clave', 'qr_wifi_activo', 'pedidos_activos', 'pedidos_envio_activo', 'pedidos_envio_costo', 'pedidos_whatsapp', 'pedidos_trans_clabe', 'pedidos_trans_cuenta', 'pedidos_trans_titular', 'pedidos_trans_banco', 'pedidos_trans_activo', 'compartir_mensaje'];
+            $allowed = ['nombre', 'descripcion', 'tema', 'color_primario', 'qr_frase', 'qr_frase_activa', 'qr_wifi_nombre', 'qr_wifi_clave', 'qr_wifi_activo', 'pedidos_activos', 'pedidos_envio_activo', 'pedidos_envio_costo', 'pedidos_envio_gratis_desde', 'pedidos_whatsapp', 'pedidos_trans_clabe', 'pedidos_trans_cuenta', 'pedidos_trans_titular', 'pedidos_trans_banco', 'pedidos_trans_activo', 'pedidos_terminal_activo', 'compartir_mensaje'];
             $fields = [];
             $params = [':id' => (int)$id];
             foreach ($allowed as $f) {
@@ -671,7 +675,7 @@ switch ($route) {
             if (!in_array($tipo_entrega, ['recoger', 'envio'], true)) {
                 json_response(['error' => 'tipo_entrega inválido'], 400);
             }
-            if (!in_array($metodo_pago, ['efectivo', 'transferencia'], true)) {
+            if (!in_array($metodo_pago, ['efectivo', 'transferencia', 'terminal'], true)) {
                 json_response(['error' => 'metodo_pago inválido'], 400);
             }
 

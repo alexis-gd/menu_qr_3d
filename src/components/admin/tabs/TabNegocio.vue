@@ -55,11 +55,44 @@
               <span class="sw-track" :style="formRest.pedidos_envio_activo ? { background: temaAccent } : {}"></span>
             </label>
           </div>
-          <div v-if="formRest.pedidos_envio_activo" class="field" style="max-width:200px; margin-top:10px">
-            <label>Costo del envío ($)</label>
-            <input v-model="formRest.pedidos_envio_costo" type="number" min="0" step="0.50" placeholder="0.00" />
+          <div v-if="formRest.pedidos_envio_activo" class="envio-config">
+            <div class="field" style="max-width:200px">
+              <label>Costo del envío ($)</label>
+              <input v-model="formRest.pedidos_envio_costo" type="number" min="0" step="0.50" placeholder="0.00" />
+            </div>
+            <div class="negocio-toggle-row" style="margin-top:14px">
+              <div>
+                <strong>Envío gratis por monto mínimo</strong>
+                <p class="helper-text" style="margin:4px 0 0">Si el pedido supera el monto, el envío no se cobra.</p>
+              </div>
+              <label class="sw">
+                <input type="checkbox" :checked="formRest.pedidos_envio_gratis_desde !== null" @change="toggleEnvioGratis" />
+                <span class="sw-track" :style="formRest.pedidos_envio_gratis_desde !== null ? { background: temaAccent } : {}"></span>
+              </label>
+            </div>
+            <div v-if="formRest.pedidos_envio_gratis_desde !== null" class="field" style="max-width:200px; margin-top:10px">
+              <label>Monto mínimo para envío gratis ($)</label>
+              <input v-model="formRest.pedidos_envio_gratis_desde" type="number" min="1" step="1" placeholder="Ej: 400" />
+            </div>
           </div>
         </template>
+      </div>
+    </div>
+
+    <!-- Terminal a domicilio -->
+    <div v-if="formRest.pedidos_activos" class="card">
+      <div class="card-header"><h2>Terminal a domicilio</h2></div>
+      <div class="card-body">
+        <div class="negocio-toggle-row">
+          <div>
+            <strong>Aceptar terminal a domicilio</strong>
+            <p class="helper-text" style="margin:4px 0 0">Los clientes con envío a domicilio verán la opción de pagar con terminal al recibir su pedido.</p>
+          </div>
+          <label class="sw">
+            <input type="checkbox" v-model="formRest.pedidos_terminal_activo" />
+            <span class="sw-track" :style="formRest.pedidos_terminal_activo ? { background: temaAccent } : {}"></span>
+          </label>
+        </div>
       </div>
     </div>
 
@@ -132,8 +165,9 @@ const copiado   = ref(false)
 
 const formRest = ref({
   compartir_mensaje: '', pedidos_activos: false,
-  pedidos_envio_activo: true, pedidos_envio_costo: 0,
-  pedidos_whatsapp: '', pedidos_trans_activo: false,
+  pedidos_envio_activo: true, pedidos_envio_costo: 0, pedidos_envio_gratis_desde: null,
+  pedidos_whatsapp: '', pedidos_terminal_activo: false,
+  pedidos_trans_activo: false,
   pedidos_trans_clabe: '', pedidos_trans_cuenta: '',
   pedidos_trans_titular: '', pedidos_trans_banco: '',
 })
@@ -144,9 +178,11 @@ watch(() => props.restaurante, (rest) => {
     compartir_mensaje:     rest.compartir_mensaje     || '¡Hola! Te comparto el menú digital de',
     pedidos_activos:       Boolean(rest.pedidos_activos ?? false),
     pedidos_envio_activo:  Boolean(rest.pedidos_envio_activo ?? true),
-    pedidos_envio_costo:   parseFloat(rest.pedidos_envio_costo) || 0,
-    pedidos_whatsapp:      rest.pedidos_whatsapp      || '',
-    pedidos_trans_activo:  Boolean(rest.pedidos_trans_activo ?? false),
+    pedidos_envio_costo:          parseFloat(rest.pedidos_envio_costo) || 0,
+    pedidos_envio_gratis_desde:   rest.pedidos_envio_gratis_desde !== null && rest.pedidos_envio_gratis_desde !== undefined ? parseFloat(rest.pedidos_envio_gratis_desde) : null,
+    pedidos_whatsapp:        rest.pedidos_whatsapp        || '',
+    pedidos_terminal_activo: Boolean(rest.pedidos_terminal_activo ?? false),
+    pedidos_trans_activo:    Boolean(rest.pedidos_trans_activo ?? false),
     pedidos_trans_clabe:   rest.pedidos_trans_clabe   || '',
     pedidos_trans_cuenta:  rest.pedidos_trans_cuenta  || '',
     pedidos_trans_titular: rest.pedidos_trans_titular || '',
@@ -163,6 +199,11 @@ const textoCompartir = computed(() =>
   `${formRest.value.compartir_mensaje}\n${props.restaurante?.nombre || ''}\n${props.menuUrl}`
 )
 
+const toggleEnvioGratis = () => {
+  formRest.value.pedidos_envio_gratis_desde =
+    formRest.value.pedidos_envio_gratis_desde === null ? 400 : null
+}
+
 const copiarTexto = async () => {
   await navigator.clipboard.writeText(textoCompartir.value)
   copiado.value = true
@@ -177,6 +218,11 @@ async function guardarRestaurante() {
   if (formRest.value.pedidos_activos && formRest.value.pedidos_envio_activo &&
       (isNaN(parseFloat(formRest.value.pedidos_envio_costo)) || parseFloat(formRest.value.pedidos_envio_costo) < 0)) {
     emit('notif', { texto: 'El costo de envío debe ser un número positivo', tipo: 'error' })
+    return
+  }
+  if (formRest.value.pedidos_envio_gratis_desde !== null &&
+      (isNaN(parseFloat(formRest.value.pedidos_envio_gratis_desde)) || parseFloat(formRest.value.pedidos_envio_gratis_desde) <= 0)) {
+    emit('notif', { texto: 'El monto mínimo para envío gratis debe ser mayor a 0', tipo: 'error' })
     return
   }
   if (formRest.value.pedidos_trans_activo && formRest.value.pedidos_trans_clabe &&
