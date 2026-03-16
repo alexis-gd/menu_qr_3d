@@ -15,6 +15,7 @@
 - [x] **Fase 6** — Sistema de Pedidos: carrito sin sesión, checkout con WhatsApp deep link, tabs Negocio/Pedidos en admin
 - [x] **Fase 7** — Personalización por pasos (estilo Rappi/Uber Eats): BD ✅, API ✅, Vue ✅ completo
 - [x] **Fase 8** — Migración completa emojis → Material Design Icons (MDI): UI chrome + picker categorías
+- [x] **Fase 9** — Envío gratis por monto mínimo, aviso sugerido inteligente (1 vez por carrito), visor 3D en PersonalizacionModal, CarritoFlotante siempre visible, Terminal a domicilio, separador entre platillos en WA, cache-busting .htaccess
 
 ### Funcionalidades Implementadas
 - [x] API endpoints: `menu`, `login`, `restaurantes`, `categorias`, `productos`, `mesas`, `upload-fotos`, `upload-glb`, `upload-logo`, `job-status`
@@ -39,6 +40,13 @@
 - [x] **Fix campo obligatorio** — API devuelve `obligatorio` (nombre real de columna en BD), no `requerido`. PersonalizacionModal usa `esRequerido(grupo)` que acepta ambos como fallback.
 - [x] **Fase 8 — MDI icons** — Migración completa de emojis unicode a `@mdi/js`. Nuevo: `src/components/SvgIcon.vue` (wrapper genérico), `src/utils/iconosCategorias.js` (63 íconos en 6 grupos, `ICONOS_MDI`, `resolverIcono()`, `ICONO_GRUPOS`). Picker de categorías guarda nombre MDI en BD (ej: `"mdiPizza"`) en lugar de emoji unicode. Columna `categorias.emoji` renombrada a `icono VARCHAR(100)`. Todos los componentes admin y menú público migrados a SvgIcon. `btn-primary`/`btn-secondary` tienen `display: inline-flex; align-items: center` para alinear íconos con texto. Favicion: `public/favicon.svg` + `src/assets/base.css` (estilos base migrados de inline en index.html a import en main.js).
 - [x] **Fix CheckoutModal — carritoLocal stale** — `const carritoLocal = carritoStore.items` capturaba referencia al array viejo tras `vaciar()`. Fix: usar `carritoStore.items` directo en template y JS. Además, form fields (nombre, telefono, dirección, etc.) se resetean en `confirmar()` exitoso para el próximo pedido.
+- [x] **Fase 9 — Envío gratis por monto** — Nueva columna `pedidos_envio_gratis_desde DECIMAL NULL` en `restaurantes`. Toggle + campo en TabNegocio. CheckoutModal: `umbralGratis` computed, `envioEsGratis` computed (subtotal >= umbral), badge "¡Envío gratis!" en opción de entrega, "¡Gratis!" en totales, "Envio: GRATIS" en WA. Migración: `database/migrations/fase9_envio_gratis.sql`.
+- [x] **Fase 9 — Aviso sugerido inteligente** — Lógica movida de PersonalizacionModal a MenuPublico. Reglas: no mostrar si producto es de la misma categoría sugerida, no mostrar si ya hay un producto de esa categoría en carrito, no mostrar si ya se mostró antes en esta sesión. Tracking via `let _avisosMostrados = new Set()` a nivel de módulo (evita problema de serialización JSON de Pinia). `carrito.js` expone `tieneCategoriaEnCarrito()`, `marcarAvisoMostrado()`, `avisoYaMostrado()`. `vaciar()` resetea el Set. `persist: { paths: ['items'] }` en lugar de `persist: true`.
+- [x] **Fase 9 — 3D en PersonalizacionModal** — `ModelViewer3D` integrado en la sección visual del modal. Si `producto.tiene_ar` muestra el viewer 3D, si no muestra la foto. Hint "Toca para explorar en 3D / AR" con ícono refresh.
+- [x] **Fase 9 — CarritoFlotante siempre visible** — Eliminado `v-if="carrito.length"`. Badge siempre muestra, copy cambia: "Ver pedido" con items, "Carrito vacío" sin items.
+- [x] **Fase 9 — Terminal a domicilio** — Nueva columna `pedidos_terminal_activo TINYINT DEFAULT 0` en `restaurantes`. ENUM `metodo_pago` amplíado a `('efectivo','transferencia','terminal')`. Toggle en TabNegocio ("Terminal a domicilio"). CheckoutModal: opción 💳 "Terminal a domicilio" solo visible cuando `tipoEntrega === 'envio' && pedidosConfig.pedidos_terminal_activo`. Layout de métodos de pago cambiado de grid 2 col a filas horizontales (`.opciones-filas`). Seleccionar "recoger" resetea a "efectivo" si tenías "terminal". WA muestra "Terminal a domicilio". Migración: `database/migrations/fase9b_terminal_domicilio.sql`.
+- [x] **Fase 9 — Separador entre platillos en WA** — `──────────` entre items del pedido en el mensaje de WhatsApp (no después del último). `flatMap((i, idx, arr)` con `const sep = idx < arr.length - 1 ? ['──────────'] : []`.
+- [x] **Fase 9 — Cache-busting .htaccess** — `index.html` con `Cache-Control: no-cache`. Assets con hash (`*.js`, `*.css`) con `max-age=31536000, immutable`. Resuelve problema de prod sirviendo JS/CSS viejos.
 - [x] **Fix sw-track en Teleport** — El modal de edición de TabPlatillos usa `<Teleport to="body">` — `var(--accent)` no llegaba al overlay. Fix: prop `accent` en TabPlatillos, `--accent` aplicado como CSS var en el overlay teleportado. Dashboard pasa `:accent="temaAccent"`.
 - [x] **Fix grupo-tipo selector** — Reemplazado `<select>` con emojis en `<option>` (HTML no permite SVG) por grupo de botones personalizados con SvgIcon (`.grupo-tipo-btns` / `.tipo-btn`). Fix alineación: `min-width: 0` en `.grupo-nombre-input`.
 
@@ -126,6 +134,7 @@ La API de Meshy requiere plan Pro ($20/mes) para acceso programático. Se adopt�
 - ⚠️ **Columna `stock` faltante en QA**: `ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock SMALLINT DEFAULT NULL AFTER aviso_categoria_id;`
 - ⚠️ **Status `visto` faltante en QA**: `ALTER TABLE pedidos MODIFY COLUMN status ENUM('nuevo','visto','en_preparacion','listo','entregado','cancelado') NOT NULL DEFAULT 'nuevo';`
 - ⚠️ **Fase 8 — íconos categorías en QA**: en QA la columna ya se llama `icono` (no `emoji`). Ejecutar solo los `UPDATE` del `database/migrations/fase8_iconos_mdi.sql` (el `ALTER TABLE` está comentado).
+- ⚠️ **Fase 9 — Envío gratis y Terminal en QA**: ejecutar `database/migrations/fase9_envio_gratis.sql` y `database/migrations/fase9b_terminal_domicilio.sql`.
 
 ### Testing Local
 - ✅ Base de datos: MySQL tablas creadas

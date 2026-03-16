@@ -58,10 +58,12 @@ CREATE TABLE IF NOT EXISTS restaurantes (
   qr_wifi_clave   VARCHAR(100),                   -- contraseña WiFi
   qr_wifi_activo  TINYINT(1)    NOT NULL DEFAULT 0, -- mostrar sección WiFi en la card QR
   pedidos_activos        TINYINT(1)    NOT NULL DEFAULT 0, -- toggle sistema de pedidos
-  pedidos_envio_activo   TINYINT(1)    NOT NULL DEFAULT 0, -- opción de entrega a domicilio
-  pedidos_envio_costo    DECIMAL(10,2) DEFAULT 0.00,       -- costo de envío
-  pedidos_whatsapp       VARCHAR(20),                      -- número WA sin + ni espacios
-  pedidos_trans_activo   TINYINT(1)    NOT NULL DEFAULT 0, -- toggle para mostrar opción de transferencia
+  pedidos_envio_activo        TINYINT(1)    NOT NULL DEFAULT 0,  -- opción de entrega a domicilio
+  pedidos_envio_costo         DECIMAL(10,2) DEFAULT 0.00,        -- costo de envío
+  pedidos_envio_gratis_desde  DECIMAL(10,2) NULL DEFAULT NULL,   -- umbral para envío gratis (NULL = desactivado)
+  pedidos_whatsapp            VARCHAR(20),                       -- número WA sin + ni espacios
+  pedidos_terminal_activo     TINYINT(1)    NOT NULL DEFAULT 0,  -- toggle terminal a domicilio (solo envío)
+  pedidos_trans_activo        TINYINT(1)    NOT NULL DEFAULT 0,  -- toggle para mostrar opción de transferencia
   pedidos_trans_clabe    VARCHAR(18),                      -- CLABE para transferencia
   pedidos_trans_cuenta   VARCHAR(20),
   pedidos_trans_titular  VARCHAR(100),
@@ -91,6 +93,10 @@ CREATE TABLE IF NOT EXISTS restaurantes (
 -- ALTER TABLE restaurantes ADD COLUMN pedidos_trans_banco VARCHAR(100) AFTER pedidos_trans_titular;
 -- ALTER TABLE restaurantes ADD COLUMN pedidos_trans_activo TINYINT(1) NOT NULL DEFAULT 0 AFTER pedidos_trans_banco;
 -- ALTER TABLE restaurantes ADD COLUMN compartir_mensaje TEXT AFTER pedidos_trans_activo;
+-- Fase 9:
+-- ALTER TABLE restaurantes ADD COLUMN pedidos_envio_gratis_desde DECIMAL(10,2) NULL DEFAULT NULL AFTER pedidos_envio_costo;
+-- ALTER TABLE restaurantes ADD COLUMN pedidos_terminal_activo TINYINT(1) NOT NULL DEFAULT 0 AFTER pedidos_envio_gratis_desde;
+-- ALTER TABLE pedidos MODIFY COLUMN metodo_pago ENUM('efectivo','transferencia','terminal') NOT NULL DEFAULT 'efectivo';
 
 -- ------------------------------------------------------------
 -- TABLA: mesas
@@ -208,7 +214,7 @@ CREATE TABLE IF NOT EXISTS pedidos (
   telefono        VARCHAR(20),
   tipo_entrega    ENUM('recoger','envio') NOT NULL DEFAULT 'recoger',
   direccion       VARCHAR(200),
-  metodo_pago     ENUM('efectivo','transferencia') NOT NULL DEFAULT 'efectivo',
+  metodo_pago     ENUM('efectivo','transferencia','terminal') NOT NULL DEFAULT 'efectivo',
   denominacion    DECIMAL(10,2),                    -- con cuánto paga (solo efectivo)
   mesa            VARCHAR(20),
   subtotal        DECIMAL(10,2) NOT NULL DEFAULT 0.00,
