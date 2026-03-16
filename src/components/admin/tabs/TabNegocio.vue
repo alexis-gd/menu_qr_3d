@@ -166,6 +166,20 @@ const copiarTexto = async () => {
 }
 
 async function guardarRestaurante() {
+  if (formRest.value.pedidos_activos && !formRest.value.pedidos_whatsapp?.trim()) {
+    emit('notif', { texto: 'El número de WhatsApp es requerido para recibir pedidos', tipo: 'error' })
+    return
+  }
+  if (formRest.value.pedidos_activos && formRest.value.pedidos_envio_activo &&
+      (isNaN(parseFloat(formRest.value.pedidos_envio_costo)) || parseFloat(formRest.value.pedidos_envio_costo) < 0)) {
+    emit('notif', { texto: 'El costo de envío debe ser un número positivo', tipo: 'error' })
+    return
+  }
+  if (formRest.value.pedidos_trans_activo && formRest.value.pedidos_trans_clabe &&
+      formRest.value.pedidos_trans_clabe.replace(/\D/g, '').length !== 18) {
+    emit('notif', { texto: 'La CLABE debe tener exactamente 18 dígitos', tipo: 'error' })
+    return
+  }
   guardando.value = true
   try {
     const rest = props.restaurante || {}

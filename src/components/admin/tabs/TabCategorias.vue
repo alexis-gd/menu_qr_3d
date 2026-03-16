@@ -31,7 +31,9 @@
           </div>
           <div class="field field-btn">
             <label>&nbsp;</label>
-            <button @click="crearCategoria" class="btn-primary">Agregar</button>
+            <button @click="crearCategoria" class="btn-primary" :disabled="guardando">
+              {{ guardando ? 'Agregando...' : 'Agregar' }}
+            </button>
           </div>
         </div>
       </div>
@@ -104,10 +106,11 @@ const emit = defineEmits(['notif', 'categorias-changed'])
 
 const { post, put, del } = useApi()
 
-const catEditando  = ref(null)
-const formCatEdit  = ref({})
+const catEditando   = ref(null)
+const formCatEdit   = ref({})
 const pickerAbierto = ref(null)
-const formCat = ref({ nombre: '', icono: '' })
+const formCat       = ref({ nombre: '', icono: '' })
+const guardando     = ref(false)
 
 const emojiGrupos = [
   { nombre: 'Platos',    emojis: ['🍕','🍔','🌮','🌯','🥗','🍖','🥩','🍗','🍱','🍜','🍝','🍲','🥘','🌭','🥙','🍛'] },
@@ -138,12 +141,14 @@ const iniciarEdicionCategoria = (cat) => {
 
 async function crearCategoria() {
   if (!formCat.value.nombre.trim()) { emit('notif', { texto: 'Escribe un nombre', tipo: 'error' }); return }
+  guardando.value = true
   try {
     await post('categorias', { restaurante_id: props.restauranteId, nombre: formCat.value.nombre.trim(), icono: formCat.value.icono.trim() || null })
     formCat.value = { nombre: '', icono: '' }
     emit('categorias-changed')
     emit('notif', { texto: 'Categoría creada', tipo: 'ok' })
   } catch (err) { emit('notif', { texto: err.message, tipo: 'error' }) }
+  finally { guardando.value = false }
 }
 
 async function guardarEdicionCategoria(id) {

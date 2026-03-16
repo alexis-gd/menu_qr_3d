@@ -284,6 +284,10 @@ const uploadLogo = async (event) => {
 }
 
 async function guardarRestaurante() {
+  if (!formRest.value.nombre?.trim()) {
+    emit('notif', { texto: 'El nombre del restaurante es requerido', tipo: 'error' })
+    return
+  }
   guardando.value = true
   try {
     // Obtener campos de negocio del restaurante actual para no sobrescribirlos con vacíos
