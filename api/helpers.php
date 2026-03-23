@@ -10,6 +10,7 @@
 function json_response($data, $code = 200)
 {
     header('Content-Type: application/json; charset=utf-8', true, $code);
+    header('Cache-Control: no-store, no-cache, must-revalidate');
     echo json_encode($data);
     exit;
 }
@@ -26,7 +27,7 @@ function set_auth_cookie($token)
               || (($_SERVER['SERVER_PORT'] ?? 80) == 443);
 
     setcookie('token', $token, [
-        'expires'  => 0,           // cookie de sesión (desaparece al cerrar el browser)
+        'expires'  => time() + 86400 * 7, // 7 días
         'path'     => '/',
         'httponly' => true,
         'samesite' => 'Strict',

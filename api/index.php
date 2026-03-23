@@ -309,7 +309,7 @@ switch ($route) {
         // GET: lista restaurantes (auth requerida)
         if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             require_auth();
-            $stmt = $pdo->prepare('SELECT id, slug, nombre, descripcion, logo_url, color_primario, tema, qr_frase, qr_frase_activa, qr_wifi_nombre, qr_wifi_clave, qr_wifi_activo, pedidos_activos, pedidos_envio_activo, pedidos_envio_costo, pedidos_envio_gratis_desde, pedidos_whatsapp, pedidos_trans_clabe, pedidos_trans_cuenta, pedidos_trans_titular, pedidos_trans_banco, pedidos_trans_activo, pedidos_terminal_activo, compartir_mensaje, tienda_cerrada_manual, tienda_horarios FROM restaurantes WHERE activo = 1 ORDER BY nombre');
+            $stmt = $pdo->prepare('SELECT id, slug, nombre, descripcion, logo_url, color_primario, tema, qr_frase, qr_frase_activa, qr_wifi_nombre, qr_wifi_clave, qr_wifi_activo, pedidos_activos, pedidos_envio_activo, pedidos_envio_costo, pedidos_envio_gratis_desde, pedidos_whatsapp, pedidos_trans_clabe, pedidos_trans_cuenta, pedidos_trans_titular, pedidos_trans_banco, pedidos_trans_activo, pedidos_terminal_activo, compartir_mensaje, tienda_cerrada_manual, tienda_horarios, stock_minimo_aviso FROM restaurantes WHERE activo = 1 ORDER BY nombre');
             $stmt->execute();
             $rows = $stmt->fetchAll();
             foreach ($rows as &$r) {
@@ -1191,7 +1191,7 @@ switch ($route) {
 
         if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             if (!$rid) json_response(['error' => 'restaurante_id requerido'], 400);
-            $stmt = $pdo->prepare('SELECT * FROM codigos_promo WHERE restaurante_id = :rid ORDER BY created_at DESC');
+            $stmt = $pdo->prepare('SELECT * FROM codigos_promo WHERE restaurante_id = :rid AND activo = 1 ORDER BY created_at DESC');
             $stmt->execute([':rid' => $rid]);
             json_response(['codigos' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
         }

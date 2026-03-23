@@ -25,7 +25,7 @@
 
       <!-- Overlay "No disponible" -->
       <div v-if="noDisponible" class="overlay-no-disponible">
-        <span>No disponible</span>
+        <span>Agotado</span>
       </div>
 
       <!-- Badge "Próximamente" -->

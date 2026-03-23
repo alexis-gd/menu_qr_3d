@@ -18,10 +18,15 @@ export function useApi() {
       const queryParams = { route, ...params }
       const url = import.meta.env.BASE_URL + 'api/?' + new URLSearchParams(queryParams)
       const headers = { 'Content-Type': 'application/json' }
-      const opts = { method, headers, credentials: 'include' }
+      const opts = { method, headers, credentials: 'include', cache: 'no-store' }
       if (body != null) opts.body = JSON.stringify(body)
 
       const res = await fetch(url, opts)
+      if (res.status === 401) {
+        // Sesión expirada — redirigir al login
+        window.location.href = import.meta.env.BASE_URL + 'admin'
+        throw new Error('Sesión expirada')
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       loading.value = false

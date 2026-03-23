@@ -45,17 +45,10 @@
 
       <!-- ═══ Tab Components ═══ -->
       <TabPlatillos
-        v-show="tabActivo === 'platillos'"
+        v-show="tabActivo === 'menu'"
         :restaurante-id="restauranteId"
         :categorias="categorias"
         :accent="temaAccent"
-        @notif="mostrarNotif"
-      />
-
-      <TabCategorias
-        v-show="tabActivo === 'categorias'"
-        :restaurante-id="restauranteId"
-        :categorias="categorias"
         @notif="mostrarNotif"
         @categorias-changed="loadCategorias"
       />
@@ -109,7 +102,6 @@ import { useApi } from '../../composables/useApi.js'
 import { THEMES as temas, THEMES_EXTRA as TEMAS_EXTRA } from '../../utils/themes.js'
 import SvgIcon       from '../../components/SvgIcon.vue'
 import TabPlatillos  from '../../components/admin/tabs/TabPlatillos.vue'
-import TabCategorias from '../../components/admin/tabs/TabCategorias.vue'
 import TabApariencia from '../../components/admin/tabs/TabApariencia.vue'
 import TabNegocio    from '../../components/admin/tabs/TabNegocio.vue'
 import TabPedidos    from '../../components/admin/tabs/TabPedidos.vue'
@@ -124,7 +116,7 @@ const categorias      = ref([])
 const cargandoInicial = ref(true)
 const errorInicial    = ref(null)
 const notif           = ref(null)
-const tabActivo         = ref('platillos')
+const tabActivo         = ref('menu')
 const temaPreview       = ref(null)
 const tabAparienciaRef  = ref(null)
 const tabNegocioRef     = ref(null)
@@ -141,8 +133,7 @@ function guardarTabActivo() {
 }
 
 const tabs = [
-  { id: 'platillos',  icon: mdiSilverwareForkKnife,   label: 'Platillos'  },
-  { id: 'categorias', icon: mdiFormatListBulleted,     label: 'Categorías' },
+  { id: 'menu',       icon: mdiSilverwareForkKnife,   label: 'Menú'  },
   { id: 'apariencia', icon: mdiPalette,                label: 'Apariencia' },
   { id: 'negocio',    icon: mdiCog,                   label: 'Negocio'    },
   { id: 'pedidos',    icon: mdiCart,                  label: 'Pedidos'    },
@@ -169,7 +160,11 @@ const mostrarNotif = ({ texto, tipo = 'ok' }) => {
 }
 
 const logout = async () => {
-  await post('logout', {})
+  try {
+    await post('logout', {})
+  } catch {
+    // si falla el request igual limpiamos estado local y redirigimos
+  }
   resetAuth()
   router.push('/admin')
 }

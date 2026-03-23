@@ -71,7 +71,7 @@
 
         <!-- Chip de estado bloqueado -->
         <div v-if="noDisponible" class="chip-estado chip-no-disponible">
-          Sin stock — no disponible por el momento
+          Agotado — sin stock por el momento
         </div>
         <div v-else-if="esProximamente" class="chip-estado chip-proximamente">
           Próximamente disponible

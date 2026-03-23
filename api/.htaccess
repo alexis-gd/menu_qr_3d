@@ -1,3 +1,9 @@
+# Deshabilitar caché de LiteSpeed/proxy para todo el directorio API
+<IfModule mod_headers.c>
+    Header set Cache-Control "no-store, no-cache, must-revalidate"
+    Header set X-LiteSpeed-Cache-Control "no-cache"
+</IfModule>
+
 # Seguridad básica para el directorio API
 Options -Indexes
 DirectoryIndex index.php

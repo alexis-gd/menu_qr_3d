@@ -309,7 +309,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { mdiWhatsapp, mdiContentCopy, mdiCheck, mdiOpenInNew, mdiContentSave } from '@mdi/js'
+import { mdiWhatsapp, mdiContentCopy, mdiCheck, mdiOpenInNew } from '@mdi/js'
 import { useApi } from '../../../composables/useApi.js'
 import { THEMES as temas } from '../../../utils/themes.js'
 import SvgIcon from '../../SvgIcon.vue'
@@ -412,21 +412,23 @@ const formRest = ref({
 
 watch(() => props.restaurante, (rest) => {
   if (!rest) return
+  // PDO devuelve TINYINT como string "0"/"1" — Boolean("0") sería true, usar Number()
+  const b = (v, def = false) => v !== undefined && v !== null ? Number(v) === 1 : def
   formRest.value = {
     compartir_mensaje:     rest.compartir_mensaje     || '¡Hola! Te comparto el menú digital de',
-    pedidos_activos:       Boolean(rest.pedidos_activos ?? false),
-    pedidos_envio_activo:  Boolean(rest.pedidos_envio_activo ?? true),
+    pedidos_activos:       b(rest.pedidos_activos),
+    pedidos_envio_activo:  b(rest.pedidos_envio_activo, true),
     pedidos_envio_costo:          parseFloat(rest.pedidos_envio_costo) || 0,
     pedidos_envio_gratis_desde:   rest.pedidos_envio_gratis_desde !== null && rest.pedidos_envio_gratis_desde !== undefined ? parseFloat(rest.pedidos_envio_gratis_desde) : null,
     pedidos_whatsapp:        rest.pedidos_whatsapp        || '',
-    pedidos_terminal_activo: Boolean(rest.pedidos_terminal_activo ?? false),
-    pedidos_trans_activo:    Boolean(rest.pedidos_trans_activo ?? false),
+    pedidos_terminal_activo: b(rest.pedidos_terminal_activo),
+    pedidos_trans_activo:    b(rest.pedidos_trans_activo),
     pedidos_trans_clabe:   rest.pedidos_trans_clabe   || '',
     pedidos_trans_cuenta:  rest.pedidos_trans_cuenta  || '',
     pedidos_trans_titular: rest.pedidos_trans_titular || '',
     pedidos_trans_banco:   rest.pedidos_trans_banco   || '',
-    tienda_cerrada_manual: Boolean(rest.tienda_cerrada_manual ?? false),
-    stock_minimo_aviso:    parseInt(rest.stock_minimo_aviso ?? 5) || 5,
+    tienda_cerrada_manual: b(rest.tienda_cerrada_manual),
+    stock_minimo_aviso:    rest.stock_minimo_aviso !== undefined && rest.stock_minimo_aviso !== null ? parseInt(rest.stock_minimo_aviso) : 5,
   }
   horariosLocal.value = rest.tienda_horarios
     ? { ...DEFAULT_HORARIOS(), ...rest.tienda_horarios }
