@@ -632,7 +632,7 @@ const guardarEdicionProducto = async () => {
       precio:       parseFloat(f.precio),
       descripcion:  f.descripcion.trim(),
     }
-    if (f.stock !== null) payload.stock = f.stock
+    payload.stock = f.stock  // null = quitar control; número = stock con control
     await put('productos', payload, { id })
   } catch (err) {
     emit('notif', { texto: 'Error al guardar el platillo: ' + err.message, tipo: 'error' })
@@ -720,8 +720,22 @@ const abrirPreview = (prod) => {
 }
 
 const cerrarMenu = () => { menuAbierto.value = null }
-onMounted(() => { loadProductos(); document.addEventListener('click', cerrarMenu) })
-onUnmounted(() => { document.removeEventListener('click', cerrarMenu) })
+
+let _platillosPollTimer = null
+let _platillosVisibilityFn = null
+
+onMounted(() => {
+  loadProductos()
+  document.addEventListener('click', cerrarMenu)
+  _platillosPollTimer = setInterval(() => loadProductos(), 120_000)
+  _platillosVisibilityFn = () => { if (!document.hidden) loadProductos() }
+  document.addEventListener('visibilitychange', _platillosVisibilityFn)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', cerrarMenu)
+  if (_platillosVisibilityFn) document.removeEventListener('visibilitychange', _platillosVisibilityFn)
+  clearInterval(_platillosPollTimer)
+})
 </script>
 
 <style scoped>

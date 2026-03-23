@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS restaurantes (
   tienda_cerrada_manual  TINYINT(1)    NOT NULL DEFAULT 0,  -- 1 = menú cerrado manualmente (override horarios)
   tienda_horarios        JSON          NULL DEFAULT NULL,    -- horario semanal: {"lunes":{"activo":true,"apertura":"08:00","cierre":"22:00"}, ...}
     -- NULL = sin horarios configurados = tienda siempre abierta (salvo cierre manual)
+  stock_minimo_aviso     SMALLINT      NOT NULL DEFAULT 5,   -- umbral para badge "Últimas N piezas" (0 = desactivado)
   activo          TINYINT(1)    NOT NULL DEFAULT 1,
   created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -100,6 +101,15 @@ CREATE TABLE IF NOT EXISTS restaurantes (
 -- ALTER TABLE restaurantes ADD COLUMN pedidos_envio_gratis_desde DECIMAL(10,2) NULL DEFAULT NULL AFTER pedidos_envio_costo;
 -- ALTER TABLE restaurantes ADD COLUMN pedidos_terminal_activo TINYINT(1) NOT NULL DEFAULT 0 AFTER pedidos_envio_gratis_desde;
 -- ALTER TABLE pedidos MODIFY COLUMN metodo_pago ENUM('efectivo','transferencia','terminal') NOT NULL DEFAULT 'efectivo';
+-- Fase 10:
+-- ALTER TABLE restaurantes ADD COLUMN IF NOT EXISTS tienda_cerrada_manual TINYINT(1) NOT NULL DEFAULT 0;
+-- ALTER TABLE restaurantes ADD COLUMN IF NOT EXISTS tienda_horarios JSON NULL DEFAULT NULL;
+-- Fase 12:
+-- ALTER TABLE restaurantes ADD COLUMN IF NOT EXISTS stock_minimo_aviso SMALLINT NOT NULL DEFAULT 5;
+-- Fase 14 (descuentos en pedidos):
+-- ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS descuento_recompensa DECIMAL(8,2) NOT NULL DEFAULT 0.00;
+-- ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS descuento_promo DECIMAL(8,2) NOT NULL DEFAULT 0.00;
+-- ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS codigo_promo VARCHAR(20) DEFAULT NULL;
 
 -- ------------------------------------------------------------
 -- TABLA: mesas
@@ -226,10 +236,13 @@ CREATE TABLE IF NOT EXISTS pedidos (
   metodo_pago     ENUM('efectivo','transferencia','terminal') NOT NULL DEFAULT 'efectivo',
   denominacion    DECIMAL(10,2),                    -- con cuánto paga (solo efectivo)
   mesa            VARCHAR(20),
-  subtotal        DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  costo_envio     DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  total           DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  status          ENUM('nuevo','confirmado','en_preparacion','listo','entregado','cancelado') NOT NULL DEFAULT 'nuevo',
+  subtotal             DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  costo_envio          DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  descuento_recompensa DECIMAL(8,2)  NOT NULL DEFAULT 0.00,  -- descuento aplicado por recompensa de sellos
+  descuento_promo      DECIMAL(8,2)  NOT NULL DEFAULT 0.00,  -- descuento aplicado por código de promotor
+  codigo_promo         VARCHAR(20)   DEFAULT NULL,            -- código de promotor utilizado (snapshot)
+  total                DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  status          ENUM('nuevo','visto','en_preparacion','listo','entregado','cancelado') NOT NULL DEFAULT 'nuevo',
   created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (restaurante_id) REFERENCES restaurantes(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -300,6 +313,60 @@ CREATE TABLE IF NOT EXISTS pedido_item_opciones (
   FOREIGN KEY (pedido_item_id) REFERENCES pedido_items(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ------------------------------------------------------------
+-- TABLA: recompensas_config (Fase 11)
+-- Configuración del sistema de sellos/recompensas por restaurante.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS recompensas_config (
+  id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  restaurante_id    INT UNSIGNED  NOT NULL UNIQUE,
+  activo            TINYINT(1)    NOT NULL DEFAULT 0,   -- toggle para activar el sistema
+  compras_necesarias SMALLINT     NOT NULL DEFAULT 10,  -- sellos para completar un ciclo
+  descripcion_recompensa VARCHAR(200) DEFAULT 'Pedido gratis',  -- qué obtiene el cliente
+  tipo_descuento    ENUM('fijo','porcentaje','gratis') NOT NULL DEFAULT 'gratis',
+  valor_descuento   DECIMAL(8,2)  NOT NULL DEFAULT 0.00,
+  created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (restaurante_id) REFERENCES restaurantes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- TABLA: clientes (Fase 11)
+-- Historial de compras por número de teléfono por restaurante.
+-- Se crea/actualiza en cada pedido confirmado.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS clientes (
+  id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  restaurante_id  INT UNSIGNED  NOT NULL,
+  telefono        VARCHAR(20)   NOT NULL,
+  total_compras   SMALLINT      NOT NULL DEFAULT 0,  -- total acumulado de pedidos confirmados
+  recompensas_ganadas SMALLINT  NOT NULL DEFAULT 0,  -- cuántos ciclos ya se canjearon
+  created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_cliente_restaurante (restaurante_id, telefono),
+  FOREIGN KEY (restaurante_id) REFERENCES restaurantes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- TABLA: codigos_promo (Fase 13)
+-- Códigos de descuento creados por el restaurante para promotores.
+-- El restaurante crea el código, lo entrega al promotor.
+-- El promotor lo da a sus clientes, que lo ingresan en checkout.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS codigos_promo (
+  id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  restaurante_id  INT UNSIGNED  NOT NULL,
+  codigo          VARCHAR(20)   NOT NULL,
+  descripcion     VARCHAR(200)  DEFAULT NULL,     -- ej: "Promotor Juan - 10% descuento"
+  tipo            ENUM('fijo','porcentaje') NOT NULL DEFAULT 'fijo',
+  valor           DECIMAL(8,2)  NOT NULL DEFAULT 0.00,
+  usos            INT UNSIGNED  NOT NULL DEFAULT 0,  -- contador acumulado de usos
+  activo          TINYINT(1)    NOT NULL DEFAULT 1,
+  created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_codigo_restaurante (restaurante_id, codigo),
+  FOREIGN KEY (restaurante_id) REFERENCES restaurantes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET foreign_key_checks = 1;
 ```
 
@@ -319,9 +386,12 @@ usuarios
                               └──< producto_opciones (grupo_id)
 
 restaurantes
-  └──< pedidos (restaurante_id)
-         └──< pedido_items (pedido_id)
-                └──< pedido_item_opciones (pedido_item_id)  ← snapshot Fase 7
+  ├──< pedidos (restaurante_id)
+  │      └──< pedido_items (pedido_id)
+  │             └──< pedido_item_opciones (pedido_item_id)  ← snapshot Fase 7
+  ├──< recompensas_config (restaurante_id)  ← 1:1, Fase 11
+  ├──< clientes (restaurante_id)            ← historial por teléfono, Fase 11
+  └──< codigos_promo (restaurante_id)       ← códigos de promotor, Fase 13
 
 usuarios
   └──< sesiones_admin (usuario_id)
@@ -441,6 +511,12 @@ LIMIT 1;
 - Un producto puede tener **múltiples intentos de conversión** en `meshy_jobs`. El cron solo procesa los que están en `pending` o `processing`.
 - **`productos.tiene_ar = 1`** se setea al subir un `.glb` válido (endpoint `upload-glb`) o cuando el cron descarga exitosamente el `.glb` de Meshy.
 - **`productos.modelo_glb_path`** es solo el **nombre del archivo** (ej: `modelo_1_1234.glb`). URL completa: `UPLOADS_URL . 'modelos/' . $modelo_glb_path`.
+- **`productos.stock`**: NULL = sin control de stock; 0 = agotado (overlay "No disponible" en menú); > 0 = unidades disponibles. La API descuenta con `GREATEST(0, stock - cantidad)` al confirmar el pedido. El frontend también valida antes de agregar al carrito.
+- **`productos.disponible`**: 0 = "Próximamente" (visible sin botón de compra); 1 = normal. Distinto de `activo=0` (borrado lógico, no aparece).
+- **`restaurantes.stock_minimo_aviso`**: umbral para badge "Últimas N piezas" en menú público. 0 = badge desactivado.
+- **Sistema de recompensas (sellos)**: `clientes.total_compras` se incrementa por cada pedido. `ciclos_completados = FLOOR(total_compras / compras_necesarias)`. `tiene_recompensa = ciclos_completados > recompensas_ganadas`. Al aplicar recompensa: `recompensas_ganadas += 1`. **Cuidado:** cambiar `compras_necesarias` afecta a todos los clientes inmediatamente (incluidos los que tenían sellos acumulados).
+- **Códigos de promotor**: el restaurante crea códigos en `codigos_promo`. Cliente los ingresa en checkout. API valida y devuelve descuento. `codigos_promo.usos` se incrementa en cada uso. Sin límite de usos por defecto.
+- **Descuentos en pedidos**: `descuento_recompensa` y `descuento_promo` se guardan como snapshot al momento del pedido. `total = subtotal + costo_envio - descuento_recompensa - descuento_promo`.
 - **`productos.foto_principal`** es relativo a `/uploads/` (ej: `fotos/1/foto_1_0_1234.jpg`). URL completa: `UPLOADS_URL . $foto_principal`. Se asigna automáticamente al subir la primera foto.
 - **`fotos_producto.ruta`** es relativo al webroot (ej: `uploads/fotos/1/foto.jpg`). Solo para referencia interna.
 - `fotos_producto.url_publica` es URL absoluta (históricamente para Meshy API, ahora solo referencia).

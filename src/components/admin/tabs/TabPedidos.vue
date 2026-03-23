@@ -48,6 +48,8 @@
               </div>
               <div class="pedido-totales">
                 <span v-if="ped.costo_envio > 0">Envío: ${{ Number(ped.costo_envio).toFixed(2) }}</span>
+                <span v-if="Number(ped.descuento_recompensa) > 0" class="pedido-descuento">🎁 Recompensa: -${{ Number(ped.descuento_recompensa).toFixed(2) }}</span>
+                <span v-if="Number(ped.descuento_promo) > 0" class="pedido-descuento">🏷️ {{ ped.codigo_promo }}: -${{ Number(ped.descuento_promo).toFixed(2) }}</span>
                 <strong>Total: ${{ Number(ped.total).toFixed(2) }}</strong>
               </div>
             </div>
@@ -164,8 +166,9 @@ onUnmounted(() => clearInterval(pedidosInterval))
 .pedido-item-obs    { font-size: 0.78rem; color: #999; font-style: italic; }
 .pedido-item-precio { font-weight: 700; color: #555; }
 
-.pedido-totales { display: flex; justify-content: flex-end; gap: 16px; font-size: 0.88rem; color: #888; }
+.pedido-totales { display: flex; justify-content: flex-end; align-items: center; gap: 12px; font-size: 0.88rem; color: #888; flex-wrap: wrap; }
 .pedido-totales strong { color: #1a1a1a; font-size: 0.95rem; }
+.pedido-descuento { font-size: 0.78rem; font-weight: 700; color: #27ae60; background: #eafaf1; border-radius: 6px; padding: 2px 8px; }
 
 .pedido-acciones { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .btn-status  { padding: 6px 14px; border: none; border-radius: 7px; font-size: 0.82rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }

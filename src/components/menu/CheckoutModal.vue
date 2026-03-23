@@ -19,7 +19,9 @@
               <div class="item-cant-ctrl">
                 <button class="cant-btn" @click="reducir(idx)">−</button>
                 <span class="cant-num">{{ item.cantidad }}</span>
-                <button class="cant-btn" :disabled="esItemBloqueado(item)" @click="item.cantidad++">+</button>
+                <button class="cant-btn"
+                  :disabled="esItemBloqueado(item) || (item.producto.stock !== null && item.producto.stock !== undefined && item.cantidad >= item.producto.stock)"
+                  @click="item.cantidad++">+</button>
               </div>
               <div class="item-info">
                 <span class="item-nombre">{{ item.producto.nombre }}</span>
@@ -77,14 +79,52 @@
           <h3 class="section-title">Tus datos</h3>
           <div class="campos">
             <div class="campo">
+              <label>Teléfono *</label>
+              <input v-model="telefono" type="tel" inputmode="numeric" placeholder="10 dígitos" maxlength="10" />
+              <!-- Cuponera de recompensas -->
+              <div v-if="historial?.activo" class="cuponera">
+                <div v-if="historial.tiene_recompensa" class="cuponera-recompensa">
+                  🎁 ¡Recompensa lista! Se aplica a este pedido.
+                </div>
+                <template v-else>
+                  <p class="cuponera-texto">
+                    Llevas <strong>{{ historial.compras_en_ciclo }}</strong> de <strong>{{ historial.necesarias }}</strong> compras para tu recompensa
+                  </p>
+                  <div class="cuponera-sellos">
+                    <span
+                      v-for="i in Math.min(historial.necesarias, 10)"
+                      :key="i"
+                      class="sello"
+                      :class="{ 'sello-lleno': i <= historial.compras_en_ciclo }"
+                    >★</span>
+                    <span v-if="historial.necesarias > 10" class="cuponera-resto">+{{ historial.necesarias - 10 }}</span>
+                  </div>
+                </template>
+              </div>
+            </div>
+            <div class="campo">
               <label>Nombre *</label>
               <input :value="nombre" @input="nombre = ucfirst($event.target.value)" placeholder="¿Cómo te llamamos?" maxlength="60" />
             </div>
-            <template v-if="tipoEntrega === 'envio'">
-              <div class="campo">
-                <label>Teléfono *</label>
-                <input v-model="telefono" type="tel" placeholder="Para coordinar la entrega" maxlength="10" />
+            <!-- Código de descuento / promotor -->
+            <div class="campo">
+              <label>Código de descuento (opcional)</label>
+              <div class="promo-wrap">
+                <input
+                  v-model="codigoPromo"
+                  placeholder="Ej: JUAN10"
+                  maxlength="20"
+                  @input="codigoPromo = codigoPromo.toUpperCase(); onCodigoPromoInput()"
+                />
+                <span v-if="promoValidando" class="promo-status promo-wait">…</span>
+                <span v-else-if="promoValidada" class="promo-status promo-ok">
+                  ✓ {{ promoValidada.tipo === 'descuento_fijo' ? '-$' + Number(promoValidada.valor).toFixed(2) : '-' + promoValidada.valor + '%' }}
+                </span>
+                <span v-else-if="promoError" class="promo-status promo-err">✗ Inválido</span>
               </div>
+            </div>
+
+            <template v-if="tipoEntrega === 'envio'">
               <div class="campo">
                 <label>Dirección de entrega *</label>
                 <textarea :value="direccion" @input="direccion = ucfirst($event.target.value)" rows="2" placeholder="Calle, número, colonia..." maxlength="150"></textarea>
@@ -181,6 +221,10 @@
             <span v-if="envioEsGratis" class="envio-gratis-total">¡Gratis!</span>
             <span v-else>${{ costoEnvio.toFixed(2) }}</span>
           </div>
+          <div v-if="descuento > 0" class="total-row total-descuento">
+            <span>🎁 Descuento recompensa</span>
+            <span>−${{ descuento.toFixed(2) }}</span>
+          </div>
           <div class="total-row total-final">
             <strong>Total</strong>
             <strong>${{ total.toFixed(2) }}</strong>
@@ -210,7 +254,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useApi } from '../../composables/useApi.js'
 import { ucfirst } from '../../utils/ucfirst.js'
 import { useCarritoStore } from '../../stores/carrito.js'
@@ -222,19 +266,68 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'confirmado'])
-const { post } = useApi()
+const { get, post } = useApi()
 const carritoStore = useCarritoStore()
 
-const tipoEntrega  = ref('recoger')
-const metodoPago   = ref('efectivo')
-const nombre       = ref('')
-const telefono     = ref('')
-const direccion    = ref('')
-const referencia   = ref('')
-const denominacion = ref('')
-const enviando     = ref(false)
-const errorMsg     = ref('')
-const copiados     = ref({ banco: false, titular: false, clabe: false, cuenta: false })
+const tipoEntrega    = ref('recoger')
+const metodoPago     = ref('efectivo')
+const nombre         = ref('')
+const telefono       = ref('')
+const direccion      = ref('')
+const referencia     = ref('')
+const denominacion   = ref('')
+const codigoPromo    = ref('')
+const promoValidada  = ref(null)   // { tipo, valor, descripcion } si es válido
+const promoError     = ref(false)
+const promoValidando = ref(false)
+let _promoTimer = null
+const enviando       = ref(false)
+const errorMsg       = ref('')
+const copiados       = ref({ banco: false, titular: false, clabe: false, cuenta: false })
+
+// ── Recompensas ──
+const historial = ref(null)
+
+watch(telefono, async (val) => {
+  const digits = val.replace(/\D/g, '')
+  if (digits.length !== 10) { historial.value = null; return }
+  if (!props.restauranteId) return
+  try {
+    const data = await get('cliente-historial', { telefono: digits, restaurante_id: props.restauranteId }, false)
+    historial.value = data.activo ? data : null
+  } catch { historial.value = null }
+})
+
+const descuento = computed(() => {
+  if (!historial.value?.tiene_recompensa) return 0
+  const { tipo, valor } = historial.value
+  if (tipo === 'descuento_porcentaje') return Math.min(subtotal.value * (valor / 100), subtotal.value)
+  return Math.min(valor, subtotal.value)
+})
+
+const descuentoPromo = computed(() => {
+  if (!promoValidada.value) return 0
+  const { tipo, valor } = promoValidada.value
+  if (tipo === 'descuento_porcentaje') return Math.min(subtotal.value * (valor / 100), subtotal.value)
+  return Math.min(valor, subtotal.value)
+})
+
+const onCodigoPromoInput = () => {
+  clearTimeout(_promoTimer)
+  promoValidada.value = null
+  promoError.value = false
+  const codigo = codigoPromo.value.trim()
+  if (codigo.length < 3) return
+  promoValidando.value = true
+  _promoTimer = setTimeout(async () => {
+    try {
+      const data = await get('validar-codigo-promo', { codigo, restaurante_id: props.restauranteId }, false)
+      if (data.valido) { promoValidada.value = data; promoError.value = false }
+      else             { promoValidada.value = null;  promoError.value = true }
+    } catch { promoError.value = true }
+    finally  { promoValidando.value = false }
+  }, 600)
+}
 
 const copiarDato = async (campo, valor) => {
   await navigator.clipboard.writeText(valor)
@@ -261,7 +354,7 @@ const subtotal = computed(() =>
   carritoStore.items.reduce((s, i) => s + (i.precio_unitario ?? Number(i.producto.precio)) * i.cantidad, 0)
 )
 
-const total = computed(() => subtotal.value + costoEnvio.value)
+const total = computed(() => Math.max(0, subtotal.value + costoEnvio.value - descuento.value - descuentoPromo.value))
 
 const tieneDatosTransferencia = computed(() =>
   !!(props.pedidosConfig.pedidos_trans_clabe || props.pedidosConfig.pedidos_trans_banco)
@@ -299,9 +392,9 @@ const reducir = (idx) => {
 
 const validar = () => {
   if (!carritoStore.items.length) return 'El carrito está vacío.'
+  if (!telefono.value.trim()) return 'Por favor escribe tu teléfono.'
   if (!nombre.value.trim()) return 'Por favor escribe tu nombre.'
   if (tipoEntrega.value === 'envio') {
-    if (!telefono.value.trim()) return 'El teléfono es requerido para envío a domicilio.'
     if (!direccion.value.trim()) return 'La dirección de entrega es requerida.'
   }
   return ''
@@ -336,6 +429,10 @@ const confirmar = async () => {
       subtotal: subtotal.value,
       costo_envio: costoEnvio.value,
       total: total.value,
+      aplicar_recompensa:   historial.value?.tiene_recompensa || false,
+      descuento_recompensa: descuento.value,
+      descuento_promo:      descuentoPromo.value,
+      codigo_promo: promoValidada.value ? codigoPromo.value.trim().toUpperCase() : null,
     }
 
     const res = await post('pedidos', body, false)
@@ -359,12 +456,14 @@ const confirmar = async () => {
       ``,
       `Subtotal: $${subtotal.value.toFixed(2)}`,
       ...(tipoEntrega.value === 'envio' ? [envioEsGratis.value ? `Envio: GRATIS` : `Envio: $${costoEnvio.value.toFixed(2)}`] : []),
+      ...(descuento.value > 0 ? [`Descuento recompensa: -$${descuento.value.toFixed(2)}`] : []),
+      ...(descuentoPromo.value > 0 ? [`Codigo ${codigoPromo.value.trim()}: -$${descuentoPromo.value.toFixed(2)}`] : []),
       `*Total: $${total.value.toFixed(2)}*`,
       ``,
       `*Entrega:* ${tipoEntrega.value === 'envio' ? 'A domicilio' : 'Recoger en local'}`,
       ...(tipoEntrega.value === 'envio' && direccion.value ? [`*Direccion:* ${direccion.value.trim()}`] : []),
       ...(tipoEntrega.value === 'envio' && referencia.value ? [`*Referencia:* ${referencia.value.trim()}`] : []),
-      ...(telefono.value ? [`*Tel:* ${telefono.value.trim()}`] : []),
+      `*Tel:* ${telefono.value.trim()}`,
       `*Pago:* ${metodoPago.value === 'transferencia' ? 'Transferencia' : metodoPago.value === 'terminal' ? 'Terminal a domicilio' : 'Efectivo'}`,
       ...(metodoPago.value === 'efectivo' && denominacion.value ? [`Con: $${parseFloat(denominacion.value).toFixed(0)}`] : []),
       `*Nombre:* ${nombre.value.trim()}`,
@@ -376,14 +475,18 @@ const confirmar = async () => {
     window.open(waUrl, '_blank')
 
     // Resetear form para el próximo pedido
-    nombre.value       = ''
-    telefono.value     = ''
-    direccion.value    = ''
-    referencia.value   = ''
-    denominacion.value = ''
-    tipoEntrega.value  = 'recoger'
-    metodoPago.value   = 'efectivo'
-    errorMsg.value     = ''
+    nombre.value         = ''
+    telefono.value       = ''
+    direccion.value      = ''
+    referencia.value     = ''
+    denominacion.value   = ''
+    codigoPromo.value    = ''
+    promoValidada.value  = null
+    promoError.value     = false
+    historial.value      = null
+    tipoEntrega.value    = 'recoger'
+    metodoPago.value     = 'efectivo'
+    errorMsg.value       = ''
 
     emit('confirmado')
   } catch (err) {
@@ -635,6 +738,54 @@ const confirmar = async () => {
 }
 .campo input:focus, .campo textarea:focus { border-color: var(--accent, #FF6B35); }
 .campo textarea { resize: none; }
+
+/* ── Cuponera ── */
+.cuponera {
+  margin-top: 8px;
+  padding: 10px 14px;
+  background: #fffbf0;
+  border: 1.5px solid #f5c842;
+  border-radius: 10px;
+}
+.cuponera-recompensa {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #b45309;
+  text-align: center;
+}
+.cuponera-texto {
+  font-size: 0.8rem;
+  color: #666;
+  margin: 0 0 8px;
+}
+.cuponera-sellos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.sello {
+  font-size: 1.1rem;
+  color: #ddd;
+  line-height: 1;
+  transition: color 0.15s;
+}
+.sello-lleno { color: #f5c842; }
+.cuponera-resto { font-size: 0.75rem; color: #aaa; margin-left: 4px; }
+
+/* ── Código promo ── */
+.promo-wrap { position: relative; display: flex; align-items: center; }
+.promo-wrap input { flex: 1; padding-right: 90px; }
+.promo-status {
+  position: absolute; right: 10px;
+  font-size: 0.78rem; font-weight: 700; white-space: nowrap; pointer-events: none;
+}
+.promo-wait { color: #aaa; }
+.promo-ok   { color: #27ae60; }
+.promo-err  { color: #e74c3c; }
+
+/* ── Fila descuento en totales ── */
+.total-descuento { color: #2e7d32; font-weight: 600; }
 
 /* ── Transferencia ── */
 .trans-box {

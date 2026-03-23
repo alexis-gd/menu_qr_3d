@@ -85,6 +85,7 @@
                 :producto="prod"
                 :pedidos-activos="pedidosActivos"
                 :logo-url="logoUrl"
+                :stock-minimo-aviso="stockMinimoAviso"
                 @click="abrirModal(prod)"
                 @agregar="onCardAgregar(prod)"
               />
@@ -105,6 +106,7 @@
       v-if="productoSeleccionado"
       :producto="productoSeleccionado"
       :pedidos-activos="pedidosActivos"
+      :stock-minimo-aviso="stockMinimoAviso"
       @close="productoSeleccionado = null"
       @agregar="({ producto, observacion }) => { agregarAlCarrito(producto, observacion); productoSeleccionado = null }"
     />
@@ -122,6 +124,13 @@
     <transition name="toast-anim">
       <div v-if="toastNombre" class="carrito-toast">
         ✓ {{ toastNombre }} agregado
+      </div>
+    </transition>
+
+    <!-- Toast "stock agotado" -->
+    <transition name="toast-anim">
+      <div v-if="toastStockMsg" class="carrito-toast carrito-toast--stock">
+        {{ toastStockMsg }}
       </div>
     </transition>
 
@@ -190,8 +199,10 @@ const carritoStore    = useCarritoStore()
 const carrito         = computed(() => carritoStore.items)
 const mostrarCheckout = ref(false)
 const toastNombre     = ref('')
+const toastStockMsg   = ref('')
 const avisoProducto   = ref(null)
-let toastTimer = null
+let toastTimer      = null
+let toastStockTimer = null
 
 const pedidosActivos = computed(() => !!restaurante.value?.pedidos_activos)
 const pedidosConfig  = computed(() => restaurante.value || {})
@@ -199,7 +210,9 @@ const pedidosConfig  = computed(() => restaurante.value || {})
 const tema         = computed(() => restaurante.value?.tema || 'calido')
 // Tick por minuto para re-evaluar horarios automáticamente
 const ahora = ref(new Date())
-let _horarioTimer = null
+let _horarioTimer   = null
+let _menuPollTimer  = null
+let _visibilityFn   = null
 
 const tiendaAbierta = computed(() => {
   if (!restaurante.value) return true
@@ -214,10 +227,17 @@ const tiendaAbierta = computed(() => {
   const hora = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
   return hora >= d.apertura && hora <= d.cierre
 })
-const logoUrl       = computed(() => restaurante.value?.logo_url || null)
+const logoUrl           = computed(() => restaurante.value?.logo_url || null)
+const stockMinimoAviso  = computed(() => restaurante.value?.stock_minimo_aviso ?? 5)
 
 const agregarAlCarrito = (producto, observacion = '', opciones = []) => {
-  carritoStore.agregar(producto, observacion, opciones)
+  const resultado = carritoStore.agregar(producto, observacion, opciones)
+  if (resultado === 'stock_agotado') {
+    clearTimeout(toastStockTimer)
+    toastStockMsg.value = `Solo hay ${producto.stock} ${producto.stock === 1 ? 'pieza' : 'piezas'} disponibles`
+    toastStockTimer = setTimeout(() => { toastStockMsg.value = '' }, 2500)
+    return
+  }
   toastNombre.value = producto.nombre
   clearTimeout(toastTimer)
   toastTimer = setTimeout(() => { toastNombre.value = '' }, 1800)
@@ -276,6 +296,21 @@ watch(() => restaurante.value?.logo_url, (url) => {
   link.href = url
 }, { immediate: true })
 
+const cargarMenu = async (esPrimeraCarga = false) => {
+  const slug = route.query.r
+  if (!slug) return
+  try {
+    const data = await get('menu', { restaurante: slug }, false)
+    restaurante.value = data.restaurante
+    categorias.value = data.categorias || []
+    if (esPrimeraCarga && categorias.value.length) {
+      catActiva.value = categorias.value[0].id
+    }
+  } catch (err) {
+    if (esPrimeraCarga) console.error('Error cargando menú:', err)
+  }
+}
+
 onMounted(async () => {
   _horarioTimer = setInterval(() => { ahora.value = new Date() }, 60_000)
   const slug = route.query.r
@@ -283,55 +318,52 @@ onMounted(async () => {
     error.value = 'No se especificó el restaurante. Escanea el código QR de tu mesa.'
     return
   }
-  try {
-    const data = await get('menu', { restaurante: slug }, false)
-    restaurante.value = data.restaurante
-    categorias.value = data.categorias || []
-    if (categorias.value.length) {
-      catActiva.value = categorias.value[0].id
-    }
-    initObserver()
-  } catch (err) {
-    console.error('Error cargando menú:', err)
-  }
+  await cargarMenu(true)
+  initObserver()
+  // Refresco silencioso: cada 90s + al volver a la pestaña
+  _menuPollTimer = setInterval(() => cargarMenu(), 90_000)
+  _visibilityFn  = () => { if (!document.hidden) cargarMenu() }
+  document.addEventListener('visibilitychange', _visibilityFn)
 })
 
-// IntersectionObserver para destacar la categoría visible
-let observer = null
+// Scroll listener para destacar la categoría visible
+const CAT_OFFSET = 130 // altura approx de header + cat-nav
+let _scrollListener = null
+let _ignoreScroll = false
+
+const actualizarCatActiva = () => {
+  if (_ignoreScroll) return
+  const cats = categoriasVisibles.value
+  if (!cats.length) return
+  let activa = cats[0].id
+  for (const cat of cats) {
+    const el = document.getElementById(`cat-${cat.id}`)
+    if (!el) continue
+    if (el.getBoundingClientRect().top <= CAT_OFFSET + 10) activa = cat.id
+  }
+  catActiva.value = activa
+}
+
 const initObserver = () => {
-  observer = new IntersectionObserver(
-    (entries) => {
-      for (const entry of entries) {
-        if (entry.isIntersecting) {
-          const id = parseInt(entry.target.dataset.catId)
-          if (id) catActiva.value = id
-        }
-      }
-    },
-    { rootMargin: '-20% 0px -60% 0px', threshold: 0 }
-  )
-  setTimeout(() => {
-    categorias.value.forEach(cat => {
-      const el = document.getElementById(`cat-${cat.id}`)
-      if (el) {
-        el.dataset.catId = cat.id
-        observer.observe(el)
-      }
-    })
-  }, 200)
+  _scrollListener = actualizarCatActiva
+  window.addEventListener('scroll', _scrollListener, { passive: true })
+  setTimeout(actualizarCatActiva, 200)
 }
 
 onUnmounted(() => {
-  if (observer) observer.disconnect()
+  if (_scrollListener) window.removeEventListener('scroll', _scrollListener)
+  if (_visibilityFn)   document.removeEventListener('visibilitychange', _visibilityFn)
   clearInterval(_horarioTimer)
+  clearInterval(_menuPollTimer)
 })
 
 const irACategoria = (catId) => {
   catActiva.value = catId
+  _ignoreScroll = true
+  setTimeout(() => { _ignoreScroll = false }, 900)
   const el = document.getElementById(`cat-${catId}`)
   if (el) {
-    const offset = 120 // header + cat-nav height
-    const top = el.getBoundingClientRect().top + window.scrollY - offset
+    const top = el.getBoundingClientRect().top + window.scrollY - CAT_OFFSET
     window.scrollTo({ top, behavior: 'smooth' })
   }
 }
@@ -810,6 +842,11 @@ const abrirModal = (producto) => {
   z-index: 500;
   pointer-events: none;
   box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+}
+
+.carrito-toast--stock {
+  background: #c0392b;
+  bottom: 150px;
 }
 
 .toast-anim-enter-active { transition: opacity 0.2s ease, transform 0.2s ease; }

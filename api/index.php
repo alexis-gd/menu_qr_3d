@@ -6,6 +6,62 @@ require_once __DIR__ . '/helpers.php';
 // Respuesta por defecto en JSON
 header('Content-Type: application/json; charset=utf-8');
 
+// ── Helpers de imagen ──────────────────────────────────────────────────────────
+
+/**
+ * Convierte una imagen subida a WebP y la guarda en $dest_path.
+ * Redimensiona si supera $max_w px de ancho (mantiene proporción).
+ * Devuelve true en éxito, false si GD no está disponible o falla.
+ */
+function save_as_webp(string $src, string $dest_path, int $max_w = 1200, int $quality = 85): bool {
+    if (!function_exists('imagecreatetruecolor')) return false;
+    $mime = mime_content_type($src);
+    $img = match($mime) {
+        'image/jpeg' => @imagecreatefromjpeg($src),
+        'image/png'  => @imagecreatefrompng($src),
+        'image/webp' => @imagecreatefromwebp($src),
+        default      => false,
+    };
+    if (!$img) return false;
+    $w = imagesx($img); $h = imagesy($img);
+    if ($w > $max_w) {
+        $nh = (int)round($h * $max_w / $w);
+        $resized = imagecreatetruecolor($max_w, $nh);
+        imagecopyresampled($resized, $img, 0, 0, 0, 0, $max_w, $nh, $w, $h);
+        imagedestroy($img);
+        $img = $resized;
+    }
+    $ok = imagewebp($img, $dest_path, $quality);
+    imagedestroy($img);
+    return $ok;
+}
+
+/**
+ * Genera un thumbnail cuadrado (crop centrado) en WebP.
+ */
+function save_thumb_webp(string $src, string $dest_path, int $size = 300, int $quality = 82): bool {
+    if (!function_exists('imagecreatetruecolor')) return false;
+    $mime = mime_content_type($src);
+    $img = match($mime) {
+        'image/jpeg' => @imagecreatefromjpeg($src),
+        'image/png'  => @imagecreatefrompng($src),
+        'image/webp' => @imagecreatefromwebp($src),
+        default      => false,
+    };
+    if (!$img) return false;
+    $w = imagesx($img); $h = imagesy($img);
+    $side = min($w, $h);
+    $sx = (int)(($w - $side) / 2);
+    $sy = (int)(($h - $side) / 2);
+    $thumb = imagecreatetruecolor($size, $size);
+    imagecopyresampled($thumb, $img, 0, 0, $sx, $sy, $size, $size, $side, $side);
+    imagedestroy($img);
+    $ok = imagewebp($thumb, $dest_path, $quality);
+    imagedestroy($thumb);
+    return $ok;
+}
+// ──────────────────────────────────────────────────────────────────────────────
+
 $route = $_GET['route'] ?? '';
 
 switch ($route) {
@@ -36,6 +92,7 @@ switch ($route) {
                 r.pedidos_terminal_activo,
                 r.tienda_cerrada_manual,
                 r.tienda_horarios,
+                r.stock_minimo_aviso,
                 c.id AS cat_id,
                 c.nombre AS cat_nombre,
                 c.icono AS cat_icono,
@@ -107,6 +164,7 @@ switch ($route) {
             'tienda_abierta'           => isTiendaAbierta($rows[0]),
             'tienda_cerrada_manual'    => (bool) $rows[0]['tienda_cerrada_manual'],
             'tienda_horarios'          => $rows[0]['tienda_horarios'] ? json_decode($rows[0]['tienda_horarios'], true) : null,
+            'stock_minimo_aviso'       => (int) $rows[0]['stock_minimo_aviso'],
         ];
 
         $categoriasMap = [];
@@ -294,7 +352,7 @@ switch ($route) {
                 json_response(['error' => 'id requerido'], 400);
             }
             $body = json_decode(file_get_contents('php://input'), true) ?: [];
-            $allowed = ['nombre', 'descripcion', 'tema', 'color_primario', 'qr_frase', 'qr_frase_activa', 'qr_wifi_nombre', 'qr_wifi_clave', 'qr_wifi_activo', 'pedidos_activos', 'pedidos_envio_activo', 'pedidos_envio_costo', 'pedidos_envio_gratis_desde', 'pedidos_whatsapp', 'pedidos_trans_clabe', 'pedidos_trans_cuenta', 'pedidos_trans_titular', 'pedidos_trans_banco', 'pedidos_trans_activo', 'pedidos_terminal_activo', 'compartir_mensaje', 'tienda_cerrada_manual', 'tienda_horarios'];
+            $allowed = ['nombre', 'descripcion', 'tema', 'color_primario', 'qr_frase', 'qr_frase_activa', 'qr_wifi_nombre', 'qr_wifi_clave', 'qr_wifi_activo', 'pedidos_activos', 'pedidos_envio_activo', 'pedidos_envio_costo', 'pedidos_envio_gratis_desde', 'pedidos_whatsapp', 'pedidos_trans_clabe', 'pedidos_trans_cuenta', 'pedidos_trans_titular', 'pedidos_trans_banco', 'pedidos_trans_activo', 'pedidos_terminal_activo', 'compartir_mensaje', 'tienda_cerrada_manual', 'tienda_horarios', 'stock_minimo_aviso'];
             // Serializar tienda_horarios si viene como array
             if (isset($body['tienda_horarios']) && is_array($body['tienda_horarios'])) {
                 $body['tienda_horarios'] = json_encode($body['tienda_horarios'], JSON_UNESCAPED_UNICODE);
@@ -427,7 +485,8 @@ switch ($route) {
             $fields = [];
             $params = [':id'=>$id];
             foreach (['categoria_id','nombre','descripcion','precio','es_destacado','disponible','stock','orden'] as $f) {
-                if (isset($body[$f])) {
+                // array_key_exists (no isset) para aceptar null explícito (ej: stock = null = quitar control)
+                if (array_key_exists($f, $body)) {
                     $fields[] = "$f = :$f";
                     $params[":$f"] = $body[$f];
                 }
@@ -499,13 +558,27 @@ switch ($route) {
             if (!in_array($original_ext, $allowed_ext, true)) {
                 continue;
             }
-            $safe_name = sprintf('foto_%d_%d_%d.%s', intval($producto_id), $idx, time(), $original_ext);
+            $base_name  = sprintf('foto_%d_%d_%d', intval($producto_id), $idx, time());
+            $safe_name  = $base_name . '.webp';
+            $thumb_name = 'thumb_' . $safe_name;
 
             $dest = "$dir/$safe_name";
             if (move_uploaded_file($tmp, $dest)) {
-                $foto_rel = "fotos/$producto_id/$safe_name";  // relativo a /uploads/
-                $ruta_rel = "uploads/fotos/$producto_id/$safe_name"; // relativo a webroot
-                $url = BASE_URL . '/' . $ruta_rel;
+                // Convertir a WebP y generar thumbnail (si GD disponible; si no, se guarda el original)
+                if (save_as_webp($dest, $dest)) {
+                    // ya sobrescrito como WebP
+                } else {
+                    // GD no disponible: guardar con extensión original
+                    $safe_name  = $base_name . '.' . $original_ext;
+                    $thumb_name = 'thumb_' . $safe_name;
+                    rename($dest, "$dir/$safe_name");
+                    $dest = "$dir/$safe_name";
+                }
+                save_thumb_webp($dest, "$dir/$thumb_name");
+
+                $foto_rel = "fotos/$producto_id/$safe_name";
+                $ruta_rel = "uploads/fotos/$producto_id/$safe_name";
+                $url = UPLOADS_URL . "fotos/$producto_id/$safe_name";
                 $pdo->prepare('INSERT INTO fotos_producto (producto_id, ruta, url_publica, orden) VALUES (:pid,:ruta,:url,0)')
                     ->execute([':pid'=>$producto_id,':ruta'=>$ruta_rel,':url'=>$url]);
                 // Primera foto subida → siempre se convierte en foto_principal
@@ -554,10 +627,19 @@ switch ($route) {
             if (file_exists($rutaFisica)) @unlink($rutaFisica);
         }
 
-        $filename = sprintf('logo_%d_%d.%s', intval($restaurante_id), time(), $original_ext);
+        $base_logo = sprintf('logo_%d_%d', intval($restaurante_id), time());
+        $filename  = $base_logo . '.webp';
         $dest = $dir . $filename;
-        if (!move_uploaded_file($tmp, $dest)) {
+        $dest_orig = $dir . $base_logo . '.' . $original_ext;
+        if (!move_uploaded_file($tmp, $dest_orig)) {
             json_response(['error' => 'Error al guardar el archivo.'], 500);
+        }
+        if (!save_as_webp($dest_orig, $dest, 800)) {
+            // GD no disponible: usar original
+            $filename = $base_logo . '.' . $original_ext;
+            $dest = $dest_orig;
+        } else {
+            @unlink($dest_orig); // eliminar original si WebP fue generado
         }
         $logo_rel = 'logos/' . $filename;
         $pdo->prepare('UPDATE restaurantes SET logo_url = :logo WHERE id = :id')
@@ -675,8 +757,9 @@ switch ($route) {
             $stmt = $pdo->prepare(
                 'SELECT p.id, p.numero_pedido, p.nombre_cliente, p.telefono,
                         p.tipo_entrega, p.direccion, p.referencia, p.metodo_pago, p.denominacion,
-                        p.mesa, p.subtotal, p.costo_envio, p.total, p.status,
-                        p.created_at
+                        p.mesa, p.subtotal, p.costo_envio, p.total,
+                        p.descuento_recompensa, p.descuento_promo, p.codigo_promo,
+                        p.status, p.created_at
                  FROM pedidos p
                  WHERE p.restaurante_id = :rid
                  ORDER BY p.created_at DESC LIMIT 100'
@@ -742,9 +825,23 @@ switch ($route) {
             $costo_envio = (float) ($body['costo_envio'] ?? 0);
             $total      = (float) ($body['total'] ?? ($subtotal + $costo_envio));
 
+            // Validar código promo antes del INSERT (si viene uno)
+            $codigo_promo_input = strtoupper(trim($body['codigo_promo'] ?? ''));
+            $promo_valida = null;
+            if ($codigo_promo_input) {
+                $stmtPromoChk = $pdo->prepare(
+                    'SELECT id, tipo, valor FROM codigos_promo WHERE restaurante_id=:rid AND codigo=:c AND activo=1'
+                );
+                $stmtPromoChk->execute([':rid' => (int)$restaurante_id, ':c' => $codigo_promo_input]);
+                $promo_valida = $stmtPromoChk->fetch(PDO::FETCH_ASSOC) ?: null;
+            }
+
+            $desc_rec  = max(0, (float)($body['descuento_recompensa'] ?? 0));
+            $desc_promo = max(0, (float)($body['descuento_promo'] ?? 0));
+
             $stmt = $pdo->prepare(
-                'INSERT INTO pedidos (restaurante_id, numero_pedido, nombre_cliente, telefono, tipo_entrega, direccion, referencia, metodo_pago, denominacion, mesa, subtotal, costo_envio, total)
-                 VALUES (:rid, :np, :nc, :tel, :te, :dir, :ref, :mp, :den, :mesa, :sub, :env, :tot)'
+                'INSERT INTO pedidos (restaurante_id, numero_pedido, nombre_cliente, telefono, tipo_entrega, direccion, referencia, metodo_pago, denominacion, mesa, subtotal, costo_envio, total, descuento_recompensa, descuento_promo, codigo_promo)
+                 VALUES (:rid, :np, :nc, :tel, :te, :dir, :ref, :mp, :den, :mesa, :sub, :env, :tot, :drec, :dpro, :cp)'
             );
             $stmt->execute([
                 ':rid'  => (int)$restaurante_id,
@@ -760,8 +857,25 @@ switch ($route) {
                 ':sub'  => $subtotal,
                 ':env'  => $costo_envio,
                 ':tot'  => $total,
+                ':drec' => $desc_rec,
+                ':dpro' => $desc_promo,
+                ':cp'   => $promo_valida ? $codigo_promo_input : null,
             ]);
             $pedido_id = $pdo->lastInsertId();
+
+            // Validar stock de cada item antes de insertar
+            $stmtStock = $pdo->prepare('SELECT stock FROM productos WHERE id=:id AND activo=1');
+            foreach ($items as $item) {
+                $prod_id = $item['producto_id'] ?? null;
+                if (!$prod_id) continue;
+                $cant = max(1, (int)($item['cantidad'] ?? 1));
+                $stmtStock->execute([':id' => (int)$prod_id]);
+                $row = $stmtStock->fetch(PDO::FETCH_ASSOC);
+                if ($row && $row['stock'] !== null && (int)$row['stock'] < $cant) {
+                    $nombre_prod = $item['nombre'] ?? 'Producto';
+                    json_response(['error' => "Sin stock suficiente para: $nombre_prod"], 409);
+                }
+            }
 
             // Insertar items
             $stmtItem = $pdo->prepare(
@@ -772,12 +886,16 @@ switch ($route) {
                 'INSERT INTO pedido_item_opciones (pedido_item_id, grupo_nombre, opcion_nombre, precio_extra)
                  VALUES (:iid, :gn, :on, :pe)'
             );
+            $stmtDescStock = $pdo->prepare(
+                'UPDATE productos SET stock = GREATEST(0, stock - :cant) WHERE id=:id AND stock IS NOT NULL'
+            );
             foreach ($items as $item) {
                 $cant = max(1, (int)($item['cantidad'] ?? 1));
                 $precio = (float)($item['precio'] ?? 0);
+                $prod_id = $item['producto_id'] ?? null;
                 $stmtItem->execute([
                     ':pid'    => $pedido_id,
-                    ':prod_id'=> $item['producto_id'] ?? null,
+                    ':prod_id'=> $prod_id,
                     ':nombre' => $item['nombre'] ?? '',
                     ':precio' => $precio,
                     ':cant'   => $cant,
@@ -797,7 +915,50 @@ switch ($route) {
                         ]);
                     }
                 }
+                // Descontar stock si el producto tiene control de stock
+                if ($prod_id) {
+                    $stmtDescStock->execute([':cant' => $cant, ':id' => (int)$prod_id]);
+                }
             }
+
+            // ── Recompensas y Referidos ──────────────────────────────────────
+            $tel_pedido = preg_replace('/\D/', '', $body['telefono'] ?? '');
+            if (strlen($tel_pedido) >= 8) {
+                $stmtRC = $pdo->prepare('SELECT * FROM recompensas_config WHERE restaurante_id = :rid AND activo = 1');
+                $stmtRC->execute([':rid' => (int)$restaurante_id]);
+                $cfg_rec = $stmtRC->fetch(PDO::FETCH_ASSOC);
+
+                if ($cfg_rec) {
+                    // Upsert cliente (incrementar compras)
+                    $pdo->prepare(
+                        'INSERT INTO clientes (restaurante_id, telefono, total_compras, ultima_compra)
+                         VALUES (:rid, :tel, 1, NOW())
+                         ON DUPLICATE KEY UPDATE total_compras = total_compras + 1, ultima_compra = NOW()'
+                    )->execute([':rid' => (int)$restaurante_id, ':tel' => $tel_pedido]);
+
+                    $stmtCli = $pdo->prepare('SELECT * FROM clientes WHERE restaurante_id = :rid AND telefono = :tel');
+                    $stmtCli->execute([':rid' => (int)$restaurante_id, ':tel' => $tel_pedido]);
+                    $cli = $stmtCli->fetch(PDO::FETCH_ASSOC);
+
+                    // Marcar recompensa usada si el cliente la aplicó en este pedido
+                    if (!empty($body['aplicar_recompensa']) && $cli) {
+                        $necesarias   = (int)$cfg_rec['compras_necesarias'];
+                        $ciclos       = $necesarias > 0 ? (int)floor((int)$cli['total_compras'] / $necesarias) : 0;
+                        if ($ciclos > (int)$cli['recompensas_ganadas']) {
+                            $pdo->prepare('UPDATE clientes SET recompensas_ganadas = recompensas_ganadas + 1 WHERE id = :id')
+                                ->execute([':id' => $cli['id']]);
+                        }
+                    }
+
+                }
+            }
+
+            // ── Código promocional: incrementar usos ─────────────────────────
+            if ($promo_valida) {
+                $pdo->prepare('UPDATE codigos_promo SET usos = usos + 1 WHERE id = :id')
+                    ->execute([':id' => (int)$promo_valida['id']]);
+            }
+            // ────────────────────────────────────────────────────────────────
 
             json_response(['id' => (int)$pedido_id, 'numero_pedido' => $numero_pedido], 201);
         }
@@ -950,6 +1111,146 @@ switch ($route) {
             }
         }
 
+        json_response(['error' => 'Método no soportado'], 405);
+        break;
+
+    // ── GET historial de cliente por teléfono (público) ──────────────────────
+    case 'cliente-historial':
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            $tel = preg_replace('/\D/', '', trim($_GET['telefono'] ?? ''));
+            $rid = intval($_GET['restaurante_id'] ?? 0);
+            if (strlen($tel) < 8 || !$rid) json_response(['activo' => false]);
+
+            $stmtCfg = $pdo->prepare('SELECT * FROM recompensas_config WHERE restaurante_id = :rid');
+            $stmtCfg->execute([':rid' => $rid]);
+            $cfg = $stmtCfg->fetch(PDO::FETCH_ASSOC);
+            if (!$cfg || !$cfg['activo']) json_response(['activo' => false]);
+
+            $stmtCli = $pdo->prepare('SELECT * FROM clientes WHERE restaurante_id = :rid AND telefono = :tel');
+            $stmtCli->execute([':rid' => $rid, ':tel' => $tel]);
+            $cli = $stmtCli->fetch(PDO::FETCH_ASSOC);
+
+            $stmtRef = $pdo->prepare('SELECT codigo_ref FROM referidos WHERE restaurante_id = :rid AND telefono = :tel');
+            $stmtRef->execute([':rid' => $rid, ':tel' => $tel]);
+            $ref = $stmtRef->fetch(PDO::FETCH_ASSOC);
+
+            $compras   = $cli ? (int)$cli['total_compras'] : 0;
+            $necesarias = (int)$cfg['compras_necesarias'];
+            $compras_en_ciclo = $necesarias > 0 ? $compras % $necesarias : 0;
+            $ciclos_completados = $necesarias > 0 ? (int)floor($compras / $necesarias) : 0;
+            $tiene_recompensa = $ciclos_completados > (int)($cli['recompensas_ganadas'] ?? 0);
+
+            json_response([
+                'activo'           => true,
+                'compras'          => $compras,
+                'necesarias'       => $necesarias,
+                'compras_en_ciclo' => $tiene_recompensa ? $necesarias : $compras_en_ciclo,
+                'tiene_recompensa' => $tiene_recompensa,
+                'tipo'             => $cfg['tipo'],
+                'valor'            => (float)$cfg['valor'],
+                'codigo_ref'       => $ref ? $ref['codigo_ref'] : null,
+            ]);
+        }
+        json_response(['error' => 'Método no soportado'], 405);
+        break;
+
+    // ── GET/PUT configuración de recompensas (auth) ───────────────────────
+    case 'recompensas-config':
+        require_auth();
+        $rid = intval($_GET['restaurante_id'] ?? 0);
+        if (!$rid) json_response(['error' => 'restaurante_id requerido'], 400);
+
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            $stmt = $pdo->prepare('SELECT * FROM recompensas_config WHERE restaurante_id = :rid');
+            $stmt->execute([':rid' => $rid]);
+            $cfg = $stmt->fetch(PDO::FETCH_ASSOC);
+            json_response($cfg ?: ['restaurante_id' => $rid, 'activo' => 0, 'compras_necesarias' => 10, 'tipo' => 'descuento_fijo', 'valor' => 0]);
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
+            $body = json_decode(file_get_contents('php://input'), true) ?: [];
+            $activo     = !empty($body['activo']) ? 1 : 0;
+            $necesarias = max(2, (int)($body['compras_necesarias'] ?? 10));
+            $tipo       = in_array($body['tipo'] ?? '', ['descuento_porcentaje','descuento_fijo']) ? $body['tipo'] : 'descuento_fijo';
+            $valor      = max(0, (float)($body['valor'] ?? 0));
+            $pdo->prepare(
+                'INSERT INTO recompensas_config (restaurante_id, activo, compras_necesarias, tipo, valor)
+                 VALUES (:rid, :a, :n, :t, :v)
+                 ON DUPLICATE KEY UPDATE activo=:a, compras_necesarias=:n, tipo=:t, valor=:v'
+            )->execute([':rid' => $rid, ':a' => $activo, ':n' => $necesarias, ':t' => $tipo, ':v' => $valor]);
+            json_response(['success' => true]);
+        }
+
+        json_response(['error' => 'Método no soportado'], 405);
+        break;
+
+    // ── codigos-promo: CRUD de códigos para promotores (auth) ────────────────
+    case 'codigos-promo':
+        require_auth();
+        $rid = intval($_GET['restaurante_id'] ?? 0);
+
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            if (!$rid) json_response(['error' => 'restaurante_id requerido'], 400);
+            $stmt = $pdo->prepare('SELECT * FROM codigos_promo WHERE restaurante_id = :rid ORDER BY created_at DESC');
+            $stmt->execute([':rid' => $rid]);
+            json_response(['codigos' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $body   = json_decode(file_get_contents('php://input'), true) ?: [];
+            $rid2   = intval($body['restaurante_id'] ?? 0);
+            $codigo = strtoupper(trim($body['codigo'] ?? ''));
+            if (!$rid2 || !$codigo) json_response(['error' => 'restaurante_id y codigo son requeridos'], 400);
+            $tipo  = in_array($body['tipo'] ?? '', ['descuento_porcentaje','descuento_fijo']) ? $body['tipo'] : 'descuento_fijo';
+            $valor = max(0, (float)($body['valor'] ?? 0));
+            $desc  = trim($body['descripcion'] ?? '') ?: null;
+            try {
+                $pdo->prepare(
+                    'INSERT INTO codigos_promo (restaurante_id, codigo, descripcion, tipo, valor) VALUES (:rid, :c, :d, :t, :v)'
+                )->execute([':rid' => $rid2, ':c' => $codigo, ':d' => $desc, ':t' => $tipo, ':v' => $valor]);
+                json_response(['id' => (int)$pdo->lastInsertId()], 201);
+            } catch (\PDOException $e) {
+                if ($e->getCode() === '23000') json_response(['error' => 'Ese código ya existe para este restaurante'], 409);
+                throw $e;
+            }
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
+            $id   = intval($_GET['id'] ?? 0);
+            $body = json_decode(file_get_contents('php://input'), true) ?: [];
+            if (!$id) json_response(['error' => 'id requerido'], 400);
+            $fields = []; $params = [':id' => $id];
+            foreach (['activo','tipo','valor','descripcion'] as $f) {
+                if (array_key_exists($f, $body)) { $fields[] = "$f=:$f"; $params[":$f"] = $body[$f]; }
+            }
+            if ($fields) $pdo->prepare('UPDATE codigos_promo SET '.implode(',', $fields).' WHERE id=:id')->execute($params);
+            json_response(['success' => true]);
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+            $id = intval($_GET['id'] ?? 0);
+            if (!$id) json_response(['error' => 'id requerido'], 400);
+            $pdo->prepare('UPDATE codigos_promo SET activo=0 WHERE id=:id')->execute([':id' => $id]);
+            json_response(['success' => true]);
+        }
+
+        json_response(['error' => 'Método no soportado'], 405);
+        break;
+
+    // ── validar-codigo-promo: validación pública desde el checkout ───────────
+    case 'validar-codigo-promo':
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            $codigo = strtoupper(trim($_GET['codigo'] ?? ''));
+            $rid    = intval($_GET['restaurante_id'] ?? 0);
+            if (!$codigo || !$rid) json_response(['valido' => false]);
+            $stmt = $pdo->prepare('SELECT tipo, valor, descripcion FROM codigos_promo WHERE restaurante_id=:rid AND codigo=:c AND activo=1');
+            $stmt->execute([':rid' => $rid, ':c' => $codigo]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                json_response(['valido' => true, 'tipo' => $row['tipo'], 'valor' => (float)$row['valor'], 'descripcion' => $row['descripcion']]);
+            }
+            json_response(['valido' => false]);
+        }
         json_response(['error' => 'Método no soportado'], 405);
         break;
 

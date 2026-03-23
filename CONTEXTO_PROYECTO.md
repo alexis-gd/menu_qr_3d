@@ -16,6 +16,11 @@
 - [x] **Fase 7** — Personalización por pasos (estilo Rappi/Uber Eats): BD ✅, API ✅, Vue ✅ completo
 - [x] **Fase 8** — Migración completa emojis → Material Design Icons (MDI): UI chrome + picker categorías
 - [x] **Fase 9** — Envío gratis por monto mínimo, aviso sugerido inteligente (1 vez por carrito), visor 3D en PersonalizacionModal, CarritoFlotante siempre visible, Terminal a domicilio, separador entre platillos en WA, cache-busting .htaccess
+- [x] **Fase 10** — Estado de productos (No disponible / Próximamente / Normal), estado de tienda (cerrada manual + horarios semanales), watermark de logo en fotos de productos, pantalla `TiendaCerradaView`
+- [x] **Fase 11** — Sistema de recompensas por sellos: `recompensas_config`, `clientes`, cuponera en checkout, ciclos completados, descuento aplicable
+- [x] **Fase 12** — Stock mínimo aviso configurable por restaurante (`stock_minimo_aviso`), badge "Últimas N" desactivable
+- [x] **Fase 13** — Códigos de promotor: restaurante crea códigos con descuento fijo/%, cliente ingresa en checkout, validación en tiempo real, CRUD en TabNegocio
+- [x] **Fase 14** — Descuentos guardados en pedidos (`descuento_recompensa`, `descuento_promo`, `codigo_promo`), visibles en TabPedidos
 
 ### Funcionalidades Implementadas
 - [x] API endpoints: `menu`, `login`, `restaurantes`, `categorias`, `productos`, `mesas`, `upload-fotos`, `upload-glb`, `upload-logo`, `job-status`
@@ -47,6 +52,18 @@
 - [x] **Fase 9 — Terminal a domicilio** — Nueva columna `pedidos_terminal_activo TINYINT DEFAULT 0` en `restaurantes`. ENUM `metodo_pago` amplíado a `('efectivo','transferencia','terminal')`. Toggle en TabNegocio ("Terminal a domicilio"). CheckoutModal: opción 💳 "Terminal a domicilio" solo visible cuando `tipoEntrega === 'envio' && pedidosConfig.pedidos_terminal_activo`. Layout de métodos de pago cambiado de grid 2 col a filas horizontales (`.opciones-filas`). Seleccionar "recoger" resetea a "efectivo" si tenías "terminal". WA muestra "Terminal a domicilio". Migración: `database/migrations/fase9b_terminal_domicilio.sql`.
 - [x] **Fase 9 — Separador entre platillos en WA** — `──────────` entre items del pedido en el mensaje de WhatsApp (no después del último). `flatMap((i, idx, arr)` con `const sep = idx < arr.length - 1 ? ['──────────'] : []`.
 - [x] **Fase 9 — Cache-busting .htaccess** — `index.html` con `Cache-Control: no-cache`. Assets con hash (`*.js`, `*.css`) con `max-age=31536000, immutable`. Resuelve problema de prod sirviendo JS/CSS viejos.
+- [x] **Fase 10 — Estados de productos** — `ProductoCard.vue` y `ProductoModal.vue` muestran overlay "No disponible" (stock=0, escala de grises) y badge "Próximamente" (disponible=0, color del tema). Botón "+" oculto cuando bloqueado. API `GET menu` ya no filtra `AND p.disponible=1`. Watermark: logo del restaurante (opacity 15%) centrado en fotos de ProductoCard cuando `logo_url` existe.
+- [x] **Fase 10 — Estado de tienda** — `TiendaCerradaView.vue` (pantalla de cierre con SVG, horarios formateados). `MenuPublico.vue` usa `tienda_abierta` de la API. Toggle manual + horarios JSON semanales en `TabNegocio.vue`. PHP calcula `tienda_abierta` en cada `GET menu`.
+- [x] **Fase 11 — Sistema de recompensas (sellos)** — `recompensas_config` y `clientes` en BD. Checkout: detecta automáticamente por teléfono (10 dígitos), muestra cuponera con sellos visuales (★), aplica descuento al completar ciclo. `TabNegocio.vue`: configura número de compras, descripción y tipo de descuento. Advertencia ⚠️ visible: cambiar reglas afecta todos los clientes inmediatamente.
+- [x] **Fase 12 — Stock mínimo aviso configurable** — `restaurantes.stock_minimo_aviso SMALLINT DEFAULT 5`. Campo en TabNegocio. `ProductoCard` y `ProductoModal` usan prop `:stock-minimo-aviso`. Badge desactivable con umbral=0.
+- [x] **Fase 13 — Códigos de promotor** — `codigos_promo` en BD. Restaurante crea códigos (fijo/%) en TabNegocio. Cliente los ingresa en checkout (debounce 600ms, validación en tiempo real con tick verde o cruz roja). API pública `validar-codigo-promo`. Contador de usos acumulado.
+- [x] **Fase 14 — Descuentos en pedidos** — `descuento_recompensa`, `descuento_promo`, `codigo_promo` guardados en pedido. TabPedidos muestra chips "🎁 Recompensa: -$X" y "🏷️ CODIGO: -$Y".
+- [x] **Fix "Quitar control de stock"** — PUT productos: PHP usa `array_key_exists($f, $body)` en lugar de `isset()` para aceptar valores NULL. Vue siempre incluye `payload.stock = f.stock` (incluso null). Antes ponía 0 en lugar de NULL.
+- [x] **Fix cat-nav scroll activo** — Reemplazado IntersectionObserver por scroll listener directo con `CAT_OFFSET=130`. Flag `_ignoreScroll` evita conflicto con scroll programático al hacer click en pill.
+- [x] **WebP + thumbnails** — PHP GD: `save_as_webp()` convierte fotos a WebP al subir. `save_thumb_webp()` genera miniatura 300px prefijada con `thumb_`. `ProductoCard` usa `thumbSrc` computed con fallback a original si 404.
+- [x] **Validación stock en carrito y checkout** — `carrito.js`: `cantidadEnCarrito(id)` suma unidades en carrito; `agregar()` retorna `'ok'` o `'stock_agotado'`. Toast rojo en `MenuPublico` cuando se rechaza. Checkout: botón "+" deshabilitado al llegar al límite del stock.
+- [x] **Polling silencioso + visibilitychange** — `MenuPublico` recarga datos cada 90s y al volver al tab. `TabPlatillos` recarga lista cada 120s y al volver al tab. Evita stock desactualizado.
+- [x] **Teléfono siempre requerido en checkout** — Campo teléfono visible siempre (no solo en envío a domicilio).
 - [x] **Fix sw-track en Teleport** — El modal de edición de TabPlatillos usa `<Teleport to="body">` — `var(--accent)` no llegaba al overlay. Fix: prop `accent` en TabPlatillos, `--accent` aplicado como CSS var en el overlay teleportado. Dashboard pasa `:accent="temaAccent"`.
 - [x] **Fix grupo-tipo selector** — Reemplazado `<select>` con emojis en `<option>` (HTML no permite SVG) por grupo de botones personalizados con SvgIcon (`.grupo-tipo-btns` / `.tipo-btn`). Fix alineación: `min-width: 0` en `.grupo-nombre-input`.
 
@@ -162,6 +179,11 @@ Logo del restaurante superpuesto en fotos de productos con `opacity: 0.15`. Acti
 - ⚠️ **Status `visto` faltante en QA**: `ALTER TABLE pedidos MODIFY COLUMN status ENUM('nuevo','visto','en_preparacion','listo','entregado','cancelado') NOT NULL DEFAULT 'nuevo';`
 - ⚠️ **Fase 8 — íconos categorías en QA**: en QA la columna ya se llama `icono` (no `emoji`). Ejecutar solo los `UPDATE` del `database/migrations/fase8_iconos_mdi.sql` (el `ALTER TABLE` está comentado).
 - ⚠️ **Fase 9 — Envío gratis y Terminal en QA**: ejecutar `database/migrations/fase9_envio_gratis.sql` y `database/migrations/fase9b_terminal_domicilio.sql`.
+- ⚠️ **Fase 10 — Estado tienda en QA**: ejecutar `database/migrations/fase10_estado_tienda.sql` (agrega `tienda_cerrada_manual`, `tienda_horarios`).
+- ⚠️ **Fase 11 — Recompensas en QA**: ejecutar `database/migrations/fase11_recompensas_referidos.sql` (crea `recompensas_config`, `clientes`).
+- ⚠️ **Fase 12 — Stock mínimo en QA**: ejecutar `database/migrations/fase12_stock_minimo_aviso.sql` (agrega `stock_minimo_aviso` en `restaurantes`).
+- ⚠️ **Fase 13 — Códigos promo en QA**: ejecutar `database/migrations/fase13_codigos_promo.sql` (crea `codigos_promo`, agrega `codigo_promo` en `pedidos`).
+- ⚠️ **Fase 14 — Descuentos en pedidos en QA**: ejecutar `database/migrations/fase14_pedidos_descuentos.sql` (agrega `descuento_recompensa`, `descuento_promo` en `pedidos`).
 
 ### Testing Local
 - ✅ Base de datos: MySQL tablas creadas

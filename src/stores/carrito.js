@@ -12,7 +12,22 @@ export const useCarritoStore = defineStore('carrito', () => {
    * @param {string} observacion
    * @param {Array}  opciones  — [{ grupo_id, grupo_nombre, opcion_id, opcion_nombre, precio_extra }]
    */
+  // Suma todas las unidades de un producto en el carrito (sin importar opciones/observación)
+  const cantidadEnCarrito = (productoId) =>
+    items.value
+      .filter(i => i.producto.id === productoId)
+      .reduce((sum, i) => sum + i.cantidad, 0)
+
+  /**
+   * Agrega un producto al carrito respetando el stock.
+   * @returns {'ok' | 'stock_agotado'} — 'stock_agotado' si no se pudo agregar por límite de stock
+   */
   const agregar = (producto, observacion = '', opciones = []) => {
+    const stock = producto.stock
+    if (stock !== null && stock !== undefined) {
+      if (cantidadEnCarrito(producto.id) >= stock) return 'stock_agotado'
+    }
+
     const extraTotal = opciones.reduce((sum, o) => sum + (Number(o.precio_extra) || 0), 0)
     const precio_unitario = Number(producto.precio) + extraTotal
 
@@ -25,11 +40,12 @@ export const useCarritoStore = defineStore('carrito', () => {
       )
       if (existente) {
         existente.cantidad++
-        return
+        return 'ok'
       }
     }
 
     items.value.push({ producto, cantidad: 1, observacion, opciones, precio_unitario })
+    return 'ok'
   }
 
   const vaciar = () => {
@@ -50,7 +66,7 @@ export const useCarritoStore = defineStore('carrito', () => {
 
   const avisoYaMostrado = (catId) => _avisosMostrados.has(catId)
 
-  return { items, agregar, vaciar, total, tieneCategoriaEnCarrito, marcarAvisoMostrado, avisoYaMostrado }
+  return { items, agregar, vaciar, total, cantidadEnCarrito, tieneCategoriaEnCarrito, marcarAvisoMostrado, avisoYaMostrado }
 }, {
   persist: { paths: ['items'] },
 })

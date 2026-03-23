@@ -103,6 +103,11 @@
             <input v-model="formRest.pedidos_whatsapp" placeholder="Ej: 521XXXXXXXXXX (con código de país)" />
             <span class="field-hint">Los clientes enviarán su pedido a este número.</span>
           </div>
+          <div class="field" style="max-width:220px; margin-bottom:16px">
+            <label>Badge "Últimas piezas" — umbral</label>
+            <input v-model.number="formRest.stock_minimo_aviso" type="number" min="0" max="99" step="1" placeholder="5" />
+            <span class="field-hint">Se muestra cuando el stock es ≤ este número. Pon 0 para desactivar el badge.</span>
+          </div>
           <div class="negocio-toggle-row">
             <strong>Ofrecer envío a domicilio</strong>
             <label class="sw">
@@ -151,6 +156,116 @@
       </div>
     </div>
 
+    <!-- Programa de recompensas -->
+    <div v-if="formRest.pedidos_activos" class="card">
+      <div class="card-header"><h2>Programa de recompensas</h2></div>
+      <div class="card-body">
+        <div class="negocio-toggle-row">
+          <div>
+            <strong>Activar recompensas por compras</strong>
+            <p class="helper-text" style="margin:4px 0 0">Los clientes acumulan compras por número de teléfono y ganan un beneficio al completar el ciclo.</p>
+          </div>
+          <label class="sw">
+            <input type="checkbox" v-model="formRecompensas.activo" />
+            <span class="sw-track" :style="formRecompensas.activo ? { background: temaAccent } : {}"></span>
+          </label>
+        </div>
+        <template v-if="formRecompensas.activo">
+          <hr class="negocio-divider" />
+          <div class="form-grid">
+            <div class="field">
+              <label>Compras para ganar</label>
+              <input v-model.number="formRecompensas.compras_necesarias" type="number" min="2" max="50" step="1" placeholder="10" />
+              <span class="field-hint">Número de pedidos para acumular la recompensa.</span>
+            </div>
+            <div class="field">
+              <label>Tipo de recompensa</label>
+              <div class="rec-tipo-btns">
+                <button type="button"
+                  :class="['rec-tipo-btn', { active: formRecompensas.tipo === 'descuento_fijo' }]"
+                  @click="formRecompensas.tipo = 'descuento_fijo'">$ Descuento fijo</button>
+                <button type="button"
+                  :class="['rec-tipo-btn', { active: formRecompensas.tipo === 'descuento_porcentaje' }]"
+                  @click="formRecompensas.tipo = 'descuento_porcentaje'">% Porcentaje</button>
+              </div>
+            </div>
+            <div class="field" style="max-width:200px">
+              <label>{{ formRecompensas.tipo === 'descuento_porcentaje' ? 'Descuento (%)' : 'Descuento ($)' }}</label>
+              <input v-model.number="formRecompensas.valor" type="number" min="0" :max="formRecompensas.tipo === 'descuento_porcentaje' ? 100 : 99999" step="0.5" placeholder="0" />
+            </div>
+          </div>
+          <p class="helper-text" style="margin-top:8px">
+            Ej: cada <strong>{{ formRecompensas.compras_necesarias }}</strong> pedidos el cliente recibe
+            <strong>{{ formRecompensas.tipo === 'descuento_porcentaje' ? formRecompensas.valor + '%' : '$' + formRecompensas.valor }}</strong> de descuento en su siguiente pedido.
+          </p>
+          <p class="aviso-reglas">⚠️ Cambiar estas reglas afecta a todos los clientes de inmediato, incluyendo los que están a punto de completar el ciclo.</p>
+        </template>
+      </div>
+    </div>
+
+    <!-- Códigos de promotor -->
+    <div v-if="formRest.pedidos_activos" class="card">
+      <div class="card-header"><h2>Códigos de promotor</h2></div>
+      <div class="card-body">
+        <p class="helper-text" style="margin-bottom:14px">Crea códigos y dáselos a promotores. El cliente lo escribe al hacer su pedido y obtiene el descuento configurado.</p>
+
+        <!-- Lista -->
+        <div v-if="codigosPromo.length" class="codigos-lista">
+          <div v-for="c in codigosPromo" :key="c.id" class="codigo-row">
+            <div class="codigo-info">
+              <strong class="codigo-tag">{{ c.codigo }}</strong>
+              <span v-if="c.descripcion" class="codigo-desc">{{ c.descripcion }}</span>
+            </div>
+            <div class="codigo-meta">
+              <span class="codigo-descuento">{{ c.tipo === 'descuento_fijo' ? '-$' + Number(c.valor).toFixed(2) : '-' + c.valor + '%' }}</span>
+              <span class="codigo-usos">{{ c.usos }} uso{{ c.usos != 1 ? 's' : '' }}</span>
+            </div>
+            <div class="codigo-actions">
+              <label class="sw">
+                <input type="checkbox" :checked="Number(c.activo) === 1" @change="toggleCodigoPromo(c)" />
+                <span class="sw-track" :style="Number(c.activo) === 1 ? { background: temaAccent } : {}"></span>
+              </label>
+              <button type="button" class="btn-del-codigo" @click="eliminarCodigoPromo(c)" title="Eliminar código">✕</button>
+            </div>
+          </div>
+        </div>
+        <p v-else class="helper-text" style="text-align:center; padding:8px 0; margin-bottom:0">Sin códigos creados aún</p>
+
+        <hr class="negocio-divider" />
+
+        <!-- Crear nuevo -->
+        <strong style="display:block; margin-bottom:10px">Nuevo código</strong>
+        <div class="form-grid">
+          <div class="field">
+            <label>Código *</label>
+            <input v-model="formCodigo.codigo" placeholder="Ej: JUAN10" maxlength="20"
+              @input="formCodigo.codigo = formCodigo.codigo.toUpperCase()" />
+          </div>
+          <div class="field">
+            <label>Descripción (opcional)</label>
+            <input v-model="formCodigo.descripcion" placeholder="Ej: Promotor Juan García" maxlength="100" />
+          </div>
+          <div class="field">
+            <label>Tipo de descuento</label>
+            <div class="rec-tipo-btns">
+              <button type="button" :class="['rec-tipo-btn', { active: formCodigo.tipo === 'descuento_fijo' }]"
+                @click="formCodigo.tipo = 'descuento_fijo'">$ Fijo</button>
+              <button type="button" :class="['rec-tipo-btn', { active: formCodigo.tipo === 'descuento_porcentaje' }]"
+                @click="formCodigo.tipo = 'descuento_porcentaje'">% Porcentaje</button>
+            </div>
+          </div>
+          <div class="field" style="max-width:160px">
+            <label>{{ formCodigo.tipo === 'descuento_porcentaje' ? 'Descuento (%)' : 'Descuento ($)' }}</label>
+            <input v-model.number="formCodigo.valor" type="number" min="0"
+              :max="formCodigo.tipo === 'descuento_porcentaje' ? 100 : 99999" step="0.5" placeholder="0" />
+          </div>
+        </div>
+        <button type="button" class="btn-primary" style="margin-top:4px" @click="crearCodigoPromo" :disabled="guardandoCodigo">
+          {{ guardandoCodigo ? 'Guardando...' : '+ Agregar código' }}
+        </button>
+      </div>
+    </div>
+
     <!-- Datos de transferencia -->
     <div v-if="formRest.pedidos_activos" class="card">
       <div class="card-header"><h2>Datos para transferencia</h2></div>
@@ -193,7 +308,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { mdiWhatsapp, mdiContentCopy, mdiCheck, mdiOpenInNew, mdiContentSave } from '@mdi/js'
 import { useApi } from '../../../composables/useApi.js'
 import { THEMES as temas } from '../../../utils/themes.js'
@@ -221,9 +336,66 @@ const props = defineProps({
 
 const emit = defineEmits(['notif', 'restaurante-updated'])
 
-const { put } = useApi()
+const { get, post, put, del } = useApi()
 
 const guardando     = ref(false)
+
+const formRecompensas = ref({ activo: false, compras_necesarias: 10, tipo: 'descuento_fijo', valor: 0 })
+
+// ── Códigos de promotor ──
+const codigosPromo    = ref([])
+const guardandoCodigo = ref(false)
+const formCodigo      = ref({ codigo: '', descripcion: '', tipo: 'descuento_fijo', valor: 0 })
+
+onMounted(async () => {
+  if (!props.restauranteId) return
+  try {
+    const data = await get('recompensas-config', { restaurante_id: props.restauranteId })
+    formRecompensas.value = {
+      activo:              !!Number(data.activo),
+      compras_necesarias:  parseInt(data.compras_necesarias) || 10,
+      tipo:                data.tipo || 'descuento_fijo',
+      valor:               parseFloat(data.valor) || 0,
+    }
+  } catch { /* no config aún, usa defaults */ }
+  try {
+    const data = await get('codigos-promo', { restaurante_id: props.restauranteId })
+    codigosPromo.value = data.codigos || []
+  } catch { /* sin códigos aún */ }
+})
+
+const crearCodigoPromo = async () => {
+  const codigo = formCodigo.value.codigo.trim().toUpperCase()
+  if (!codigo) { emit('notif', { texto: 'El código es requerido', tipo: 'error' }); return }
+  if (!formCodigo.value.valor || formCodigo.value.valor <= 0) {
+    emit('notif', { texto: 'El valor del descuento debe ser mayor a 0', tipo: 'error' }); return
+  }
+  guardandoCodigo.value = true
+  try {
+    await post('codigos-promo', { ...formCodigo.value, codigo, restaurante_id: props.restauranteId })
+    const data = await get('codigos-promo', { restaurante_id: props.restauranteId })
+    codigosPromo.value = data.codigos || []
+    formCodigo.value = { codigo: '', descripcion: '', tipo: 'descuento_fijo', valor: 0 }
+    emit('notif', { texto: 'Código creado', tipo: 'ok' })
+  } catch (err) { emit('notif', { texto: err.message || 'Error al crear código', tipo: 'error' }) }
+  finally { guardandoCodigo.value = false }
+}
+
+const toggleCodigoPromo = async (c) => {
+  const nuevoActivo = Number(c.activo) === 1 ? 0 : 1
+  try {
+    await put('codigos-promo', { activo: nuevoActivo }, { id: c.id })
+    c.activo = nuevoActivo
+  } catch (err) { emit('notif', { texto: err.message, tipo: 'error' }) }
+}
+
+const eliminarCodigoPromo = async (c) => {
+  try {
+    await del('codigos-promo', { id: c.id })
+    codigosPromo.value = codigosPromo.value.filter(x => x.id !== c.id)
+    emit('notif', { texto: 'Código eliminado', tipo: 'ok' })
+  } catch (err) { emit('notif', { texto: err.message, tipo: 'error' }) }
+}
 const copiado       = ref(false)
 const horariosLocal = ref(DEFAULT_HORARIOS())
 
@@ -235,6 +407,7 @@ const formRest = ref({
   pedidos_trans_clabe: '', pedidos_trans_cuenta: '',
   pedidos_trans_titular: '', pedidos_trans_banco: '',
   tienda_cerrada_manual: false,
+  stock_minimo_aviso: 5,
 })
 
 watch(() => props.restaurante, (rest) => {
@@ -253,6 +426,7 @@ watch(() => props.restaurante, (rest) => {
     pedidos_trans_titular: rest.pedidos_trans_titular || '',
     pedidos_trans_banco:   rest.pedidos_trans_banco   || '',
     tienda_cerrada_manual: Boolean(rest.tienda_cerrada_manual ?? false),
+    stock_minimo_aviso:    parseInt(rest.stock_minimo_aviso ?? 5) || 5,
   }
   horariosLocal.value = rest.tienda_horarios
     ? { ...DEFAULT_HORARIOS(), ...rest.tienda_horarios }
@@ -316,6 +490,8 @@ async function guardarRestaurante() {
       qr_wifi_activo:   rest.qr_wifi_activo   ?? false,
     }
     await put('restaurantes', payload, { id: props.restauranteId })
+    // Guardar config de recompensas en paralelo
+    await put('recompensas-config', formRecompensas.value, { restaurante_id: props.restauranteId })
     emit('restaurante-updated', { ...formRest.value, tienda_horarios: horariosLocal.value })
     emit('notif', { texto: 'Cambios guardados', tipo: 'ok' })
   } catch (err) { emit('notif', { texto: err.message, tipo: 'error' }) }
@@ -357,14 +533,27 @@ defineExpose({ guardar: guardarRestaurante, guardando })
 }
 .btn-ver-menu:hover { background: #f5f5f5; border-color: #bbb; }
 
+/* ── Recompensas ── */
+.rec-tipo-btns { display: flex; gap: 8px; }
+.rec-tipo-btn {
+  flex: 1; padding: 9px 12px; border: 1.5px solid #ddd; border-radius: 8px;
+  background: #fff; font-size: 0.85rem; font-weight: 600; color: #555; cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.rec-tipo-btn.active {
+  border-color: v-bind(temaAccent);
+  background: color-mix(in srgb, v-bind(temaAccent) 10%, #fff);
+  color: v-bind(temaAccent);
+}
+
 /* ── Horarios ── */
 .horarios-tabla { display: flex; flex-direction: column; gap: 6px; }
 
 .horario-opcion-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 11px 14px;
+  gap: 8px;
+  padding: 10px 12px;
   background: #fff;
   border: 1.5px solid #e8e8e8;
   border-radius: 10px;
@@ -405,6 +594,7 @@ defineExpose({ guardar: guardarRestaurante, guardando })
 
 .horario-dia-nombre {
   flex: 1;
+  min-width: 0;
   font-size: 0.9rem;
   font-weight: 500;
   color: #333;
@@ -414,12 +604,14 @@ defineExpose({ guardar: guardarRestaurante, guardando })
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 .horario-horas-disabled { opacity: 0.38; pointer-events: none; }
 .horario-sep { color: #aaa; font-size: 0.85rem; }
 
 .input-time {
-  padding: 6px 8px;
+  padding: 6px 4px;
   border: 1.5px solid #ddd;
   border-radius: 8px;
   font-size: 0.85rem;
@@ -427,8 +619,38 @@ defineExpose({ guardar: guardarRestaurante, guardando })
   outline: none;
   background: #fafafa;
   color: #333;
-  width: 90px;
+  width: 84px;
+  box-sizing: border-box;
+  font-size: 0.83rem;
 }
 .input-time:focus { border-color: #aaa; }
 .input-time:disabled { background: #f5f5f5; color: #bbb; }
+
+/* ── Advertencia reglas recompensas ── */
+.aviso-reglas {
+  font-size: 0.78rem; color: #856404;
+  background: #fff8e1; border: 1px solid #ffe082;
+  border-radius: 7px; padding: 7px 12px; margin-top: 8px;
+}
+
+/* ── Códigos de promotor ── */
+.codigos-lista { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
+.codigo-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border: 1.5px solid #eee; border-radius: 10px; background: #fafafa;
+}
+.codigo-info { flex: 1; min-width: 0; }
+.codigo-tag { font-size: 0.95rem; font-family: monospace; letter-spacing: 0.04em; color: #222; }
+.codigo-desc { display: block; font-size: 0.75rem; color: #999; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.codigo-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+.codigo-descuento { font-size: 0.85rem; font-weight: 700; color: #27ae60; }
+.codigo-usos { font-size: 0.72rem; color: #aaa; }
+.codigo-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.btn-del-codigo {
+  width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid #eee;
+  background: #fff; color: #bbb; font-size: 0.75rem; cursor: pointer; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color 0.15s, color 0.15s;
+}
+.btn-del-codigo:hover { border-color: #e74c3c; color: #e74c3c; }
 </style>

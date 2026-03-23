@@ -52,9 +52,14 @@
             <span class="precio-label">Precio</span>
             <span class="precio-valor">${{ Number(producto.precio).toFixed(2) }}</span>
           </div>
-          <div v-if="producto.es_destacado" class="dest-badge">
-          <SvgIcon :path="mdiStar" :size="14" /> Destacado
-        </div>
+          <div class="modal-precio-right">
+            <div v-if="producto.es_destacado" class="dest-badge">
+              <SvgIcon :path="mdiStar" :size="14" /> Destacado
+            </div>
+            <div v-if="stockBajo" class="stock-badge">
+              Últimas {{ producto.stock }}
+            </div>
+          </div>
         </div>
 
         <div v-if="producto.tiene_ar" class="ar-info">
@@ -99,7 +104,8 @@ import { ucfirst } from '../../utils/ucfirst.js'
 
 const props = defineProps({
   producto: { type: Object, required: true },
-  pedidosActivos: { type: Boolean, default: false }
+  pedidosActivos: { type: Boolean, default: false },
+  stockMinimoAviso: { type: Number, default: 5 }
 })
 
 const emit = defineEmits(['close', 'agregar'])
@@ -111,6 +117,11 @@ const noDisponible = computed(() =>
   props.producto.stock !== undefined &&
   props.producto.stock === 0
 )
+const stockBajo = computed(() => {
+  const s = props.producto.stock
+  const min = props.stockMinimoAviso
+  return min > 0 && s !== null && s !== undefined && s > 0 && s <= min
+})
 const esProximamente = computed(() => props.producto.disponible === false || props.producto.disponible === 0)
 const bloqueado = computed(() => noDisponible.value || esProximamente.value)
 
@@ -327,12 +338,28 @@ const emitirAgregar = () => {
   letter-spacing: -0.5px;
 }
 
+.modal-precio-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
 .dest-badge {
   background: rgba(255, 193, 7, 0.18);
   color: #856304;
   padding: 6px 12px;
   border-radius: 10px;
   font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.stock-badge {
+  background: rgba(230, 126, 34, 0.14);
+  color: #a04000;
+  padding: 5px 12px;
+  border-radius: 10px;
+  font-size: 0.78rem;
   font-weight: 700;
 }
 

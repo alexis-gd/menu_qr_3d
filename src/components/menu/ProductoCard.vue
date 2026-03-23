@@ -4,10 +4,13 @@
     <div class="card-imagen" :class="{ 'img-grayscale': noDisponible }">
       <img
         v-if="producto.foto_principal"
-        :src="producto.foto_principal"
+        :src="thumbSrc"
         :alt="producto.nombre"
         class="card-img"
         loading="lazy"
+        width="110"
+        height="110"
+        @error="$event.target.src = producto.foto_principal"
       />
       <div v-else class="img-placeholder">
         <SvgIcon :path="mdiSilverwareForkKnife" :size="36" />
@@ -28,6 +31,11 @@
       <!-- Badge "Próximamente" -->
       <div v-else-if="esProximamente" class="badge-proximamente">
         Próximamente
+      </div>
+
+      <!-- Badge "Últimas piezas" -->
+      <div v-else-if="stockBajo" class="badge-stock-bajo">
+        Últimas {{ producto.stock }}
       </div>
 
       <!-- Badges 3D/AR y Destacado -->
@@ -79,18 +87,29 @@ import SvgIcon from '../SvgIcon.vue'
 const props = defineProps({
   producto: { type: Object, required: true },
   pedidosActivos: { type: Boolean, default: false },
-  logoUrl: { type: String, default: null }
+  logoUrl: { type: String, default: null },
+  stockMinimoAviso: { type: Number, default: 5 }
 })
 
 defineEmits(['click', 'agregar'])
 
-const noDisponible = computed(() =>
-  props.producto.stock !== null &&
-  props.producto.stock !== undefined &&
-  props.producto.stock === 0
-)
+// Deriva la URL del thumbnail a partir de foto_principal:
+// "https://...fotos/1/foto_1_0_123.webp" → "https://...fotos/1/thumb_foto_1_0_123.webp"
+const thumbSrc = computed(() => {
+  const url = props.producto.foto_principal
+  if (!url) return null
+  const idx = url.lastIndexOf('/')
+  return url.slice(0, idx + 1) + 'thumb_' + url.slice(idx + 1)
+})
+
+const noDisponible  = computed(() => props.producto.stock !== null && props.producto.stock !== undefined && props.producto.stock === 0)
 const esProximamente = computed(() => props.producto.disponible === false || props.producto.disponible === 0)
-const bloqueado = computed(() => noDisponible.value || esProximamente.value)
+const stockBajo     = computed(() => {
+  const s = props.producto.stock
+  const min = props.stockMinimoAviso
+  return min > 0 && s !== null && s !== undefined && s > 0 && s <= min
+})
+const bloqueado     = computed(() => noDisponible.value || esProximamente.value)
 
 const truncar = (texto, len) =>
   texto && texto.length > len ? texto.substring(0, len) + '…' : texto
@@ -198,6 +217,21 @@ const truncar = (texto, len) =>
   right: 0;
   text-align: center;
   background: var(--accent, #FF6B35);
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 700;
+  padding: 5px 0;
+  letter-spacing: 0.04em;
+}
+
+/* ── Badge Últimas piezas ── */
+.badge-stock-bajo {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  text-align: center;
+  background: rgba(230, 126, 34, 0.88);
   color: #fff;
   font-size: 0.66rem;
   font-weight: 700;
