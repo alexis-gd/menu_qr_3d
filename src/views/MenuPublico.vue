@@ -107,6 +107,7 @@
       :producto="productoSeleccionado"
       :pedidos-activos="pedidosActivos"
       :stock-minimo-aviso="stockMinimoAviso"
+      :logo-url="logoUrl"
       @close="productoSeleccionado = null"
       @agregar="({ producto, observacion }) => { agregarAlCarrito(producto, observacion); productoSeleccionado = null }"
     />
@@ -115,6 +116,7 @@
     <PersonalizacionModal
       v-if="productoPersonalizacion"
       :producto="productoPersonalizacion"
+      :logo-url="logoUrl"
       @close="productoPersonalizacion = null"
       @agregar="onAgregarConOpciones"
       @ir-categoria="onIrCategoria"

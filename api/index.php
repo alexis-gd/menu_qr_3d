@@ -93,6 +93,7 @@ switch ($route) {
                 r.tienda_cerrada_manual,
                 r.tienda_horarios,
                 r.stock_minimo_aviso,
+                r.codigos_promo_habilitado,
                 c.id AS cat_id,
                 c.nombre AS cat_nombre,
                 c.icono AS cat_icono,
@@ -164,7 +165,8 @@ switch ($route) {
             'tienda_abierta'           => isTiendaAbierta($rows[0]),
             'tienda_cerrada_manual'    => (bool) $rows[0]['tienda_cerrada_manual'],
             'tienda_horarios'          => $rows[0]['tienda_horarios'] ? json_decode($rows[0]['tienda_horarios'], true) : null,
-            'stock_minimo_aviso'       => (int) $rows[0]['stock_minimo_aviso'],
+            'stock_minimo_aviso'         => (int) $rows[0]['stock_minimo_aviso'],
+            'codigos_promo_habilitado'   => (bool) $rows[0]['codigos_promo_habilitado'],
         ];
 
         $categoriasMap = [];
@@ -309,7 +311,7 @@ switch ($route) {
         // GET: lista restaurantes (auth requerida)
         if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             require_auth();
-            $stmt = $pdo->prepare('SELECT id, slug, nombre, descripcion, logo_url, color_primario, tema, qr_frase, qr_frase_activa, qr_wifi_nombre, qr_wifi_clave, qr_wifi_activo, pedidos_activos, pedidos_envio_activo, pedidos_envio_costo, pedidos_envio_gratis_desde, pedidos_whatsapp, pedidos_trans_clabe, pedidos_trans_cuenta, pedidos_trans_titular, pedidos_trans_banco, pedidos_trans_activo, pedidos_terminal_activo, compartir_mensaje, tienda_cerrada_manual, tienda_horarios, stock_minimo_aviso FROM restaurantes WHERE activo = 1 ORDER BY nombre');
+            $stmt = $pdo->prepare('SELECT id, slug, nombre, descripcion, logo_url, color_primario, tema, qr_frase, qr_frase_activa, qr_wifi_nombre, qr_wifi_clave, qr_wifi_activo, pedidos_activos, pedidos_envio_activo, pedidos_envio_costo, pedidos_envio_gratis_desde, pedidos_whatsapp, pedidos_trans_clabe, pedidos_trans_cuenta, pedidos_trans_titular, pedidos_trans_banco, pedidos_trans_activo, pedidos_terminal_activo, compartir_mensaje, tienda_cerrada_manual, tienda_horarios, stock_minimo_aviso, codigos_promo_habilitado FROM restaurantes WHERE activo = 1 ORDER BY nombre');
             $stmt->execute();
             $rows = $stmt->fetchAll();
             foreach ($rows as &$r) {
@@ -352,7 +354,7 @@ switch ($route) {
                 json_response(['error' => 'id requerido'], 400);
             }
             $body = json_decode(file_get_contents('php://input'), true) ?: [];
-            $allowed = ['nombre', 'descripcion', 'tema', 'color_primario', 'qr_frase', 'qr_frase_activa', 'qr_wifi_nombre', 'qr_wifi_clave', 'qr_wifi_activo', 'pedidos_activos', 'pedidos_envio_activo', 'pedidos_envio_costo', 'pedidos_envio_gratis_desde', 'pedidos_whatsapp', 'pedidos_trans_clabe', 'pedidos_trans_cuenta', 'pedidos_trans_titular', 'pedidos_trans_banco', 'pedidos_trans_activo', 'pedidos_terminal_activo', 'compartir_mensaje', 'tienda_cerrada_manual', 'tienda_horarios', 'stock_minimo_aviso'];
+            $allowed = ['nombre', 'descripcion', 'tema', 'color_primario', 'qr_frase', 'qr_frase_activa', 'qr_wifi_nombre', 'qr_wifi_clave', 'qr_wifi_activo', 'pedidos_activos', 'pedidos_envio_activo', 'pedidos_envio_costo', 'pedidos_envio_gratis_desde', 'pedidos_whatsapp', 'pedidos_trans_clabe', 'pedidos_trans_cuenta', 'pedidos_trans_titular', 'pedidos_trans_banco', 'pedidos_trans_activo', 'pedidos_terminal_activo', 'compartir_mensaje', 'tienda_cerrada_manual', 'tienda_horarios', 'stock_minimo_aviso', 'codigos_promo_habilitado'];
             // Serializar tienda_horarios si viene como array
             if (isset($body['tienda_horarios']) && is_array($body['tienda_horarios'])) {
                 $body['tienda_horarios'] = json_encode($body['tienda_horarios'], JSON_UNESCAPED_UNICODE);
@@ -574,7 +576,7 @@ switch ($route) {
                     rename($dest, "$dir/$safe_name");
                     $dest = "$dir/$safe_name";
                 }
-                save_thumb_webp($dest, "$dir/$thumb_name");
+                save_thumb_webp($dest, "$dir/$thumb_name", 220);
 
                 $foto_rel = "fotos/$producto_id/$safe_name";
                 $ruta_rel = "uploads/fotos/$producto_id/$safe_name";

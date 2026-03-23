@@ -20,11 +20,21 @@
           v-else-if="producto.foto_principal"
           :src="producto.foto_principal"
           :alt="producto.nombre"
-          class="modal-foto"
+          class="modal-foto modal-foto-clickable"
+          decoding="async"
+          @click="lightbox = true"
         />
         <div v-else class="modal-placeholder">
           <SvgIcon :path="mdiSilverwareForkKnife" :size="80" />
         </div>
+
+        <!-- Watermark circular -->
+        <img
+          v-if="logoUrl && producto.foto_principal"
+          :src="logoUrl"
+          class="watermark-logo"
+          alt=""
+        />
 
         <!-- Indicador de 3D -->
         <div v-if="producto.tiene_ar" class="hint-3d">
@@ -37,6 +47,15 @@
           Toca el botón para verlo en tu espacio real ↓
         </div>
       </div>
+
+      <!-- Lightbox -->
+      <LightboxImagen
+        v-if="lightbox && producto.foto_principal"
+        :src="producto.foto_principal"
+        :alt="producto.nombre"
+        :logo-url="logoUrl"
+        @close="lightbox = false"
+      />
 
       <!-- Información del platillo -->
       <div class="modal-info">
@@ -99,18 +118,21 @@
 import { ref, computed } from 'vue'
 import { mdiSilverwareForkKnife, mdiRefresh, mdiStar } from '@mdi/js'
 import ModelViewer3D from './ModelViewer3D.vue'
+import LightboxImagen from './LightboxImagen.vue'
 import SvgIcon from '../SvgIcon.vue'
 import { ucfirst } from '../../utils/ucfirst.js'
 
 const props = defineProps({
   producto: { type: Object, required: true },
   pedidosActivos: { type: Boolean, default: false },
-  stockMinimoAviso: { type: Number, default: 5 }
+  stockMinimoAviso: { type: Number, default: 5 },
+  logoUrl: { type: String, default: null },
 })
 
 const emit = defineEmits(['close', 'agregar'])
 
 const observacion = ref('')
+const lightbox = ref(false)
 
 const noDisponible = computed(() =>
   props.producto.stock !== null &&
@@ -220,6 +242,22 @@ const emitirAgregar = () => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.modal-foto-clickable {
+  cursor: zoom-in;
+}
+
+.watermark-logo {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  opacity: 0.45;
+  pointer-events: none;
 }
 
 .modal-placeholder {

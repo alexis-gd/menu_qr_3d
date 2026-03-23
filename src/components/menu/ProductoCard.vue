@@ -4,24 +4,27 @@
     <div class="card-imagen" :class="{ 'img-grayscale': noDisponible }">
       <img
         v-if="producto.foto_principal"
-        :src="thumbSrc"
+        :src="thumbSrc || producto.foto_principal"
+        :srcset="thumbSrc ? `${thumbSrc} 1x, ${producto.foto_principal} 2x` : undefined"
         :alt="producto.nombre"
         class="card-img"
         loading="lazy"
+        decoding="async"
         width="110"
         height="110"
-        @error="$event.target.src = producto.foto_principal"
+        @error="onImgError"
       />
       <div v-else class="img-placeholder">
         <SvgIcon :path="mdiSilverwareForkKnife" :size="36" />
       </div>
 
-      <!-- Watermark del logo -->
-      <div
+      <!-- Watermark circular del logo -->
+      <img
         v-if="logoUrl && producto.foto_principal"
-        class="watermark"
-        :style="{ '--wm-url': `url(${logoUrl})` }"
-      ></div>
+        :src="logoUrl"
+        class="watermark-logo"
+        alt=""
+      />
 
       <!-- Overlay "No disponible" -->
       <div v-if="noDisponible" class="overlay-no-disponible">
@@ -102,6 +105,11 @@ const thumbSrc = computed(() => {
   return url.slice(0, idx + 1) + 'thumb_' + url.slice(idx + 1)
 })
 
+const onImgError = (e) => {
+  e.target.removeAttribute('srcset')
+  e.target.src = props.producto.foto_principal
+}
+
 const noDisponible  = computed(() => props.producto.stock !== null && props.producto.stock !== undefined && props.producto.stock === 0)
 const esProximamente = computed(() => props.producto.disponible === false || props.producto.disponible === 0)
 const stockBajo     = computed(() => {
@@ -126,6 +134,8 @@ const truncar = (texto, len) =>
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   padding: 0;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 100px;
 }
 
 .producto-card:hover {
@@ -177,15 +187,16 @@ const truncar = (texto, len) =>
   opacity: 0.35;
 }
 
-/* ── Watermark ── */
-.watermark {
+/* ── Watermark circular ── */
+.watermark-logo {
   position: absolute;
-  inset: 0;
-  background-image: var(--wm-url);
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 40%;
-  opacity: 0.15;
+  top: 7px;
+  left: 7px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+  opacity: 0.45;
   pointer-events: none;
 }
 

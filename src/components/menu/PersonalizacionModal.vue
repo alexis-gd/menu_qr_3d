@@ -25,8 +25,18 @@
             v-else
             :src="producto.foto_principal"
             :alt="producto.nombre"
-            class="modal-foto"
+            class="modal-foto modal-foto-clickable"
+            decoding="async"
+            @click="lightbox = true"
           />
+          <!-- Watermark circular -->
+          <img
+            v-if="logoUrl && producto.foto_principal"
+            :src="logoUrl"
+            class="watermark-logo"
+            alt=""
+          />
+
           <div v-if="producto.tiene_ar" class="hint-3d">
             <SvgIcon :path="mdiRefresh" :size="14" />
             <span>Arrastra para rotar</span>
@@ -35,6 +45,15 @@
             Toca el botón para verlo en tu espacio real ↓
           </div>
         </div>
+
+        <!-- Lightbox -->
+        <LightboxImagen
+          v-if="lightbox && producto.foto_principal"
+          :src="producto.foto_principal"
+          :alt="producto.nombre"
+          :logo-url="logoUrl"
+          @close="lightbox = false"
+        />
 
         <!-- Precio dinámico -->
         <div class="precio-dinamico">
@@ -204,10 +223,12 @@ import { ref, reactive, computed } from 'vue'
 import { mdiRefresh } from '@mdi/js'
 import { ucfirst } from '../../utils/ucfirst.js'
 import ModelViewer3D from './ModelViewer3D.vue'
+import LightboxImagen from './LightboxImagen.vue'
 import SvgIcon from '../SvgIcon.vue'
 
 const props = defineProps({
-  producto: { type: Object, required: true }
+  producto: { type: Object, required: true },
+  logoUrl: { type: String, default: null },
 })
 
 const emit = defineEmits(['close', 'agregar', 'ir-categoria'])
@@ -215,6 +236,7 @@ const emit = defineEmits(['close', 'agregar', 'ir-categoria'])
 // ── Estado ──
 const seleccionRadio   = reactive({})
 const seleccionCheck   = reactive({})
+const lightbox         = ref(false)
 const observacion      = ref('')
 const intentoEnvio     = ref(false)
 const grupoRefs        = {}
@@ -465,6 +487,19 @@ const emitirAgregar = () => {
 /* ── Visual (3D o foto) ── */
 .modal-visual { position: relative; width: 100%; height: 280px; overflow: hidden; background: var(--accent-light, #f5f5f5); }
 .modal-foto   { width: 100%; height: 100%; object-fit: cover; }
+.modal-foto-clickable { cursor: zoom-in; }
+.watermark-logo {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  opacity: 0.45;
+  pointer-events: none;
+  z-index: 1;
+}
 .hint-3d {
   position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
   background: rgba(0,0,0,0.45); color: #fff;

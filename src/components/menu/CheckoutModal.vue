@@ -107,7 +107,7 @@
               <input :value="nombre" @input="nombre = ucfirst($event.target.value)" placeholder="¿Cómo te llamamos?" maxlength="60" />
             </div>
             <!-- Código de descuento / promotor -->
-            <div class="campo">
+            <div v-if="pedidosConfig.codigos_promo_habilitado" class="campo">
               <label>Código de descuento (opcional)</label>
               <div class="promo-wrap">
                 <input
@@ -254,7 +254,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useApi } from '../../composables/useApi.js'
 import { ucfirst } from '../../utils/ucfirst.js'
 import { useCarritoStore } from '../../stores/carrito.js'

@@ -205,7 +205,13 @@
 
     <!-- Códigos de promotor -->
     <div v-if="formRest.pedidos_activos" class="card">
-      <div class="card-header"><h2>Códigos de promotor</h2></div>
+      <div class="card-header">
+        <h2>Códigos de promotor</h2>
+        <label class="sw">
+          <input type="checkbox" v-model="formRest.codigos_promo_habilitado" />
+          <span class="sw-track" :style="formRest.codigos_promo_habilitado ? { background: temaAccent } : {}"></span>
+        </label>
+      </div>
       <div class="card-body">
         <p class="helper-text" style="margin-bottom:14px">Crea códigos y dáselos a promotores. El cliente lo escribe al hacer su pedido y obtiene el descuento configurado.</p>
 
@@ -408,6 +414,7 @@ const formRest = ref({
   pedidos_trans_titular: '', pedidos_trans_banco: '',
   tienda_cerrada_manual: false,
   stock_minimo_aviso: 5,
+  codigos_promo_habilitado: true,
 })
 
 watch(() => props.restaurante, (rest) => {
@@ -427,8 +434,9 @@ watch(() => props.restaurante, (rest) => {
     pedidos_trans_cuenta:  rest.pedidos_trans_cuenta  || '',
     pedidos_trans_titular: rest.pedidos_trans_titular || '',
     pedidos_trans_banco:   rest.pedidos_trans_banco   || '',
-    tienda_cerrada_manual: b(rest.tienda_cerrada_manual),
-    stock_minimo_aviso:    rest.stock_minimo_aviso !== undefined && rest.stock_minimo_aviso !== null ? parseInt(rest.stock_minimo_aviso) : 5,
+    tienda_cerrada_manual:     b(rest.tienda_cerrada_manual),
+    stock_minimo_aviso:        rest.stock_minimo_aviso !== undefined && rest.stock_minimo_aviso !== null ? parseInt(rest.stock_minimo_aviso) : 5,
+    codigos_promo_habilitado:  b(rest.codigos_promo_habilitado, true),
   }
   horariosLocal.value = rest.tienda_horarios
     ? { ...DEFAULT_HORARIOS(), ...rest.tienda_horarios }
