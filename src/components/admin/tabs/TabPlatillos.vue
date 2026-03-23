@@ -92,21 +92,36 @@
               <label class="badge-disp" :title="prod.disponible ? 'Disponible — click para desactivar' : 'No disponible — click para activar'">
                 <input type="checkbox" :checked="prod.disponible" @change="toggleDisponible(prod)" hidden />
                 <span :class="['disp-pill', prod.disponible ? 'disp-on' : 'disp-off']">
-                  {{ prod.disponible ? 'Activo' : 'Inactivo' }}
+                  {{ prod.disponible ? 'Activo' : 'Próximamente' }}
                 </span>
               </label>
             </div>
             <div class="prod-actions">
-              <button @click="iniciarEdicion(prod)" class="btn-icon btn-edit" title="Editar platillo"><SvgIcon :path="mdiPencil" :size="15" /></button>
-              <label class="btn-icon btn-foto" title="Subir foto">
-                <SvgIcon :path="mdiImagePlus" :size="15" />
-                <input type="file" multiple accept="image/*" @change="subirFotos(prod.id, $event)" hidden />
-              </label>
-              <label v-if="!prod.tiene_ar" class="btn-icon btn-3d" title="Subir modelo 3D (.glb)">
-                <SvgIcon :path="mdiCubeOutline" :size="15" />
-                <input type="file" accept=".glb" @change="subirGlb(prod.id, $event)" hidden />
-              </label>
-              <button @click="eliminarProducto(prod.id)" class="btn-icon btn-del" title="Eliminar"><SvgIcon :path="mdiTrashCanOutline" :size="15" /></button>
+              <div class="action-menu-wrap" @click.stop>
+                <button
+                  class="btn-icon btn-dots"
+                  @click="menuAbierto = menuAbierto === prod.id ? null : prod.id"
+                  title="Acciones"
+                >
+                  <SvgIcon :path="mdiDotsVertical" :size="18" />
+                </button>
+                <div v-if="menuAbierto === prod.id" class="action-dropdown">
+                  <button class="action-item" @click="iniciarEdicion(prod); menuAbierto = null">
+                    <SvgIcon :path="mdiPencil" :size="15" /> Editar
+                  </button>
+                  <label class="action-item">
+                    <SvgIcon :path="mdiImagePlus" :size="15" /> Subir foto
+                    <input type="file" multiple accept="image/*" @change="subirFotos(prod.id, $event); menuAbierto = null" hidden />
+                  </label>
+                  <label v-if="!prod.tiene_ar" class="action-item">
+                    <SvgIcon :path="mdiCubeOutline" :size="15" /> Subir 3D
+                    <input type="file" accept=".glb" @change="subirGlb(prod.id, $event); menuAbierto = null" hidden />
+                  </label>
+                  <button class="action-item action-item-del" @click="eliminarProducto(prod.id); menuAbierto = null">
+                    <SvgIcon :path="mdiTrashCanOutline" :size="15" /> Eliminar
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -370,11 +385,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import {
   mdiSilverwareForkKnife, mdiCamera, mdiEye, mdiPencil, mdiImagePlus,
   mdiCubeOutline, mdiTrashCanOutline, mdiClose, mdiCheck,
   mdiRadioboxMarked, mdiCheckboxMarked, mdiPin, mdiLink, mdiMessageText,
+  mdiDotsVertical,
 } from '@mdi/js'
 import { useApi } from '../../../composables/useApi.js'
 import { useUpload } from '../../../composables/useUpload.js'
@@ -404,6 +420,7 @@ const preview          = ref(null)
 const gruposCargando   = ref(false)
 const categoriaFiltro  = ref(null)
 const guiaAbierta      = ref(false)
+const menuAbierto      = ref(null)
 
 const formProd = ref({ categoria_id: '', nombre: '', precio: '', descripcion: '' })
 
@@ -702,7 +719,9 @@ const abrirPreview = (prod) => {
   preview.value = { url: prod.foto_principal, nombre: prod.nombre }
 }
 
-onMounted(loadProductos)
+const cerrarMenu = () => { menuAbierto.value = null }
+onMounted(() => { loadProductos(); document.addEventListener('click', cerrarMenu) })
+onUnmounted(() => { document.removeEventListener('click', cerrarMenu) })
 </script>
 
 <style scoped>
@@ -741,10 +760,19 @@ onMounted(loadProductos)
 .badge        { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; }
 .badge-3d     { background: #e8f5e9; color: #2e7d32; }
 .badge-no3d   { background: #f5f5f5; color: #bbb; }
-.badge-disp   { cursor: pointer; }
-.disp-pill    { display: inline-block; padding: 3px 9px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; transition: background 0.15s; }
+.badge-disp { cursor: pointer; }
+.disp-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 20px;
+  font-size: 0.72rem; font-weight: 700;
+  border: 1.5px solid currentColor;
+  transition: opacity 0.15s, transform 0.1s;
+  user-select: none;
+}
+.badge-disp:hover .disp-pill { opacity: 0.78; transform: scale(0.97); }
+.disp-pill::after { content: '⇅'; font-size: 0.65rem; opacity: 0.6; }
 .disp-on  { background: #e8f5e9; color: #2e7d32; }
-.disp-off { background: #fdecea; color: #c62828; }
+.disp-off { background: #fff8e1; color: #e65100; }
 
 .prod-actions { display: flex; gap: 5px; flex-shrink: 0; }
 
@@ -975,8 +1003,36 @@ onMounted(loadProductos)
 .preview-nombre { padding: 12px 16px; font-weight: 700; font-size: 0.95rem; color: #333; margin: 0; text-align: center; }
 
 /* ─── Responsive ─── */
+/* ── Dropdown de acciones ── */
+.action-menu-wrap {
+  position: relative;
+}
+.btn-dots {
+  width: 32px; height: 32px; border-radius: 8px;
+  border: 1px solid #e8e8e8; background: #fff;
+  display: flex; align-items: center; justify-content: center;
+  color: #888; cursor: pointer; transition: all 0.15s;
+}
+.btn-dots:hover { background: #f5f5f5; color: #333; border-color: #ccc; }
+.action-dropdown {
+  position: absolute; right: 0; top: calc(100% + 6px);
+  background: #fff; border: 1px solid #e8e8e8;
+  border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  min-width: 148px; z-index: 200; overflow: hidden;
+}
+.action-item {
+  width: 100%; display: flex; align-items: center; gap: 9px;
+  padding: 10px 14px; background: none; border: none;
+  font-size: 0.85rem; font-weight: 500; color: #333;
+  cursor: pointer; text-align: left; transition: background 0.12s;
+  font-family: inherit;
+}
+.action-item:hover { background: #f5f5f5; }
+.action-item-del { color: #e74c3c; }
+.action-item-del:hover { background: #fef2f2; }
+
 @media (max-width: 600px) {
-  .prod-badges { display: none; }
+  .badge-3d, .badge-no3d { display: none; }
 
   /* Modal como bottom sheet en mobile */
   .edit-modal-overlay {

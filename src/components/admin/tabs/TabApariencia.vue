@@ -170,12 +170,6 @@
       </div>
     </div>
 
-    <!-- Guardar -->
-    <div style="padding: 0 0 24px;">
-      <button @click="guardarRestaurante" class="btn-primary" :disabled="guardando">
-        {{ guardando ? 'Guardando...' : 'Guardar cambios' }}
-      </button>
-    </div>
 
     <UploadToast :model-value="uploadToast" />
   </div>
@@ -321,6 +315,7 @@ async function guardarRestaurante() {
   } catch (err) { emit('notif', { texto: err.message, tipo: 'error' }) }
   finally { guardando.value = false }
 }
+defineExpose({ guardar: guardarRestaurante, guardando })
 </script>
 
 <style scoped>

@@ -69,6 +69,9 @@ CREATE TABLE IF NOT EXISTS restaurantes (
   pedidos_trans_titular  VARCHAR(100),
   pedidos_trans_banco    VARCHAR(100),
   compartir_mensaje      TEXT,                             -- texto personalizable del botón "Compartir"
+  tienda_cerrada_manual  TINYINT(1)    NOT NULL DEFAULT 0,  -- 1 = menú cerrado manualmente (override horarios)
+  tienda_horarios        JSON          NULL DEFAULT NULL,    -- horario semanal: {"lunes":{"activo":true,"apertura":"08:00","cierre":"22:00"}, ...}
+    -- NULL = sin horarios configurados = tienda siempre abierta (salvo cierre manual)
   activo          TINYINT(1)    NOT NULL DEFAULT 1,
   created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -144,11 +147,17 @@ CREATE TABLE IF NOT EXISTS productos (
   modelo_glb_path       VARCHAR(500),                    -- ruta relativa /uploads/modelos/modelo_{id}_{ts}.glb
   tiene_ar              TINYINT(1)    NOT NULL DEFAULT 0, -- 1 = modelo 3D listo y disponible
   es_destacado          TINYINT(1)    NOT NULL DEFAULT 0, -- para mostrar en sección especial
-  disponible            TINYINT(1)    NOT NULL DEFAULT 1, -- disponibilidad del platillo hoy
+  disponible            TINYINT(1)    NOT NULL DEFAULT 1,
+    -- 1 = producto activo y a la venta (normal)
+    -- 0 = "Próximamente" — visible en el menú público pero sin botón de compra
+    --     (diferente de activo=0 que es borrado lógico y oculta el producto)
   tiene_personalizacion TINYINT(1)    NOT NULL DEFAULT 0, -- 1 = usa PersonalizacionModal (Fase 7)
   aviso_complemento     TEXT          DEFAULT NULL,        -- texto del aviso de complemento (ej: "¿Bebida?")
   aviso_categoria_id    INT UNSIGNED  DEFAULT NULL,        -- categoría a la que lleva el botón "Ver"
-  stock                 SMALLINT      DEFAULT NULL,        -- NULL = sin control de stock
+  stock                 SMALLINT      DEFAULT NULL,
+    -- NULL = sin control de stock (siempre disponible)
+    -- 0    = stock agotado → menú público muestra overlay "No disponible"
+    -- > 0  = unidades disponibles
   activo                TINYINT(1)    NOT NULL DEFAULT 1, -- borrado lógico
   orden                 SMALLINT      NOT NULL DEFAULT 0,
   created_at            TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,

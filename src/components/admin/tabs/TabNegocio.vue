@@ -27,6 +27,61 @@
       </div>
     </div>
 
+    <!-- Estado de la tienda -->
+    <div class="card">
+      <div class="card-header"><h2>Estado de la tienda</h2></div>
+      <div class="card-body">
+        <!-- Toggle cierre manual -->
+        <div class="negocio-toggle-row">
+          <div>
+            <strong>Cerrar tienda ahora</strong>
+            <p class="helper-text" style="margin:4px 0 0">Actívalo para cerrar el menú de inmediato. Los clientes verán una pantalla de "Cerrado" aunque sea horario de atención.</p>
+          </div>
+          <label class="sw">
+            <input type="checkbox" v-model="formRest.tienda_cerrada_manual" />
+            <span class="sw-track" :style="formRest.tienda_cerrada_manual ? { background: temaAccent } : {}"></span>
+          </label>
+        </div>
+
+        <hr class="negocio-divider" />
+
+        <!-- Horarios semanales -->
+        <div>
+          <strong style="display:block; margin-bottom:10px">Horario de atención</strong>
+          <p class="helper-text" style="margin-bottom:14px">Si no configuras horarios, el menú estará siempre abierto (salvo cierre manual).</p>
+          <div class="horarios-tabla">
+            <div
+              v-for="dia in DIAS_LISTA"
+              :key="dia.key"
+              class="horario-opcion-row"
+              :class="{ 'horario-selected': horariosLocal[dia.key].activo }"
+              @click="horariosLocal[dia.key].activo = !horariosLocal[dia.key].activo"
+            >
+              <div class="horario-indicator" :class="{ 'horario-indicator-on': horariosLocal[dia.key].activo }">
+                <div v-if="horariosLocal[dia.key].activo" class="horario-indicator-inner"></div>
+              </div>
+              <span class="horario-dia-nombre">{{ dia.nombre }}</span>
+              <div class="horario-horas" :class="{ 'horario-horas-disabled': !horariosLocal[dia.key].activo }" @click.stop>
+                <input
+                  type="time"
+                  v-model="horariosLocal[dia.key].apertura"
+                  :disabled="!horariosLocal[dia.key].activo"
+                  class="input-time"
+                />
+                <span class="horario-sep">–</span>
+                <input
+                  type="time"
+                  v-model="horariosLocal[dia.key].cierre"
+                  :disabled="!horariosLocal[dia.key].activo"
+                  class="input-time"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Sistema de pedidos -->
     <div class="card">
       <div class="card-header"><h2>Sistema de pedidos</h2></div>
@@ -134,12 +189,6 @@
       </div>
     </div>
 
-    <div style="padding: 0 0 24px;">
-      <button @click="guardarRestaurante" class="btn-primary" :disabled="guardando">
-        <SvgIcon v-if="!guardando" :path="mdiContentSave" :size="17" />
-        {{ guardando ? 'Guardando...' : 'Guardar cambios' }}
-      </button>
-    </div>
   </div>
 </template>
 
@@ -149,6 +198,20 @@ import { mdiWhatsapp, mdiContentCopy, mdiCheck, mdiOpenInNew, mdiContentSave } f
 import { useApi } from '../../../composables/useApi.js'
 import { THEMES as temas } from '../../../utils/themes.js'
 import SvgIcon from '../../SvgIcon.vue'
+
+const DIAS_LISTA = [
+  { key: 'lunes',     nombre: 'Lunes'      },
+  { key: 'martes',    nombre: 'Martes'     },
+  { key: 'miercoles', nombre: 'Miércoles'  },
+  { key: 'jueves',    nombre: 'Jueves'     },
+  { key: 'viernes',   nombre: 'Viernes'    },
+  { key: 'sabado',    nombre: 'Sábado'     },
+  { key: 'domingo',   nombre: 'Domingo'    },
+]
+
+const DEFAULT_HORARIOS = () => Object.fromEntries(
+  DIAS_LISTA.map(d => [d.key, { activo: !['sabado','domingo'].includes(d.key), apertura: '08:00', cierre: '22:00' }])
+)
 
 const props = defineProps({
   restauranteId: { type: Number, required: true },
@@ -160,8 +223,9 @@ const emit = defineEmits(['notif', 'restaurante-updated'])
 
 const { put } = useApi()
 
-const guardando = ref(false)
-const copiado   = ref(false)
+const guardando     = ref(false)
+const copiado       = ref(false)
+const horariosLocal = ref(DEFAULT_HORARIOS())
 
 const formRest = ref({
   compartir_mensaje: '', pedidos_activos: false,
@@ -170,6 +234,7 @@ const formRest = ref({
   pedidos_trans_activo: false,
   pedidos_trans_clabe: '', pedidos_trans_cuenta: '',
   pedidos_trans_titular: '', pedidos_trans_banco: '',
+  tienda_cerrada_manual: false,
 })
 
 watch(() => props.restaurante, (rest) => {
@@ -187,7 +252,11 @@ watch(() => props.restaurante, (rest) => {
     pedidos_trans_cuenta:  rest.pedidos_trans_cuenta  || '',
     pedidos_trans_titular: rest.pedidos_trans_titular || '',
     pedidos_trans_banco:   rest.pedidos_trans_banco   || '',
+    tienda_cerrada_manual: Boolean(rest.tienda_cerrada_manual ?? false),
   }
+  horariosLocal.value = rest.tienda_horarios
+    ? { ...DEFAULT_HORARIOS(), ...rest.tienda_horarios }
+    : DEFAULT_HORARIOS()
 }, { immediate: true })
 
 const temaAccent = computed(() => {
@@ -235,6 +304,7 @@ async function guardarRestaurante() {
     const rest = props.restaurante || {}
     const payload = {
       ...formRest.value,
+      tienda_horarios: horariosLocal.value,
       // Preservar campos de apariencia que no edita este tab
       nombre:           rest.nombre           || '',
       descripcion:      rest.descripcion      || '',
@@ -246,11 +316,12 @@ async function guardarRestaurante() {
       qr_wifi_activo:   rest.qr_wifi_activo   ?? false,
     }
     await put('restaurantes', payload, { id: props.restauranteId })
-    emit('restaurante-updated', { ...formRest.value })
+    emit('restaurante-updated', { ...formRest.value, tienda_horarios: horariosLocal.value })
     emit('notif', { texto: 'Cambios guardados', tipo: 'ok' })
   } catch (err) { emit('notif', { texto: err.message, tipo: 'error' }) }
   finally { guardando.value = false }
 }
+defineExpose({ guardar: guardarRestaurante, guardando })
 </script>
 
 <style scoped>
@@ -285,4 +356,79 @@ async function guardarRestaurante() {
   font-size: 0.9rem; font-weight: 700; transition: background 0.2s, border-color 0.2s;
 }
 .btn-ver-menu:hover { background: #f5f5f5; border-color: #bbb; }
+
+/* ── Horarios ── */
+.horarios-tabla { display: flex; flex-direction: column; gap: 6px; }
+
+.horario-opcion-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  background: #fff;
+  border: 1.5px solid #e8e8e8;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  user-select: none;
+}
+.horario-opcion-row:hover {
+  border-color: v-bind(temaAccent);
+  background: color-mix(in srgb, v-bind(temaAccent) 8%, #fff);
+}
+.horario-selected {
+  border-color: v-bind(temaAccent);
+  background: color-mix(in srgb, v-bind(temaAccent) 8%, #fff);
+}
+
+/* Indicador circular (idéntico al PersonalizacionModal) */
+.horario-indicator {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #ccc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s;
+}
+.horario-indicator-on {
+  border-color: v-bind(temaAccent);
+}
+.horario-indicator-inner {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: v-bind(temaAccent);
+}
+
+.horario-dia-nombre {
+  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.horario-horas {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.horario-horas-disabled { opacity: 0.38; pointer-events: none; }
+.horario-sep { color: #aaa; font-size: 0.85rem; }
+
+.input-time {
+  padding: 6px 8px;
+  border: 1.5px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  background: #fafafa;
+  color: #333;
+  width: 90px;
+}
+.input-time:focus { border-color: #aaa; }
+.input-time:disabled { background: #f5f5f5; color: #bbb; }
 </style>

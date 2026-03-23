@@ -61,6 +61,7 @@
       />
 
       <TabApariencia
+        ref="tabAparienciaRef"
         v-show="tabActivo === 'apariencia'"
         :restaurante-id="restauranteId"
         :restaurante="restaurante"
@@ -72,6 +73,7 @@
       />
 
       <TabNegocio
+        ref="tabNegocioRef"
         v-show="tabActivo === 'negocio'"
         :restaurante-id="restauranteId"
         :restaurante="restaurante"
@@ -86,6 +88,14 @@
         :active="tabActivo === 'pedidos'"
         @notif="mostrarNotif"
       />
+
+      <!-- Botón guardar global (solo en tabs que lo necesitan) -->
+      <div v-if="tabActivo === 'apariencia' || tabActivo === 'negocio'" class="sticky-save-bar">
+        <button class="btn-primary btn-guardar-global" @click="guardarTabActivo" :disabled="guardandoTab">
+          <SvgIcon :path="mdiContentSave" :size="17" />
+          {{ guardandoTab ? 'Guardando...' : 'Guardar cambios' }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -93,7 +103,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { mdiSilverwareForkKnife, mdiFormatListBulleted, mdiPalette, mdiCog, mdiCart, mdiLogout } from '@mdi/js'
+import { mdiSilverwareForkKnife, mdiFormatListBulleted, mdiPalette, mdiCog, mdiCart, mdiLogout, mdiContentSave } from '@mdi/js'
 import { resetAuth } from '../../router/index.js'
 import { useApi } from '../../composables/useApi.js'
 import { THEMES as temas, THEMES_EXTRA as TEMAS_EXTRA } from '../../utils/themes.js'
@@ -114,8 +124,21 @@ const categorias      = ref([])
 const cargandoInicial = ref(true)
 const errorInicial    = ref(null)
 const notif           = ref(null)
-const tabActivo       = ref('platillos')
-const temaPreview     = ref(null) // live preview al seleccionar tema en TabApariencia
+const tabActivo         = ref('platillos')
+const temaPreview       = ref(null)
+const tabAparienciaRef  = ref(null)
+const tabNegocioRef     = ref(null)
+
+const guardandoTab = computed(() => {
+  if (tabActivo.value === 'apariencia') return tabAparienciaRef.value?.guardando ?? false
+  if (tabActivo.value === 'negocio')    return tabNegocioRef.value?.guardando    ?? false
+  return false
+})
+
+function guardarTabActivo() {
+  if (tabActivo.value === 'apariencia') tabAparienciaRef.value?.guardar()
+  if (tabActivo.value === 'negocio')    tabNegocioRef.value?.guardar()
+}
 
 const tabs = [
   { id: 'platillos',  icon: mdiSilverwareForkKnife,   label: 'Platillos'  },
@@ -230,12 +253,13 @@ onMounted(async () => {
 @keyframes spin-lg { to { transform: rotate(360deg); } }
 
 /* ─── Body ─── */
-.panel-body { max-width: 900px; margin: 0 auto; padding: 20px 16px 60px; }
+.panel-body { max-width: 900px; margin: 0 auto; padding: 20px 16px 80px; }
 
 /* ─── Tabs nav ─── */
 .tab-nav {
   display: flex; gap: 4px; background: #fff; border-radius: 14px;
   padding: 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-bottom: 20px;
+  position: sticky; top: 64px; z-index: 90;
 }
 .tab-btn {
   flex: 1; display: flex; align-items: center; justify-content: center;

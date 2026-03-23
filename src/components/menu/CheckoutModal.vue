@@ -14,14 +14,18 @@
         <section class="checkout-section">
           <h3 class="section-title">Platillos</h3>
           <div class="items-lista">
-            <div v-for="(item, idx) in carritoStore.items" :key="idx" class="item-row">
+            <div v-for="(item, idx) in carritoStore.items" :key="idx"
+               class="item-row" :class="{ 'item-bloqueado': esItemBloqueado(item) }">
               <div class="item-cant-ctrl">
                 <button class="cant-btn" @click="reducir(idx)">−</button>
                 <span class="cant-num">{{ item.cantidad }}</span>
-                <button class="cant-btn" @click="item.cantidad++">+</button>
+                <button class="cant-btn" :disabled="esItemBloqueado(item)" @click="item.cantidad++">+</button>
               </div>
               <div class="item-info">
                 <span class="item-nombre">{{ item.producto.nombre }}</span>
+                <span v-if="esItemBloqueado(item)" class="chip-item-bloqueado">
+                  {{ item.producto.stock === 0 ? 'Sin stock' : 'Próximamente' }} — elimina este ítem para continuar
+                </span>
                 <!-- Chips de opciones seleccionadas -->
                 <div v-if="item.opciones?.length" class="item-opciones">
                   <span v-for="op in item.opciones" :key="op.opcion_id" class="chip-opcion">
@@ -183,13 +187,18 @@
           </div>
         </div>
 
+        <!-- Advertencia ítems bloqueados -->
+        <div v-if="hayItemsBloqueados" class="alerta-bloqueados">
+          ⚠️ Hay platillos no disponibles en tu carrito. Elimínalos para continuar.
+        </div>
+
         <!-- Error de validación -->
         <p v-if="errorMsg" class="error-msg">{{ errorMsg }}</p>
 
         <!-- Botón confirmar -->
         <button
           class="btn-primary btn-confirmar"
-          :disabled="enviando"
+          :disabled="enviando || hayItemsBloqueados"
           @click="confirmar"
         >
           {{ enviando ? 'Enviando...' : '✓ Confirmar pedido por WhatsApp' }}
@@ -257,6 +266,15 @@ const total = computed(() => subtotal.value + costoEnvio.value)
 const tieneDatosTransferencia = computed(() =>
   !!(props.pedidosConfig.pedidos_trans_clabe || props.pedidosConfig.pedidos_trans_banco)
 )
+
+const esItemBloqueado = (item) => {
+  const p = item.producto
+  const sinStock = p.stock !== null && p.stock !== undefined && p.stock === 0
+  const proximamente = p.disponible === false || p.disponible === 0
+  return sinStock || proximamente
+}
+
+const hayItemsBloqueados = computed(() => carritoStore.items.some(esItemBloqueado))
 
 const faltante = computed(() => {
   const den = parseFloat(denominacion.value)
@@ -505,6 +523,33 @@ const confirmar = async () => {
 .item-obs-input:focus { border-color: var(--accent, #FF6B35); }
 
 .item-subtotal { font-size: 0.9rem; font-weight: 800; color: var(--accent, #FF6B35); flex-shrink: 0; }
+
+/* ── Ítem bloqueado ── */
+.item-bloqueado {
+  opacity: 0.75;
+  background: rgba(0,0,0,0.03);
+  border-radius: 8px;
+}
+
+.chip-item-bloqueado {
+  display: block;
+  font-size: 0.72rem;
+  color: #c0392b;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+/* ── Alerta ítems bloqueados ── */
+.alerta-bloqueados {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #856404;
+  margin-bottom: 8px;
+}
 
 /* ── Opciones card (entrega) ── */
 .opciones-grid {

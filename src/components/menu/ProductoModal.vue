@@ -64,8 +64,16 @@
           <span>Modelo 3D interactivo · Rota, acerca y aleja · AR en móvil</span>
         </div>
 
-        <!-- Agregar al carrito -->
-        <div v-if="pedidosActivos" class="carrito-section">
+        <!-- Chip de estado bloqueado -->
+        <div v-if="noDisponible" class="chip-estado chip-no-disponible">
+          Sin stock — no disponible por el momento
+        </div>
+        <div v-else-if="esProximamente" class="chip-estado chip-proximamente">
+          Próximamente disponible
+        </div>
+
+        <!-- Agregar al carrito (solo si no está bloqueado) -->
+        <div v-if="pedidosActivos && !bloqueado" class="carrito-section">
           <textarea
             :value="observacion"
             @input="observacion = ucfirst($event.target.value)"
@@ -83,7 +91,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { mdiSilverwareForkKnife, mdiRefresh, mdiStar } from '@mdi/js'
 import ModelViewer3D from './ModelViewer3D.vue'
 import SvgIcon from '../SvgIcon.vue'
@@ -97,6 +105,14 @@ const props = defineProps({
 const emit = defineEmits(['close', 'agregar'])
 
 const observacion = ref('')
+
+const noDisponible = computed(() =>
+  props.producto.stock !== null &&
+  props.producto.stock !== undefined &&
+  props.producto.stock === 0
+)
+const esProximamente = computed(() => props.producto.disponible === false || props.producto.disponible === 0)
+const bloqueado = computed(() => noDisponible.value || esProximamente.value)
 
 const emitirAgregar = () => {
   emit('agregar', { producto: props.producto, observacion: observacion.value.trim() })
@@ -392,5 +408,25 @@ const emitirAgregar = () => {
   padding: 13px;
   border-radius: 12px;
   font-size: 1rem;
+}
+
+/* ── Chips de estado bloqueado ── */
+.chip-estado {
+  margin-top: 14px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.chip-no-disponible {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-sub, #888);
+}
+
+.chip-proximamente {
+  background: color-mix(in srgb, var(--accent, #FF6B35) 12%, transparent);
+  color: var(--accent, #FF6B35);
 }
 </style>

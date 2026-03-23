@@ -1,7 +1,7 @@
 <template>
-  <div class="producto-card" @click="$emit('click')">
+  <div class="producto-card" :class="{ 'card-bloqueada': bloqueado }" @click="$emit('click')">
     <!-- Imagen -->
-    <div class="card-imagen">
+    <div class="card-imagen" :class="{ 'img-grayscale': noDisponible }">
       <img
         v-if="producto.foto_principal"
         :src="producto.foto_principal"
@@ -13,8 +13,25 @@
         <SvgIcon :path="mdiSilverwareForkKnife" :size="36" />
       </div>
 
-      <!-- Badges superpuestos -->
-      <div class="badges">
+      <!-- Watermark del logo -->
+      <div
+        v-if="logoUrl && producto.foto_principal"
+        class="watermark"
+        :style="{ '--wm-url': `url(${logoUrl})` }"
+      ></div>
+
+      <!-- Overlay "No disponible" -->
+      <div v-if="noDisponible" class="overlay-no-disponible">
+        <span>No disponible</span>
+      </div>
+
+      <!-- Badge "Próximamente" -->
+      <div v-else-if="esProximamente" class="badge-proximamente">
+        Próximamente
+      </div>
+
+      <!-- Badges 3D/AR y Destacado -->
+      <div class="badges" v-if="!noDisponible">
         <span v-if="producto.tiene_ar" class="badge badge-3d">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
@@ -43,7 +60,7 @@
             {{ producto.tiene_ar ? 'Ver en 3D' : 'Ver más' }}
           </button>
           <button
-            v-if="pedidosActivos"
+            v-if="pedidosActivos && !bloqueado"
             class="btn-agregar"
             @click.stop="$emit('agregar')"
             aria-label="Agregar al carrito"
@@ -55,15 +72,25 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { mdiSilverwareForkKnife, mdiStar } from '@mdi/js'
 import SvgIcon from '../SvgIcon.vue'
 
-defineProps({
+const props = defineProps({
   producto: { type: Object, required: true },
-  pedidosActivos: { type: Boolean, default: false }
+  pedidosActivos: { type: Boolean, default: false },
+  logoUrl: { type: String, default: null }
 })
 
 defineEmits(['click', 'agregar'])
+
+const noDisponible = computed(() =>
+  props.producto.stock !== null &&
+  props.producto.stock !== undefined &&
+  props.producto.stock === 0
+)
+const esProximamente = computed(() => props.producto.disponible === false || props.producto.disponible === 0)
+const bloqueado = computed(() => noDisponible.value || esProximamente.value)
 
 const truncar = (texto, len) =>
   texto && texto.length > len ? texto.substring(0, len) + '…' : texto
@@ -87,6 +114,10 @@ const truncar = (texto, len) =>
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
 }
 
+.card-bloqueada {
+  opacity: 0.82;
+}
+
 /* ── Imagen ── */
 .card-imagen {
   position: relative;
@@ -97,6 +128,10 @@ const truncar = (texto, len) =>
   flex-shrink: 0;
   overflow: hidden;
   background: var(--accent-light, #f5f5f5);
+}
+
+.img-grayscale .card-img {
+  filter: grayscale(1);
 }
 
 .card-img {
@@ -123,7 +158,54 @@ const truncar = (texto, len) =>
   opacity: 0.35;
 }
 
-/* ── Badges ── */
+/* ── Watermark ── */
+.watermark {
+  position: absolute;
+  inset: 0;
+  background-image: var(--wm-url);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 40%;
+  opacity: 0.15;
+  pointer-events: none;
+}
+
+/* ── Overlay No Disponible ── */
+.overlay-no-disponible {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.52);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.overlay-no-disponible span {
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-align: center;
+  padding: 0 6px;
+}
+
+/* ── Badge Próximamente ── */
+.badge-proximamente {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  text-align: center;
+  background: var(--accent, #FF6B35);
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 700;
+  padding: 5px 0;
+  letter-spacing: 0.04em;
+}
+
+/* ── Badges 3D / Destacado ── */
 .badges {
   position: absolute;
   top: 6px;
@@ -187,7 +269,7 @@ const truncar = (texto, len) =>
   font-size: 0.82rem;
   color: var(--text-sub, #888);
   line-height: 1.45;
-  margin: 0;
+  margin: 0 0 6px;
 }
 
 /* ── Bottom (precio + botón) ── */
@@ -243,7 +325,31 @@ const truncar = (texto, len) =>
   font-size: 0.78rem;
 }
 
-/* ── Responsive ── */
+/* ── Responsive: en grid de 2 columnas (560px-999px) la card se apila verticalmente ── */
+@media (min-width: 560px) and (max-width: 999px) {
+  .producto-card {
+    flex-direction: column;
+  }
+
+  .card-imagen {
+    width: 100%;
+    min-width: unset;
+    height: 160px;
+    min-height: unset;
+    border-radius: 0;
+  }
+
+  .card-info {
+    padding: 12px 12px 14px;
+  }
+
+  .btn-ver {
+    font-size: 0.75rem;
+    padding: 6px 8px;
+  }
+}
+
+/* ── Responsive: card horizontal en 1 columna muy estrecha ── */
 @media (max-width: 360px) {
   .card-imagen {
     width: 90px;
@@ -255,5 +361,4 @@ const truncar = (texto, len) =>
     font-size: 0.92rem;
   }
 }
-
 </style>

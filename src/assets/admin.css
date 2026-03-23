@@ -84,6 +84,24 @@ label.btn-icon { cursor: pointer; }
 .negocio-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 4px 0; }
 .negocio-divider    { border: none; border-top: 1px solid #f0f0f0; margin: 16px 0; }
 
+/* ─── Sticky save bar global (nivel panel-body) ─── */
+.sticky-save-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border-top: 1px solid #ebebeb;
+  padding: 12px 16px;
+  z-index: 80;
+  display: flex;
+  justify-content: center;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.07);
+}
+.btn-guardar-global {
+  min-width: 200px;
+}
+
 /* ─── Responsive ─── */
 @media (max-width: 600px) {
   .form-grid { grid-template-columns: 1fr; }

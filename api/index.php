@@ -34,6 +34,8 @@ switch ($route) {
                 r.pedidos_trans_banco,
                 r.pedidos_trans_activo,
                 r.pedidos_terminal_activo,
+                r.tienda_cerrada_manual,
+                r.tienda_horarios,
                 c.id AS cat_id,
                 c.nombre AS cat_nombre,
                 c.icono AS cat_icono,
@@ -47,12 +49,13 @@ switch ($route) {
                 p.tiene_ar,
                 p.es_destacado,
                 p.disponible,
+                p.stock,
                 p.tiene_personalizacion,
                 p.aviso_complemento,
                 p.aviso_categoria_id
              FROM restaurantes r
              LEFT JOIN categorias c ON c.restaurante_id = r.id AND c.activo = 1
-             LEFT JOIN productos p ON p.categoria_id = c.id AND p.activo = 1 AND p.disponible = 1
+             LEFT JOIN productos p ON p.categoria_id = c.id AND p.activo = 1
              WHERE r.slug = :slug AND r.activo = 1
              ORDER BY c.orden ASC, p.orden ASC, p.nombre ASC'
         );
@@ -65,6 +68,23 @@ switch ($route) {
 
         // Con LEFT JOIN puede haber fila con cat_id NULL si no hay categorías aún
         $tieneContenido = !empty($rows[0]['cat_id']);
+
+        // Calcular si la tienda está abierta según horario + toggle manual
+        function isTiendaAbierta(array $row): bool {
+            if ($row['tienda_cerrada_manual']) return false;
+            $h = $row['tienda_horarios'] ? json_decode($row['tienda_horarios'], true) : null;
+            if (!$h) return true; // sin horarios configurados = siempre abierta
+            // Validar que el JSON tiene estructura correcta (llaves de días, no índices numéricos)
+            $diasValidos = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
+            $tieneEstructuraValida = !empty(array_intersect(array_keys($h), $diasValidos));
+            if (!$tieneEstructuraValida) return true; // horarios corruptos = ignorar = abierta
+            $dias = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+            $dia  = $dias[(int) date('w')];
+            $hora = date('H:i');
+            $d = $h[$dia] ?? null;
+            if (!$d || !$d['activo']) return false;
+            return $hora >= $d['apertura'] && $hora <= $d['cierre'];
+        }
 
         $restauranteData = [
             'id'                    => (int) $rows[0]['restaurante_id'],
@@ -84,6 +104,9 @@ switch ($route) {
             'pedidos_trans_banco'   => $rows[0]['pedidos_trans_banco'],
             'pedidos_trans_activo'     => (bool) $rows[0]['pedidos_trans_activo'],
             'pedidos_terminal_activo'  => (bool) $rows[0]['pedidos_terminal_activo'],
+            'tienda_abierta'           => isTiendaAbierta($rows[0]),
+            'tienda_cerrada_manual'    => (bool) $rows[0]['tienda_cerrada_manual'],
+            'tienda_horarios'          => $rows[0]['tienda_horarios'] ? json_decode($rows[0]['tienda_horarios'], true) : null,
         ];
 
         $categoriasMap = [];
@@ -110,6 +133,7 @@ switch ($route) {
                 'tiene_ar'              => (bool) $row['tiene_ar'],
                 'es_destacado'          => (bool) $row['es_destacado'],
                 'disponible'            => (bool) $row['disponible'],
+                'stock'                 => $row['stock'] !== null ? (int) $row['stock'] : null,
                 'tiene_personalizacion' => (bool) $row['tiene_personalizacion'],
                 'aviso_complemento'     => $row['aviso_complemento'],
                 'aviso_categoria_id'    => $row['aviso_categoria_id'] ? (int) $row['aviso_categoria_id'] : null,
@@ -227,11 +251,12 @@ switch ($route) {
         // GET: lista restaurantes (auth requerida)
         if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             require_auth();
-            $stmt = $pdo->prepare('SELECT id, slug, nombre, descripcion, logo_url, color_primario, tema, qr_frase, qr_frase_activa, qr_wifi_nombre, qr_wifi_clave, qr_wifi_activo, pedidos_activos, pedidos_envio_activo, pedidos_envio_costo, pedidos_envio_gratis_desde, pedidos_whatsapp, pedidos_trans_clabe, pedidos_trans_cuenta, pedidos_trans_titular, pedidos_trans_banco, pedidos_trans_activo, pedidos_terminal_activo, compartir_mensaje FROM restaurantes WHERE activo = 1 ORDER BY nombre');
+            $stmt = $pdo->prepare('SELECT id, slug, nombre, descripcion, logo_url, color_primario, tema, qr_frase, qr_frase_activa, qr_wifi_nombre, qr_wifi_clave, qr_wifi_activo, pedidos_activos, pedidos_envio_activo, pedidos_envio_costo, pedidos_envio_gratis_desde, pedidos_whatsapp, pedidos_trans_clabe, pedidos_trans_cuenta, pedidos_trans_titular, pedidos_trans_banco, pedidos_trans_activo, pedidos_terminal_activo, compartir_mensaje, tienda_cerrada_manual, tienda_horarios FROM restaurantes WHERE activo = 1 ORDER BY nombre');
             $stmt->execute();
             $rows = $stmt->fetchAll();
             foreach ($rows as &$r) {
                 $r['logo_url'] = $r['logo_url'] ? UPLOADS_URL . $r['logo_url'] : null;
+                $r['tienda_horarios'] = $r['tienda_horarios'] ? json_decode($r['tienda_horarios'], true) : null;
             }
             unset($r);
             json_response(['restaurantes' => $rows]);
@@ -269,7 +294,11 @@ switch ($route) {
                 json_response(['error' => 'id requerido'], 400);
             }
             $body = json_decode(file_get_contents('php://input'), true) ?: [];
-            $allowed = ['nombre', 'descripcion', 'tema', 'color_primario', 'qr_frase', 'qr_frase_activa', 'qr_wifi_nombre', 'qr_wifi_clave', 'qr_wifi_activo', 'pedidos_activos', 'pedidos_envio_activo', 'pedidos_envio_costo', 'pedidos_envio_gratis_desde', 'pedidos_whatsapp', 'pedidos_trans_clabe', 'pedidos_trans_cuenta', 'pedidos_trans_titular', 'pedidos_trans_banco', 'pedidos_trans_activo', 'pedidos_terminal_activo', 'compartir_mensaje'];
+            $allowed = ['nombre', 'descripcion', 'tema', 'color_primario', 'qr_frase', 'qr_frase_activa', 'qr_wifi_nombre', 'qr_wifi_clave', 'qr_wifi_activo', 'pedidos_activos', 'pedidos_envio_activo', 'pedidos_envio_costo', 'pedidos_envio_gratis_desde', 'pedidos_whatsapp', 'pedidos_trans_clabe', 'pedidos_trans_cuenta', 'pedidos_trans_titular', 'pedidos_trans_banco', 'pedidos_trans_activo', 'pedidos_terminal_activo', 'compartir_mensaje', 'tienda_cerrada_manual', 'tienda_horarios'];
+            // Serializar tienda_horarios si viene como array
+            if (isset($body['tienda_horarios']) && is_array($body['tienda_horarios'])) {
+                $body['tienda_horarios'] = json_encode($body['tienda_horarios'], JSON_UNESCAPED_UNICODE);
+            }
             $fields = [];
             $params = [':id' => (int)$id];
             foreach ($allowed as $f) {
@@ -279,8 +308,12 @@ switch ($route) {
                 }
             }
             if ($fields) {
-                $pdo->prepare('UPDATE restaurantes SET ' . implode(',', $fields) . ' WHERE id = :id')
-                    ->execute($params);
+                try {
+                    $pdo->prepare('UPDATE restaurantes SET ' . implode(',', $fields) . ' WHERE id = :id')
+                        ->execute($params);
+                } catch (\PDOException $e) {
+                    json_response(['error' => 'Error al guardar: ' . $e->getMessage()], 500);
+                }
             }
             json_response(['success' => true]);
         }

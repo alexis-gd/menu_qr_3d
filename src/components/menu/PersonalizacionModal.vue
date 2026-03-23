@@ -463,7 +463,7 @@ const emitirAgregar = () => {
 .modal-scroll::-webkit-scrollbar-thumb { background: var(--divider, #ddd); border-radius: 2px; }
 
 /* ── Visual (3D o foto) ── */
-.modal-visual { position: relative; width: 100%; height: 220px; overflow: hidden; background: var(--accent-light, #f5f5f5); }
+.modal-visual { position: relative; width: 100%; height: 280px; overflow: hidden; background: var(--accent-light, #f5f5f5); }
 .modal-foto   { width: 100%; height: 100%; object-fit: cover; }
 .hint-3d {
   position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
@@ -492,7 +492,7 @@ const emitirAgregar = () => {
 .precio-detalle { font-size: 0.78rem; color: var(--text-sub, #aaa); text-align: right; }
 
 /* ── Descripción ── */
-.prod-desc { padding: 14px 18px 0; font-size: 0.9rem; color: var(--text-sub, #777); line-height: 1.5; margin: 0; }
+.prod-desc { padding: 14px 18px 10px; font-size: 0.9rem; color: var(--text-sub, #777); line-height: 1.5; margin: 0; }
 
 /* ── Grupos — acordeón ── */
 .grupo-section {

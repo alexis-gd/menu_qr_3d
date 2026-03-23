@@ -32,56 +32,66 @@
         </div>
       </header>
 
-      <!-- ── Navegación de categorías (sticky) ── -->
-      <nav class="cat-nav">
-        <button
-          v-for="cat in categoriasVisibles"
-          :key="cat.id"
-          :class="['cat-nav-btn', { active: catActiva === cat.id }]"
-          @click="irACategoria(cat.id)"
-        >
-          <span v-if="cat.icono" class="cat-nav-icon">
-            <SvgIcon :path="resolverIcono(cat.icono)" :size="22" />
-          </span>
-          {{ cat.nombre }}
-        </button>
-      </nav>
+      <!-- ── Tienda cerrada ── -->
+      <TiendaCerradaView
+        v-if="!tiendaAbierta"
+        :horarios="restaurante?.tienda_horarios"
+        :nombre="restaurante?.nombre"
+      />
 
-      <!-- ── Contenido del menú ── -->
-      <main class="menu-contenido">
-        <!-- Placeholder sin contenido -->
-        <div v-if="!categoriasVisibles.length" class="menu-vacio">
-          <SvgIcon :path="mdiStorefront" :size="64" color="var(--accent)" />
-          <p class="menu-vacio-titulo">Menú en preparación</p>
-          <p class="menu-vacio-desc">Pronto encontrarás aquí nuestros platillos.</p>
-        </div>
-
-        <section
-          v-for="cat in categoriasVisibles"
-          :key="cat.id"
-          :id="`cat-${cat.id}`"
-          class="categoria-seccion"
-        >
-          <div class="cat-titulo">
-            <span v-if="cat.icono" class="cat-icono">
-              <SvgIcon :path="resolverIcono(cat.icono)" :size="20" />
+      <template v-else>
+        <!-- ── Navegación de categorías (sticky) ── -->
+        <nav class="cat-nav">
+          <button
+            v-for="cat in categoriasVisibles"
+            :key="cat.id"
+            :class="['cat-nav-btn', { active: catActiva === cat.id }]"
+            @click="irACategoria(cat.id)"
+          >
+            <span v-if="cat.icono" class="cat-nav-icon">
+              <SvgIcon :path="resolverIcono(cat.icono)" :size="22" />
             </span>
-            <h2>{{ cat.nombre }}</h2>
-            <div class="cat-linea"></div>
+            {{ cat.nombre }}
+          </button>
+        </nav>
+
+        <!-- ── Contenido del menú ── -->
+        <main class="menu-contenido">
+          <!-- Placeholder sin contenido -->
+          <div v-if="!categoriasVisibles.length" class="menu-vacio">
+            <SvgIcon :path="mdiStorefront" :size="64" color="var(--accent)" />
+            <p class="menu-vacio-titulo">Menú en preparación</p>
+            <p class="menu-vacio-desc">Pronto encontrarás aquí nuestros platillos.</p>
           </div>
 
-          <div class="productos-lista">
-            <ProductoCard
-              v-for="prod in cat.productos"
-              :key="prod.id"
-              :producto="prod"
-              :pedidos-activos="pedidosActivos"
-              @click="abrirModal(prod)"
-              @agregar="onCardAgregar(prod)"
-            />
-          </div>
-        </section>
-      </main>
+          <section
+            v-for="cat in categoriasVisibles"
+            :key="cat.id"
+            :id="`cat-${cat.id}`"
+            class="categoria-seccion"
+          >
+            <div class="cat-titulo">
+              <span v-if="cat.icono" class="cat-icono">
+                <SvgIcon :path="resolverIcono(cat.icono)" :size="20" />
+              </span>
+              <h2>{{ cat.nombre }}</h2>
+              <div class="cat-linea"></div>
+            </div>
+
+            <div class="productos-lista">
+              <ProductoCard
+                v-for="prod in cat.productos"
+                :key="prod.id"
+                :producto="prod"
+                :pedidos-activos="pedidosActivos"
+                :logo-url="logoUrl"
+                @click="abrirModal(prod)"
+                @agregar="onCardAgregar(prod)"
+              />
+            </div>
+          </section>
+        </main>
+      </template>
 
       <!-- ── Footer ── -->
       <footer class="menu-footer">
@@ -117,7 +127,7 @@
 
     <!-- Carrito flotante -->
     <CarritoFlotante
-      v-if="pedidosActivos"
+      v-if="pedidosActivos && tiendaAbierta"
       :carrito="carrito"
       @abrir="mostrarCheckout = true"
     />
@@ -162,6 +172,7 @@ import ProductoModal from '../components/menu/ProductoModal.vue'
 import PersonalizacionModal from '../components/menu/PersonalizacionModal.vue'
 import CarritoFlotante from '../components/menu/CarritoFlotante.vue'
 import CheckoutModal from '../components/menu/CheckoutModal.vue'
+import TiendaCerradaView from '../components/menu/TiendaCerradaView.vue'
 
 const route = useRoute()
 const { get, loading, error } = useApi()
@@ -185,7 +196,25 @@ let toastTimer = null
 const pedidosActivos = computed(() => !!restaurante.value?.pedidos_activos)
 const pedidosConfig  = computed(() => restaurante.value || {})
 
-const tema = computed(() => restaurante.value?.tema || 'calido')
+const tema         = computed(() => restaurante.value?.tema || 'calido')
+// Tick por minuto para re-evaluar horarios automáticamente
+const ahora = ref(new Date())
+let _horarioTimer = null
+
+const tiendaAbierta = computed(() => {
+  if (!restaurante.value) return true
+  if (restaurante.value.tienda_cerrada_manual) return false
+  const horarios = restaurante.value.tienda_horarios
+  if (!horarios) return true
+  const dias = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
+  const now = ahora.value
+  const dia = dias[now.getDay()]
+  const d = horarios[dia]
+  if (!d || !d.activo) return false
+  const hora = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  return hora >= d.apertura && hora <= d.cierre
+})
+const logoUrl       = computed(() => restaurante.value?.logo_url || null)
 
 const agregarAlCarrito = (producto, observacion = '', opciones = []) => {
   carritoStore.agregar(producto, observacion, opciones)
@@ -248,6 +277,7 @@ watch(() => restaurante.value?.logo_url, (url) => {
 }, { immediate: true })
 
 onMounted(async () => {
+  _horarioTimer = setInterval(() => { ahora.value = new Date() }, 60_000)
   const slug = route.query.r
   if (!slug) {
     error.value = 'No se especificó el restaurante. Escanea el código QR de tu mesa.'
@@ -293,6 +323,7 @@ const initObserver = () => {
 
 onUnmounted(() => {
   if (observer) observer.disconnect()
+  clearInterval(_horarioTimer)
 })
 
 const irACategoria = (catId) => {
@@ -305,8 +336,14 @@ const irACategoria = (catId) => {
   }
 }
 
+const esBloqueado = (prod) => {
+  const noDisponible = prod.stock !== null && prod.stock !== undefined && prod.stock === 0
+  const proximamente = prod.disponible === false || prod.disponible === 0
+  return noDisponible || proximamente
+}
+
 const abrirModal = (producto) => {
-  if (producto.tiene_personalizacion) {
+  if (!esBloqueado(producto) && producto.tiene_personalizacion) {
     productoPersonalizacion.value = producto
   } else {
     productoSeleccionado.value = producto
@@ -478,6 +515,8 @@ const abrirModal = (producto) => {
 .menu-publico {
   width: 100%;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   background: var(--page-bg);
   transition: background 0.3s;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -674,9 +713,16 @@ const abrirModal = (producto) => {
   gap: 10px;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 560px) {
   .productos-lista {
     display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+}
+
+@media (min-width: 1000px) {
+  .productos-lista {
     grid-template-columns: repeat(3, 1fr);
     gap: 16px;
   }

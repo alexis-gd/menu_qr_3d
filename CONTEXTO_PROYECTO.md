@@ -87,6 +87,33 @@ La API de Meshy requiere plan Pro ($20/mes) para acceso programático. Se adopt�
 
 ---
 
+### Estados visuales de productos en el menú público (Fase 10)
+
+| Estado | Condición BD | Visible | Compra | Display |
+|--------|-------------|---------|--------|---------|
+| **Normal** | `disponible=1`, `stock IS NULL` o `stock > 0` | ✓ | ✓ | Card normal |
+| **No disponible** | `disponible=1`, `stock IS NOT NULL AND stock=0` | ✓ | ✗ | Overlay gris + texto "No disponible" |
+| **Próximamente** | `disponible=0` (toggle admin "Inactivo") | ✓ | ✗ | Badge con color del tema |
+| **Oculto** | `activo=0` (borrado lógico) | ✗ | ✗ | No aparece en el menú |
+
+> API: `GET menu` ya NO filtra `AND p.disponible = 1` — devuelve todos los productos con `activo=1`.
+> El filtro visual es 100% frontend (`ProductoCard.vue`, `ProductoModal.vue`, `CheckoutModal.vue`).
+
+### Estado de tienda (Fase 10)
+
+Campos en `restaurantes`:
+- `tienda_cerrada_manual TINYINT(1)` — override manual para cerrar el menú
+- `tienda_horarios JSON` — objeto semanal `{"lunes": {"activo": true, "apertura": "08:00", "cierre": "22:00"}, ...}`
+
+`tienda_abierta` es **calculado en PHP** (no almacenado): `false` si `tienda_cerrada_manual=1` O si la hora actual está fuera del rango del día actual. `true` si no hay horarios configurados (NULL).
+
+Cuando `tienda_abierta = false` en el menú público: el contenido del menú se reemplaza por `TiendaCerradaView.vue` (SVG + horarios). El header y footer del restaurante permanecen visibles.
+
+### Watermark automático (Fase 10)
+Logo del restaurante superpuesto en fotos de productos con `opacity: 0.15`. Activo automáticamente cuando `restaurante.logo_url` existe. Sin toggle. Implementado como div CSS con `background-image` en `ProductoCard.vue`.
+
+---
+
 ### Accionables técnicos pendientes (arquitectura)
 > Ver detalles de razonamiento y decisiones en `CLAUDE.md` sección "DECISIONES ARQUITECTÓNICAS".
 
