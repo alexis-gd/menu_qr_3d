@@ -107,7 +107,7 @@
               <input :value="nombre" @input="nombre = ucfirst($event.target.value)" placeholder="¿Cómo te llamamos?" maxlength="60" />
             </div>
             <!-- Código de descuento / promotor -->
-            <div v-if="pedidosConfig.codigos_promo_habilitado" class="campo">
+            <div v-if="pedidosConfig.codigos_promo_habilitado && (!historial || historial.compras === 0)" class="campo">
               <label>Código de descuento (opcional)</label>
               <div class="promo-wrap">
                 <input
@@ -225,6 +225,10 @@
             <span>🎁 Descuento recompensa</span>
             <span>−${{ descuento.toFixed(2) }}</span>
           </div>
+          <div v-if="descuentoPromo > 0" class="total-row total-descuento">
+            <span>🏷️ Cupón {{ codigoPromo.trim().toUpperCase() }}</span>
+            <span>−${{ descuentoPromo.toFixed(2) }}</span>
+          </div>
           <div class="total-row total-final">
             <strong>Total</strong>
             <strong>${{ total.toFixed(2) }}</strong>
@@ -296,6 +300,13 @@ watch(telefono, async (val) => {
     const data = await get('cliente-historial', { telefono: digits, restaurante_id: props.restauranteId }, false)
     historial.value = data.activo ? data : null
   } catch { historial.value = null }
+
+  // Si es cliente recurrente, limpiar cupón que pudiera haber quedado activo
+  if (historial.value && historial.value.compras > 0) {
+    codigoPromo.value   = ''
+    promoValidada.value = null
+    promoError.value    = false
+  }
 })
 
 const descuento = computed(() => {

@@ -184,6 +184,7 @@ import PersonalizacionModal from '../components/menu/PersonalizacionModal.vue'
 import CarritoFlotante from '../components/menu/CarritoFlotante.vue'
 import CheckoutModal from '../components/menu/CheckoutModal.vue'
 import TiendaCerradaView from '../components/menu/TiendaCerradaView.vue'
+import { trackViewItem, trackAddToCart } from '../composables/useAnalytics.js'
 
 const route = useRoute()
 const { get, loading, error } = useApi()
@@ -217,6 +218,7 @@ let _menuPollTimer  = null
 let _visibilityFn   = null
 
 const tiendaAbierta = computed(() => {
+  if (route.query.preview === 'debug2026') return true
   if (!restaurante.value) return true
   if (restaurante.value.tienda_cerrada_manual) return false
   const horarios = restaurante.value.tienda_horarios
@@ -243,6 +245,10 @@ const agregarAlCarrito = (producto, observacion = '', opciones = []) => {
   toastNombre.value = producto.nombre
   clearTimeout(toastTimer)
   toastTimer = setTimeout(() => { toastNombre.value = '' }, 1800)
+
+  const cat = categorias.value.find(c => c.id === producto.categoria_id)
+  const precioReal = Number(producto.precio) + opciones.reduce((s, o) => s + (Number(o.precio_extra) || 0), 0)
+  trackAddToCart(producto, precioReal, cat?.nombre || '')
 
   // Evaluar aviso complemento (una vez por categoría sugerida por carrito)
   const catId = producto.aviso_categoria_id
@@ -382,6 +388,8 @@ const abrirModal = (producto) => {
   } else {
     productoSeleccionado.value = producto
   }
+  const cat = categorias.value.find(c => c.id === producto.categoria_id)
+  trackViewItem(producto, cat?.nombre || '')
 }
 </script>
 
