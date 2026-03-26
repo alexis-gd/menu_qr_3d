@@ -23,7 +23,9 @@
             <div class="pedido-body">
               <div class="pedido-cliente">
                 <span><SvgIcon :path="mdiAccount" :size="14" /> {{ ped.nombre_cliente }}</span>
-                <span v-if="ped.telefono"><SvgIcon :path="mdiPhone" :size="14" /> {{ ped.telefono }}</span>
+                <a v-if="ped.telefono" :href="`https://wa.me/${ped.telefono.replace(/\D/g, '')}`" target="_blank" class="pedido-tel-wa">
+                  <SvgIcon :path="mdiWhatsapp" :size="14" /> {{ ped.telefono }}
+                </a>
                 <span v-if="ped.mesa"><SvgIcon :path="mdiSeat" :size="14" /> Mesa {{ ped.mesa }}</span>
               </div>
               <div class="pedido-entrega">
@@ -31,19 +33,32 @@
                   <SvgIcon :path="ped.tipo_entrega === 'envio' ? mdiMoped : mdiHome" :size="13" />
                   {{ ped.tipo_entrega === 'envio' ? 'Envío a domicilio' : 'Recoger en local' }}
                 </span>
-                <span v-if="ped.tipo_entrega === 'envio' && ped.direccion" class="pedido-dir">{{ ped.direccion }}</span>
+                <span v-if="ped.tipo_entrega === 'envio' && ped.direccion" class="pedido-dir"><SvgIcon :path="mdiMapMarker" :size="13" /> {{ ped.direccion }}</span>
+                <span v-if="ped.tipo_entrega === 'envio' && ped.referencia" class="pedido-referencia">📍 {{ ped.referencia }}</span>
                 <span class="pedido-tag tag-pago">
                   <SvgIcon :path="ped.metodo_pago === 'transferencia' ? mdiBank : mdiCash" :size="13" />
-                  {{ ped.metodo_pago === 'transferencia' ? 'Transferencia' : 'Efectivo' }}
+                  {{ ped.metodo_pago === 'transferencia' ? 'Transferencia' : ped.metodo_pago === 'terminal' ? 'Terminal' : 'Efectivo' }}
                 </span>
                 <span v-if="ped.denominacion" class="pedido-denominacion">Con ${{ Number(ped.denominacion).toFixed(0) }}</span>
               </div>
               <div class="pedido-items-list">
                 <div v-for="item in ped.items" :key="item.id" class="pedido-item-row">
-                  <span class="pedido-item-cant">{{ item.cantidad }}×</span>
-                  <span class="pedido-item-nombre">{{ item.nombre_producto }}</span>
-                  <span v-if="item.observacion" class="pedido-item-obs">— {{ item.observacion }}</span>
-                  <span class="pedido-item-precio">${{ Number(item.subtotal).toFixed(2) }}</span>
+                  <div class="pedido-item-top">
+                    <span class="pedido-item-cant">{{ item.cantidad }}×</span>
+                    <span class="pedido-item-nombre">{{ item.nombre_producto }}</span>
+                    <span class="pedido-item-precio">${{ Number(item.subtotal).toFixed(2) }}</span>
+                  </div>
+                  <div v-if="item.opciones && item.opciones.length" class="pedido-item-opciones">
+                    <div v-for="(opc, i) in agruparOpciones(item.opciones)" :key="i" class="pedido-opc-grupo">
+                      <span class="pedido-opc-label">{{ opc.grupo }}:</span>
+                      <span v-for="(o, j) in opc.items" :key="j" class="pedido-opc-chip">
+                        {{ o.nombre }}<span v-if="o.precio_extra > 0" class="pedido-opc-extra"> +${{ Number(o.precio_extra).toFixed(0) }}</span>
+                      </span>
+                    </div>
+                  </div>
+                  <div v-if="item.observacion" class="pedido-item-obs">
+                    <span>📝 {{ item.observacion }}</span>
+                  </div>
                 </div>
               </div>
               <div class="pedido-totales">
@@ -59,6 +74,10 @@
               <button v-if="ped.status === 'en_preparacion'" @click="cambiarStatus(ped.id, 'listo')"          class="btn-status btn-listo"><SvgIcon :path="mdiCheck" :size="14" /> Listo</button>
               <button v-if="ped.status === 'listo'"          @click="cambiarStatus(ped.id, 'entregado')"      class="btn-status btn-entregado"><SvgIcon :path="mdiCheckCircle" :size="14" /> Entregado</button>
               <button v-if="!['entregado','cancelado'].includes(ped.status)" @click="cambiarStatus(ped.id, 'cancelado')" class="btn-status btn-cancelar">Cancelar</button>
+              <button @click="copiarPedido(ped)" class="btn-status btn-copiar">
+                <SvgIcon :path="copiadoId === ped.id ? mdiCheck : mdiContentCopy" :size="14" />
+                {{ copiadoId === ped.id ? 'Copiado' : 'Copiar' }}
+              </button>
             </div>
           </div>
         </div>
@@ -72,6 +91,7 @@ import { ref, watch, onUnmounted } from 'vue'
 import {
   mdiCart, mdiRefresh, mdiAccount, mdiPhone, mdiSeat,
   mdiMoped, mdiHome, mdiBank, mdiCash, mdiCheck, mdiCheckCircle,
+  mdiMapMarker, mdiWhatsapp, mdiContentCopy,
 } from '@mdi/js'
 import { useApi } from '../../../composables/useApi.js'
 import SvgIcon from '../../SvgIcon.vue'
@@ -87,7 +107,17 @@ const { get, put } = useApi()
 
 const pedidos        = ref([])
 const loadingPedidos = ref(false)
+const copiadoId      = ref(null)
 let   pedidosInterval = null
+
+const agruparOpciones = (opciones) => {
+  const map = {}
+  for (const o of opciones) {
+    if (!map[o.grupo_nombre]) map[o.grupo_nombre] = { grupo: o.grupo_nombre, items: [] }
+    map[o.grupo_nombre].items.push({ nombre: o.opcion_nombre, precio_extra: parseFloat(o.precio_extra) })
+  }
+  return Object.values(map)
+}
 
 const formatHora = (ts) => {
   const d = new Date(ts)
@@ -95,6 +125,51 @@ const formatHora = (ts) => {
 }
 
 const statusLabel = (s) => ({ nuevo: 'Nuevo', visto: 'Visto', en_preparacion: 'En preparación', listo: 'Listo', entregado: 'Entregado', cancelado: 'Cancelado' })[s] || s
+
+function generarTextoWA(ped) {
+  const lineas = [
+    `*-- NUEVO PEDIDO --*`,
+    `*#${ped.numero_pedido}*`,
+    ``,
+    `*Pedido:*`,
+    ...ped.items.flatMap((item, idx, arr) => {
+      const obs = item.observacion ? ` _(${item.observacion})_` : ''
+      const linea = `  ${item.cantidad}x ${item.nombre_producto}${obs} — $${Number(item.subtotal).toFixed(2)}`
+      const opLines = (item.opciones || []).map(o =>
+        `    · ${o.opcion_nombre}${Number(o.precio_extra) > 0 ? ` +$${Number(o.precio_extra).toFixed(2)}` : ''}`
+      )
+      const sep = idx < arr.length - 1 ? ['──────────'] : []
+      return [linea, ...opLines, ...sep]
+    }),
+    ``,
+    `Subtotal: $${Number(ped.subtotal).toFixed(2)}`,
+    ...(Number(ped.costo_envio) > 0 ? [`Envio: $${Number(ped.costo_envio).toFixed(2)}`] : []),
+    ...(Number(ped.costo_envio) === 0 && ped.tipo_entrega === 'envio' ? [`Envio: GRATIS`] : []),
+    ...(Number(ped.descuento_recompensa) > 0 ? [`Descuento recompensa: -$${Number(ped.descuento_recompensa).toFixed(2)}`] : []),
+    ...(Number(ped.descuento_promo) > 0 ? [`Codigo ${ped.codigo_promo}: -$${Number(ped.descuento_promo).toFixed(2)}`] : []),
+    `*Total: $${Number(ped.total).toFixed(2)}*`,
+    ``,
+    `*Entrega:* ${ped.tipo_entrega === 'envio' ? 'A domicilio' : 'Recoger en local'}`,
+    ...(ped.tipo_entrega === 'envio' && ped.direccion ? [`*Direccion:* ${ped.direccion}`] : []),
+    ...(ped.tipo_entrega === 'envio' && ped.referencia ? [`*Referencia:* ${ped.referencia}`] : []),
+    ...(ped.telefono ? [`*Tel:* ${ped.telefono}`] : []),
+    `*Pago:* ${ped.metodo_pago === 'transferencia' ? 'Transferencia' : ped.metodo_pago === 'terminal' ? 'Terminal a domicilio' : 'Efectivo'}`,
+    ...(ped.metodo_pago === 'efectivo' && ped.denominacion ? [`Con: $${Number(ped.denominacion).toFixed(0)}`] : []),
+    `*Nombre:* ${ped.nombre_cliente}`,
+    ...(ped.mesa ? [`*Mesa:* ${ped.mesa}`] : []),
+  ]
+  return lineas.join('\n')
+}
+
+async function copiarPedido(ped) {
+  try {
+    await navigator.clipboard.writeText(generarTextoWA(ped))
+    copiadoId.value = ped.id
+    setTimeout(() => { copiadoId.value = null }, 2000)
+  } catch {
+    emit('notif', { texto: 'No se pudo copiar al portapapeles', tipo: 'error' })
+  }
+}
 
 async function loadPedidos() {
   loadingPedidos.value = true
@@ -152,30 +227,44 @@ onUnmounted(() => clearInterval(pedidosInterval))
 .pedido-body     { display: flex; flex-direction: column; gap: 8px; }
 .pedido-cliente  { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.85rem; color: #555; }
 .pedido-entrega  { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.82rem; }
-.pedido-tag      { padding: 2px 8px; border-radius: 5px; font-weight: 600; background: #f0f0f0; color: #555; }
+.pedido-tag      { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 5px; font-weight: 600; background: #f0f0f0; color: #555; }
 .tag-envio   { background: #e3f2fd; color: #1565c0; }
 .tag-recoger { background: #f3e5f5; color: #6a1b9a; }
 .tag-pago    { background: #e8f5e9; color: #2e7d32; }
-.pedido-dir          { font-size: 0.8rem; color: #888; }
+.pedido-dir          { display: inline-flex; align-items: center; gap: 3px; font-size: 0.8rem; color: #888; }
+.pedido-referencia   { font-size: 0.8rem; color: #888; }
 .pedido-denominacion { font-size: 0.8rem; color: #888; }
 
-.pedido-items-list { background: #fafafa; border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 5px; }
-.pedido-item-row    { display: flex; align-items: baseline; gap: 6px; font-size: 0.85rem; }
-.pedido-item-cant   { font-weight: 700; color: var(--accent); min-width: 24px; }
+.pedido-tel-wa { display: inline-flex; align-items: center; gap: 4px; font-size: 0.85rem; color: #25d366; font-weight: 600; text-decoration: none; }
+.pedido-tel-wa:hover { text-decoration: underline; }
+
+.pedido-items-list  { background: #fafafa; border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
+.pedido-item-row    { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; }
+.pedido-item-top    { display: flex; align-items: baseline; gap: 6px; }
+.pedido-item-cant   { font-weight: 700; color: var(--accent); min-width: 24px; flex-shrink: 0; }
 .pedido-item-nombre { flex: 1; font-weight: 600; color: #1a1a1a; }
-.pedido-item-obs    { font-size: 0.78rem; color: #999; font-style: italic; }
-.pedido-item-precio { font-weight: 700; color: #555; }
+.pedido-item-precio { font-weight: 700; color: #555; flex-shrink: 0; }
+
+.pedido-item-opciones { padding-left: 30px; display: flex; flex-direction: column; gap: 3px; }
+.pedido-opc-grupo     { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.pedido-opc-label     { font-size: 0.73rem; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.03em; flex-shrink: 0; }
+.pedido-opc-chip      { font-size: 0.78rem; background: #ede9fe; color: #5b21b6; border-radius: 5px; padding: 1px 7px; font-weight: 500; }
+.pedido-opc-extra     { font-weight: 700; color: #7c3aed; }
+
+.pedido-item-obs { padding-left: 30px; font-size: 0.78rem; color: #999; font-style: italic; }
 
 .pedido-totales { display: flex; justify-content: flex-end; align-items: center; gap: 12px; font-size: 0.88rem; color: #888; flex-wrap: wrap; }
 .pedido-totales strong { color: #1a1a1a; font-size: 0.95rem; }
 .pedido-descuento { font-size: 0.78rem; font-weight: 700; color: #27ae60; background: #eafaf1; border-radius: 6px; padding: 2px 8px; }
 
 .pedido-acciones { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
-.btn-status  { padding: 6px 14px; border: none; border-radius: 7px; font-size: 0.82rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
+.btn-status  { display: inline-flex; align-items: center; gap: 5px; padding: 6px 14px; border: none; border-radius: 7px; font-size: 0.82rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
 .btn-status:hover { opacity: 0.82; }
 .btn-visto     { background: #fff3e0; color: #e65100; }
 .btn-prep      { background: #e3f2fd; color: #1565c0; }
 .btn-listo     { background: #e8f5e9; color: #2e7d32; }
 .btn-entregado { background: #c8e6c9; color: #1b5e20; }
 .btn-cancelar  { background: #ffebee; color: #c62828; }
+.btn-copiar    { background: #f0f0f0; color: #555; margin-left: auto; }
+.btn-copiar:hover { background: #e4e4e4; }
 </style>

@@ -139,30 +139,15 @@
       </div>
     </div>
 
-    <!-- Terminal a domicilio -->
+    <!-- Recompensas y promotores -->
     <div v-if="formRest.pedidos_activos" class="card">
-      <div class="card-header"><h2>Terminal a domicilio</h2></div>
+      <div class="card-header"><h2>Recompensas y promotores</h2></div>
       <div class="card-body">
-        <div class="negocio-toggle-row">
-          <div>
-            <strong>Aceptar terminal a domicilio</strong>
-            <p class="helper-text" style="margin:4px 0 0">Los clientes con envío a domicilio verán la opción de pagar con terminal al recibir su pedido.</p>
-          </div>
-          <label class="sw">
-            <input type="checkbox" v-model="formRest.pedidos_terminal_activo" />
-            <span class="sw-track" :style="formRest.pedidos_terminal_activo ? { background: temaAccent } : {}"></span>
-          </label>
-        </div>
-      </div>
-    </div>
 
-    <!-- Programa de recompensas -->
-    <div v-if="formRest.pedidos_activos" class="card">
-      <div class="card-header"><h2>Programa de recompensas</h2></div>
-      <div class="card-body">
+        <!-- Programa de recompensas -->
         <div class="negocio-toggle-row">
           <div>
-            <strong>Activar recompensas por compras</strong>
+            <strong>Recompensas por compras</strong>
             <p class="helper-text" style="margin:4px 0 0">Los clientes acumulan compras por número de teléfono y ganan un beneficio al completar el ciclo.</p>
           </div>
           <label class="sw">
@@ -171,8 +156,7 @@
           </label>
         </div>
         <template v-if="formRecompensas.activo">
-          <hr class="negocio-divider" />
-          <div class="form-grid">
+          <div class="form-grid" style="margin-top:14px">
             <div class="field">
               <label>Compras para ganar</label>
               <input v-model.number="formRecompensas.compras_necesarias" type="number" min="2" max="50" step="1" placeholder="10" />
@@ -200,85 +184,102 @@
           </p>
           <p class="aviso-reglas">⚠️ Cambiar estas reglas afecta a todos los clientes de inmediato, incluyendo los que están a punto de completar el ciclo.</p>
         </template>
-      </div>
-    </div>
-
-    <!-- Códigos de promotor -->
-    <div v-if="formRest.pedidos_activos" class="card">
-      <div class="card-header">
-        <h2>Códigos de promotor</h2>
-        <label class="sw">
-          <input type="checkbox" v-model="formRest.codigos_promo_habilitado" />
-          <span class="sw-track" :style="formRest.codigos_promo_habilitado ? { background: temaAccent } : {}"></span>
-        </label>
-      </div>
-      <div class="card-body">
-        <p class="helper-text" style="margin-bottom:14px">Crea códigos y dáselos a promotores. El cliente lo escribe al hacer su pedido y obtiene el descuento configurado.</p>
-
-        <!-- Lista -->
-        <div v-if="codigosPromo.length" class="codigos-lista">
-          <div v-for="c in codigosPromo" :key="c.id" class="codigo-row">
-            <div class="codigo-info">
-              <strong class="codigo-tag">{{ c.codigo }}</strong>
-              <span v-if="c.descripcion" class="codigo-desc">{{ c.descripcion }}</span>
-            </div>
-            <div class="codigo-meta">
-              <span class="codigo-descuento">{{ c.tipo === 'descuento_fijo' ? '-$' + Number(c.valor).toFixed(2) : '-' + c.valor + '%' }}</span>
-              <span class="codigo-usos">{{ c.usos }} uso{{ c.usos != 1 ? 's' : '' }}</span>
-            </div>
-            <div class="codigo-actions">
-              <label class="sw">
-                <input type="checkbox" :checked="Number(c.activo) === 1" @change="toggleCodigoPromo(c)" />
-                <span class="sw-track" :style="Number(c.activo) === 1 ? { background: temaAccent } : {}"></span>
-              </label>
-              <button type="button" class="btn-del-codigo" @click="eliminarCodigoPromo(c)" title="Eliminar código">✕</button>
-            </div>
-          </div>
-        </div>
-        <p v-else class="helper-text" style="text-align:center; padding:8px 0; margin-bottom:0">Sin códigos creados aún</p>
 
         <hr class="negocio-divider" />
 
-        <!-- Crear nuevo -->
-        <strong style="display:block; margin-bottom:10px">Nuevo código</strong>
-        <div class="form-grid">
-          <div class="field">
-            <label>Código *</label>
-            <input v-model="formCodigo.codigo" placeholder="Ej: JUAN10" maxlength="20"
-              @input="formCodigo.codigo = formCodigo.codigo.toUpperCase()" />
-          </div>
-          <div class="field">
-            <label>Descripción (opcional)</label>
-            <input v-model="formCodigo.descripcion" placeholder="Ej: Promotor Juan García" maxlength="100" />
-          </div>
-          <div class="field">
-            <label>Tipo de descuento</label>
-            <div class="rec-tipo-btns">
-              <button type="button" :class="['rec-tipo-btn', { active: formCodigo.tipo === 'descuento_fijo' }]"
-                @click="formCodigo.tipo = 'descuento_fijo'">$ Fijo</button>
-              <button type="button" :class="['rec-tipo-btn', { active: formCodigo.tipo === 'descuento_porcentaje' }]"
-                @click="formCodigo.tipo = 'descuento_porcentaje'">% Porcentaje</button>
+        <!-- Códigos de promotor -->
+        <div class="negocio-toggle-row">
+          <strong>Códigos de promotor</strong>
+          <label class="sw">
+            <input type="checkbox" v-model="formRest.codigos_promo_habilitado" />
+            <span class="sw-track" :style="formRest.codigos_promo_habilitado ? { background: temaAccent } : {}"></span>
+          </label>
+        </div>
+        <template v-if="formRest.codigos_promo_habilitado">
+          <p class="helper-text" style="margin:8px 0 14px">Crea códigos y dáselos a promotores. El cliente lo escribe al hacer su pedido y obtiene el descuento configurado.</p>
+
+          <!-- Lista -->
+          <div v-if="codigosPromo.length" class="codigos-lista">
+            <div v-for="c in codigosPromo" :key="c.id" class="codigo-row">
+              <div class="codigo-info">
+                <strong class="codigo-tag">{{ c.codigo }}</strong>
+                <span v-if="c.descripcion" class="codigo-desc">{{ c.descripcion }}</span>
+              </div>
+              <div class="codigo-meta">
+                <span class="codigo-descuento">{{ c.tipo === 'descuento_fijo' ? '-$' + Number(c.valor).toFixed(2) : '-' + c.valor + '%' }}</span>
+                <span class="codigo-usos">{{ c.usos }} uso{{ c.usos != 1 ? 's' : '' }}</span>
+              </div>
+              <div class="codigo-actions">
+                <label class="sw">
+                  <input type="checkbox" :checked="Number(c.activo) === 1" @change="toggleCodigoPromo(c)" />
+                  <span class="sw-track" :style="Number(c.activo) === 1 ? { background: temaAccent } : {}"></span>
+                </label>
+                <button type="button" class="btn-del-codigo" @click="eliminarCodigoPromo(c)" title="Eliminar código">✕</button>
+              </div>
             </div>
           </div>
-          <div class="field" style="max-width:160px">
-            <label>{{ formCodigo.tipo === 'descuento_porcentaje' ? 'Descuento (%)' : 'Descuento ($)' }}</label>
-            <input v-model.number="formCodigo.valor" type="number" min="0"
-              :max="formCodigo.tipo === 'descuento_porcentaje' ? 100 : 99999" step="0.5" placeholder="0" />
+          <p v-else class="helper-text" style="text-align:center; padding:8px 0">Sin códigos creados aún</p>
+
+          <hr class="negocio-divider" />
+
+          <!-- Crear nuevo -->
+          <strong style="display:block; margin-bottom:10px">Nuevo código</strong>
+          <div class="form-grid">
+            <div class="field">
+              <label>Código *</label>
+              <input v-model="formCodigo.codigo" placeholder="Ej: JUAN10" maxlength="20"
+                @input="formCodigo.codigo = formCodigo.codigo.toUpperCase()" />
+            </div>
+            <div class="field">
+              <label>Descripción (opcional)</label>
+              <input v-model="formCodigo.descripcion" placeholder="Ej: Promotor Juan García" maxlength="100" />
+            </div>
+            <div class="field">
+              <label>Tipo de descuento</label>
+              <div class="rec-tipo-btns">
+                <button type="button" :class="['rec-tipo-btn', { active: formCodigo.tipo === 'descuento_fijo' }]"
+                  @click="formCodigo.tipo = 'descuento_fijo'">$ Fijo</button>
+                <button type="button" :class="['rec-tipo-btn', { active: formCodigo.tipo === 'descuento_porcentaje' }]"
+                  @click="formCodigo.tipo = 'descuento_porcentaje'">% Porcentaje</button>
+              </div>
+            </div>
+            <div class="field" style="max-width:160px">
+              <label>{{ formCodigo.tipo === 'descuento_porcentaje' ? 'Descuento (%)' : 'Descuento ($)' }}</label>
+              <input v-model.number="formCodigo.valor" type="number" min="0"
+                :max="formCodigo.tipo === 'descuento_porcentaje' ? 100 : 99999" step="0.5" placeholder="0" />
+            </div>
           </div>
-        </div>
-        <button type="button" class="btn-primary" style="margin-top:4px" @click="crearCodigoPromo" :disabled="guardandoCodigo">
-          {{ guardandoCodigo ? 'Guardando...' : '+ Agregar código' }}
-        </button>
+          <button type="button" class="btn-primary" style="margin-top:4px" @click="crearCodigoPromo" :disabled="guardandoCodigo">
+            {{ guardandoCodigo ? 'Guardando...' : '+ Agregar código' }}
+          </button>
+        </template>
+
       </div>
     </div>
 
-    <!-- Datos de transferencia -->
+    <!-- Métodos de pago -->
     <div v-if="formRest.pedidos_activos" class="card">
-      <div class="card-header"><h2>Datos para transferencia</h2></div>
+      <div class="card-header"><h2>Métodos de pago</h2></div>
       <div class="card-body">
+
+        <!-- Terminal a domicilio -->
         <div class="negocio-toggle-row">
           <div>
-            <strong>Aceptar transferencia bancaria</strong>
+            <strong>Terminal a domicilio</strong>
+            <p class="helper-text" style="margin:4px 0 0">Los clientes con envío a domicilio verán la opción de pagar con terminal al recibir su pedido.</p>
+          </div>
+          <label class="sw">
+            <input type="checkbox" v-model="formRest.pedidos_terminal_activo" />
+            <span class="sw-track" :style="formRest.pedidos_terminal_activo ? { background: temaAccent } : {}"></span>
+          </label>
+        </div>
+
+        <hr class="negocio-divider" />
+
+        <!-- Transferencia bancaria -->
+        <div class="negocio-toggle-row">
+          <div>
+            <strong>Transferencia bancaria</strong>
             <p class="helper-text" style="margin:4px 0 0">Los clientes verán la opción de pagar por transferencia en el checkout.</p>
           </div>
           <label class="sw">
@@ -287,8 +288,7 @@
           </label>
         </div>
         <template v-if="formRest.pedidos_trans_activo">
-          <hr class="negocio-divider" />
-          <div class="form-grid">
+          <div class="form-grid" style="margin-top:14px">
             <div class="field">
               <label>Banco / Alias</label>
               <input v-model="formRest.pedidos_trans_banco" placeholder="Ej: BBVA, SPIN, CoDi..." />
@@ -307,6 +307,7 @@
             </div>
           </div>
         </template>
+
       </div>
     </div>
 

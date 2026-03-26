@@ -937,6 +937,9 @@ switch ($route) {
                          VALUES (:rid, :tel, 1, NOW())
                          ON DUPLICATE KEY UPDATE total_compras = total_compras + 1, ultima_compra = NOW()'
                     )->execute([':rid' => (int)$restaurante_id, ':tel' => $tel_pedido]);
+                    // Marcar el pedido como contado para poder revertir si se cancela
+                    $pdo->prepare('UPDATE pedidos SET contada_en_recompensas = 1 WHERE id = :id')
+                        ->execute([':id' => (int)$pedido_id]);
 
                     $stmtCli = $pdo->prepare('SELECT * FROM clientes WHERE restaurante_id = :rid AND telefono = :tel');
                     $stmtCli->execute([':rid' => (int)$restaurante_id, ':tel' => $tel_pedido]);
@@ -978,6 +981,25 @@ switch ($route) {
             }
             $pdo->prepare('UPDATE pedidos SET status = :s WHERE id = :id')
                 ->execute([':s' => $status, ':id' => (int)$id]);
+
+            // Al cancelar: revertir el acumulado de recompensas si este pedido lo sumó
+            if ($status === 'cancelado') {
+                $stmtP = $pdo->prepare('SELECT telefono, restaurante_id, contada_en_recompensas FROM pedidos WHERE id = :id');
+                $stmtP->execute([':id' => (int)$id]);
+                $ped = $stmtP->fetch(PDO::FETCH_ASSOC);
+                if ($ped && (int)$ped['contada_en_recompensas'] === 1) {
+                    $tel = preg_replace('/\D/', '', $ped['telefono'] ?? '');
+                    if (strlen($tel) >= 8) {
+                        $pdo->prepare(
+                            'UPDATE clientes SET total_compras = GREATEST(0, total_compras - 1)
+                             WHERE restaurante_id = :rid AND telefono = :tel'
+                        )->execute([':rid' => (int)$ped['restaurante_id'], ':tel' => $tel]);
+                    }
+                    $pdo->prepare('UPDATE pedidos SET contada_en_recompensas = 0 WHERE id = :id')
+                        ->execute([':id' => (int)$id]);
+                }
+            }
+
             json_response(['success' => true]);
         }
 
