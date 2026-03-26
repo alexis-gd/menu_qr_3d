@@ -200,14 +200,20 @@
 
           <!-- Lista -->
           <div v-if="codigosPromo.length" class="codigos-lista">
-            <div v-for="c in codigosPromo" :key="c.id" class="codigo-row">
+            <div v-for="c in codigosPromo" :key="c.id" :class="['codigo-row', { 'codigo-agotado': codigoAgotado(c) }]">
               <div class="codigo-info">
-                <strong class="codigo-tag">{{ c.codigo }}</strong>
+                <div class="codigo-tag-row">
+                  <strong class="codigo-tag">{{ c.codigo }}</strong>
+                  <span v-if="codigoAgotado(c)" class="badge-agotado">Agotado</span>
+                </div>
                 <span v-if="c.descripcion" class="codigo-desc">{{ c.descripcion }}</span>
               </div>
               <div class="codigo-meta">
                 <span class="codigo-descuento">{{ c.tipo === 'descuento_fijo' ? '-$' + Number(c.valor).toFixed(2) : '-' + c.valor + '%' }}</span>
-                <span class="codigo-usos">{{ c.usos }} uso{{ c.usos != 1 ? 's' : '' }}</span>
+                <span class="codigo-usos">{{ c.usos }}{{ c.usos_maximo ? '/' + c.usos_maximo : '' }} uso{{ c.usos != 1 ? 's' : '' }}</span>
+                <div v-if="c.usos_maximo" class="codigo-barra-wrap">
+                  <div class="codigo-barra-fill" :style="{ width: Math.min(100, Math.round(c.usos / c.usos_maximo * 100)) + '%', background: codigoAgotado(c) ? '#e74c3c' : temaAccent }"></div>
+                </div>
               </div>
               <div class="codigo-actions">
                 <label class="sw">
@@ -238,7 +244,7 @@
               <label>Tipo de descuento</label>
               <div class="rec-tipo-btns">
                 <button type="button" :class="['rec-tipo-btn', { active: formCodigo.tipo === 'descuento_fijo' }]"
-                  @click="formCodigo.tipo = 'descuento_fijo'">$ Fijo</button>
+                  @click="formCodigo.tipo = 'descuento_fijo'">$ Descuento Fijo</button>
                 <button type="button" :class="['rec-tipo-btn', { active: formCodigo.tipo === 'descuento_porcentaje' }]"
                   @click="formCodigo.tipo = 'descuento_porcentaje'">% Porcentaje</button>
               </div>
@@ -248,8 +254,12 @@
               <input v-model.number="formCodigo.valor" type="number" min="0"
                 :max="formCodigo.tipo === 'descuento_porcentaje' ? 100 : 99999" step="0.5" placeholder="0" />
             </div>
+            <div class="field" style="max-width:160px">
+              <label>Tope de canjes <span class="label-opcional">(opcional)</span></label>
+              <input v-model.number="formCodigo.usos_maximo" type="number" min="1" step="1" placeholder="Sin límite" />
+            </div>
           </div>
-          <button type="button" class="btn-primary" style="margin-top:4px" @click="crearCodigoPromo" :disabled="guardandoCodigo">
+          <button type="button" class="btn-primary" style="margin-top:14px" @click="crearCodigoPromo" :disabled="guardandoCodigo">
             {{ guardandoCodigo ? 'Guardando...' : '+ Agregar código' }}
           </button>
         </template>
@@ -352,7 +362,9 @@ const formRecompensas = ref({ activo: false, compras_necesarias: 10, tipo: 'desc
 // ── Códigos de promotor ──
 const codigosPromo    = ref([])
 const guardandoCodigo = ref(false)
-const formCodigo      = ref({ codigo: '', descripcion: '', tipo: 'descuento_fijo', valor: 0 })
+const formCodigo      = ref({ codigo: '', descripcion: '', tipo: 'descuento_fijo', valor: 0, usos_maximo: null })
+
+const codigoAgotado = (c) => c.usos_maximo && Number(c.usos) >= Number(c.usos_maximo)
 
 onMounted(async () => {
   if (!props.restauranteId) return
@@ -379,10 +391,16 @@ const crearCodigoPromo = async () => {
   }
   guardandoCodigo.value = true
   try {
-    await post('codigos-promo', { ...formCodigo.value, codigo, restaurante_id: props.restauranteId })
+    const payload = {
+      ...formCodigo.value,
+      codigo,
+      restaurante_id: props.restauranteId,
+      usos_maximo: formCodigo.value.usos_maximo > 0 ? formCodigo.value.usos_maximo : null,
+    }
+    await post('codigos-promo', payload)
     const data = await get('codigos-promo', { restaurante_id: props.restauranteId })
     codigosPromo.value = data.codigos || []
-    formCodigo.value = { codigo: '', descripcion: '', tipo: 'descuento_fijo', valor: 0 }
+    formCodigo.value = { codigo: '', descripcion: '', tipo: 'descuento_fijo', valor: 0, usos_maximo: null }
     emit('notif', { texto: 'Código creado', tipo: 'ok' })
   } catch (err) { emit('notif', { texto: err.message || 'Error al crear código', tipo: 'error' }) }
   finally { guardandoCodigo.value = false }
@@ -547,8 +565,9 @@ defineExpose({ guardar: guardarRestaurante, guardando })
 /* ── Recompensas ── */
 .rec-tipo-btns { display: flex; gap: 8px; }
 .rec-tipo-btn {
-  flex: 1; padding: 9px 12px; border: 1.5px solid #ddd; border-radius: 8px;
-  background: #fff; font-size: 0.85rem; font-weight: 600; color: #555; cursor: pointer;
+  flex: 1; padding: 10px 12px; border: 1.5px solid #ddd; border-radius: 8px;
+  background: #fff; font-size: 0.9rem; font-weight: 600; color: #555; cursor: pointer;
+  font-family: inherit; box-sizing: border-box;
   transition: border-color 0.15s, background 0.15s, color 0.15s;
 }
 .rec-tipo-btn.active {
@@ -649,14 +668,21 @@ defineExpose({ guardar: guardarRestaurante, guardando })
 .codigo-row {
   display: flex; align-items: center; gap: 10px;
   padding: 10px 12px; border: 1.5px solid #eee; border-radius: 10px; background: #fafafa;
+  transition: opacity 0.2s;
 }
+.codigo-agotado { opacity: 0.65; }
 .codigo-info { flex: 1; min-width: 0; }
+.codigo-tag-row { display: flex; align-items: center; gap: 6px; }
 .codigo-tag { font-size: 0.95rem; font-family: monospace; letter-spacing: 0.04em; color: #222; }
+.badge-agotado { font-size: 0.65rem; font-weight: 700; color: #fff; background: #e74c3c; border-radius: 4px; padding: 1px 6px; letter-spacing: 0.02em; }
 .codigo-desc { display: block; font-size: 0.75rem; color: #999; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.codigo-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+.codigo-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; min-width: 72px; }
 .codigo-descuento { font-size: 0.85rem; font-weight: 700; color: #27ae60; }
 .codigo-usos { font-size: 0.72rem; color: #aaa; }
+.codigo-barra-wrap { width: 64px; height: 4px; background: #e8e8e8; border-radius: 2px; overflow: hidden; }
+.codigo-barra-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
 .codigo-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.label-opcional { font-weight: 400; color: #bbb; font-size: 0.8em; }
 .btn-del-codigo {
   width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid #eee;
   background: #fff; color: #bbb; font-size: 0.75rem; cursor: pointer; line-height: 1;

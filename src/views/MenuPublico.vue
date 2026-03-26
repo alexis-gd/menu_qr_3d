@@ -151,6 +151,7 @@
       :restaurante-id="restaurante?.id"
       @close="mostrarCheckout = false"
       @confirmado="onPedidoConfirmado"
+      @stock-agotado="onStockAgotado"
     />
   </div>
 
@@ -295,6 +296,13 @@ const irCategoriaDesdeAviso = (catId) => {
 const onPedidoConfirmado = () => {
   carritoStore.vaciar()
   mostrarCheckout.value = false
+}
+
+const onStockAgotado = (msg) => {
+  clearTimeout(toastStockTimer)
+  toastStockMsg.value = `${msg} — eliminado del carrito`
+  toastStockTimer = setTimeout(() => { toastStockMsg.value = '' }, 3500)
+  if (!carritoStore.items.length) mostrarCheckout.value = false
 }
 
 watch(() => restaurante.value?.logo_url, (url) => {

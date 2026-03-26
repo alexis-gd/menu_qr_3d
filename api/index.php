@@ -832,10 +832,13 @@ switch ($route) {
             $promo_valida = null;
             if ($codigo_promo_input) {
                 $stmtPromoChk = $pdo->prepare(
-                    'SELECT id, tipo, valor FROM codigos_promo WHERE restaurante_id=:rid AND codigo=:c AND activo=1'
+                    'SELECT id, tipo, valor, usos, usos_maximo FROM codigos_promo WHERE restaurante_id=:rid AND codigo=:c AND activo=1'
                 );
                 $stmtPromoChk->execute([':rid' => (int)$restaurante_id, ':c' => $codigo_promo_input]);
                 $promo_valida = $stmtPromoChk->fetch(PDO::FETCH_ASSOC) ?: null;
+                if ($promo_valida && $promo_valida['usos_maximo'] !== null && (int)$promo_valida['usos'] >= (int)$promo_valida['usos_maximo']) {
+                    $promo_valida = null; // tope alcanzado, no aplicar descuento
+                }
             }
 
             $desc_rec  = max(0, (float)($body['descuento_recompensa'] ?? 0));
@@ -865,17 +868,20 @@ switch ($route) {
             ]);
             $pedido_id = $pdo->lastInsertId();
 
-            // Validar stock de cada item antes de insertar
-            $stmtStock = $pdo->prepare('SELECT stock FROM productos WHERE id=:id AND activo=1');
+            // Validar disponibilidad y stock de cada item antes de insertar
+            $stmtStock = $pdo->prepare('SELECT stock, disponible FROM productos WHERE id=:id AND activo=1');
             foreach ($items as $item) {
                 $prod_id = $item['producto_id'] ?? null;
                 if (!$prod_id) continue;
-                $cant = max(1, (int)($item['cantidad'] ?? 1));
+                $cant        = max(1, (int)($item['cantidad'] ?? 1));
+                $nombre_prod = $item['nombre'] ?? 'Producto';
                 $stmtStock->execute([':id' => (int)$prod_id]);
                 $row = $stmtStock->fetch(PDO::FETCH_ASSOC);
-                if ($row && $row['stock'] !== null && (int)$row['stock'] < $cant) {
-                    $nombre_prod = $item['nombre'] ?? 'Producto';
-                    json_response(['error' => "Sin stock suficiente para: $nombre_prod"], 409);
+                if (!$row || (int)$row['disponible'] === 0) {
+                    json_response(['error' => "$nombre_prod ya no está disponible", 'tipo' => 'stock_agotado', 'producto_id' => (int)$prod_id], 409);
+                }
+                if ($row['stock'] !== null && (int)$row['stock'] < $cant) {
+                    json_response(['error' => "$nombre_prod se agotó", 'tipo' => 'stock_agotado', 'producto_id' => (int)$prod_id], 409);
                 }
             }
 
@@ -931,15 +937,26 @@ switch ($route) {
                 $cfg_rec = $stmtRC->fetch(PDO::FETCH_ASSOC);
 
                 if ($cfg_rec) {
-                    // Upsert cliente (incrementar compras)
-                    $pdo->prepare(
-                        'INSERT INTO clientes (restaurante_id, telefono, total_compras, ultima_compra)
-                         VALUES (:rid, :tel, 1, NOW())
-                         ON DUPLICATE KEY UPDATE total_compras = total_compras + 1, ultima_compra = NOW()'
-                    )->execute([':rid' => (int)$restaurante_id, ':tel' => $tel_pedido]);
-                    // Marcar el pedido como contado para poder revertir si se cancela
-                    $pdo->prepare('UPDATE pedidos SET contada_en_recompensas = 1 WHERE id = :id')
-                        ->execute([':id' => (int)$pedido_id]);
+                    if (!empty($body['aplicar_recompensa'])) {
+                        // Canje de recompensa: solo actualizar ultima_compra, NO incrementar total_compras
+                        // (el pedido con canje no cuenta como compra acumulable — el cliente arranca en 0)
+                        $pdo->prepare(
+                            'INSERT INTO clientes (restaurante_id, telefono, total_compras, ultima_compra)
+                             VALUES (:rid, :tel, 0, NOW())
+                             ON DUPLICATE KEY UPDATE ultima_compra = NOW()'
+                        )->execute([':rid' => (int)$restaurante_id, ':tel' => $tel_pedido]);
+                        // contada_en_recompensas queda en 0 (no hay total_compras que revertir al cancelar)
+                    } else {
+                        // Compra normal: incrementar total_compras
+                        $pdo->prepare(
+                            'INSERT INTO clientes (restaurante_id, telefono, total_compras, ultima_compra)
+                             VALUES (:rid, :tel, 1, NOW())
+                             ON DUPLICATE KEY UPDATE total_compras = total_compras + 1, ultima_compra = NOW()'
+                        )->execute([':rid' => (int)$restaurante_id, ':tel' => $tel_pedido]);
+                        // Marcar el pedido como contado para poder revertir si se cancela
+                        $pdo->prepare('UPDATE pedidos SET contada_en_recompensas = 1 WHERE id = :id')
+                            ->execute([':id' => (int)$pedido_id]);
+                    }
 
                     $stmtCli = $pdo->prepare('SELECT * FROM clientes WHERE restaurante_id = :rid AND telefono = :tel');
                     $stmtCli->execute([':rid' => (int)$restaurante_id, ':tel' => $tel_pedido]);
@@ -947,8 +964,8 @@ switch ($route) {
 
                     // Marcar recompensa usada si el cliente la aplicó en este pedido
                     if (!empty($body['aplicar_recompensa']) && $cli) {
-                        $necesarias   = (int)$cfg_rec['compras_necesarias'];
-                        $ciclos       = $necesarias > 0 ? (int)floor((int)$cli['total_compras'] / $necesarias) : 0;
+                        $necesarias = (int)$cfg_rec['compras_necesarias'];
+                        $ciclos     = $necesarias > 0 ? (int)floor((int)$cli['total_compras'] / $necesarias) : 0;
                         if ($ciclos > (int)$cli['recompensas_ganadas']) {
                             $pdo->prepare('UPDATE clientes SET recompensas_ganadas = recompensas_ganadas + 1 WHERE id = :id')
                                 ->execute([':id' => $cli['id']]);
@@ -982,21 +999,48 @@ switch ($route) {
             $pdo->prepare('UPDATE pedidos SET status = :s WHERE id = :id')
                 ->execute([':s' => $status, ':id' => (int)$id]);
 
-            // Al cancelar: revertir el acumulado de recompensas si este pedido lo sumó
+            // Al cancelar: revertir recompensas, cupón y stock
             if ($status === 'cancelado') {
-                $stmtP = $pdo->prepare('SELECT telefono, restaurante_id, contada_en_recompensas FROM pedidos WHERE id = :id');
+                // Revertir recompensas
+                $stmtP = $pdo->prepare('SELECT telefono, restaurante_id, contada_en_recompensas, descuento_recompensa, codigo_promo FROM pedidos WHERE id = :id');
                 $stmtP->execute([':id' => (int)$id]);
                 $ped = $stmtP->fetch(PDO::FETCH_ASSOC);
-                if ($ped && (int)$ped['contada_en_recompensas'] === 1) {
-                    $tel = preg_replace('/\D/', '', $ped['telefono'] ?? '');
-                    if (strlen($tel) >= 8) {
+                $tel = preg_replace('/\D/', '', $ped['telefono'] ?? '');
+                if (strlen($tel) >= 8) {
+                    // Revertir total_compras solo si fue una compra normal contada
+                    if ($ped && (int)$ped['contada_en_recompensas'] === 1) {
                         $pdo->prepare(
                             'UPDATE clientes SET total_compras = GREATEST(0, total_compras - 1)
                              WHERE restaurante_id = :rid AND telefono = :tel'
                         )->execute([':rid' => (int)$ped['restaurante_id'], ':tel' => $tel]);
+                        $pdo->prepare('UPDATE pedidos SET contada_en_recompensas = 0 WHERE id = :id')
+                            ->execute([':id' => (int)$id]);
                     }
-                    $pdo->prepare('UPDATE pedidos SET contada_en_recompensas = 0 WHERE id = :id')
-                        ->execute([':id' => (int)$id]);
+                    // Revertir recompensa canjeada (independiente — canje no incrementa total_compras)
+                    if ($ped && (float)$ped['descuento_recompensa'] > 0) {
+                        $pdo->prepare(
+                            'UPDATE clientes SET recompensas_ganadas = GREATEST(0, recompensas_ganadas - 1)
+                             WHERE restaurante_id = :rid AND telefono = :tel'
+                        )->execute([':rid' => (int)$ped['restaurante_id'], ':tel' => $tel]);
+                    }
+                }
+
+                // Revertir uso del código promo si se usó uno
+                if (!empty($ped['codigo_promo'])) {
+                    $pdo->prepare(
+                        'UPDATE codigos_promo SET usos = GREATEST(0, usos - 1)
+                         WHERE restaurante_id = :rid AND codigo = :c'
+                    )->execute([':rid' => (int)$ped['restaurante_id'], ':c' => $ped['codigo_promo']]);
+                }
+
+                // Restaurar stock de los items del pedido cancelado
+                $stmtItemsCan = $pdo->prepare('SELECT producto_id, cantidad FROM pedido_items WHERE pedido_id = :pid');
+                $stmtItemsCan->execute([':pid' => (int)$id]);
+                $stmtRestStock = $pdo->prepare(
+                    'UPDATE productos SET stock = stock + :cant WHERE id = :id AND stock IS NOT NULL'
+                );
+                foreach ($stmtItemsCan->fetchAll(PDO::FETCH_ASSOC) as $it) {
+                    $stmtRestStock->execute([':cant' => (int)$it['cantidad'], ':id' => (int)$it['producto_id']]);
                 }
             }
 
@@ -1225,13 +1269,15 @@ switch ($route) {
             $rid2   = intval($body['restaurante_id'] ?? 0);
             $codigo = strtoupper(trim($body['codigo'] ?? ''));
             if (!$rid2 || !$codigo) json_response(['error' => 'restaurante_id y codigo son requeridos'], 400);
-            $tipo  = in_array($body['tipo'] ?? '', ['descuento_porcentaje','descuento_fijo']) ? $body['tipo'] : 'descuento_fijo';
-            $valor = max(0, (float)($body['valor'] ?? 0));
-            $desc  = trim($body['descripcion'] ?? '') ?: null;
+            $tipo        = in_array($body['tipo'] ?? '', ['descuento_porcentaje','descuento_fijo']) ? $body['tipo'] : 'descuento_fijo';
+            $valor       = max(0, (float)($body['valor'] ?? 0));
+            $desc        = trim($body['descripcion'] ?? '') ?: null;
+            $usos_maximo = isset($body['usos_maximo']) && $body['usos_maximo'] !== null && $body['usos_maximo'] !== ''
+                ? max(1, (int)$body['usos_maximo']) : null;
             try {
                 $pdo->prepare(
-                    'INSERT INTO codigos_promo (restaurante_id, codigo, descripcion, tipo, valor) VALUES (:rid, :c, :d, :t, :v)'
-                )->execute([':rid' => $rid2, ':c' => $codigo, ':d' => $desc, ':t' => $tipo, ':v' => $valor]);
+                    'INSERT INTO codigos_promo (restaurante_id, codigo, descripcion, tipo, valor, usos_maximo) VALUES (:rid, :c, :d, :t, :v, :um)'
+                )->execute([':rid' => $rid2, ':c' => $codigo, ':d' => $desc, ':t' => $tipo, ':v' => $valor, ':um' => $usos_maximo]);
                 json_response(['id' => (int)$pdo->lastInsertId()], 201);
             } catch (\PDOException $e) {
                 if ($e->getCode() === '23000') json_response(['error' => 'Ese código ya existe para este restaurante'], 409);
@@ -1244,7 +1290,7 @@ switch ($route) {
             $body = json_decode(file_get_contents('php://input'), true) ?: [];
             if (!$id) json_response(['error' => 'id requerido'], 400);
             $fields = []; $params = [':id' => $id];
-            foreach (['activo','tipo','valor','descripcion'] as $f) {
+            foreach (['activo','tipo','valor','descripcion','usos_maximo'] as $f) {
                 if (array_key_exists($f, $body)) { $fields[] = "$f=:$f"; $params[":$f"] = $body[$f]; }
             }
             if ($fields) $pdo->prepare('UPDATE codigos_promo SET '.implode(',', $fields).' WHERE id=:id')->execute($params);
@@ -1267,10 +1313,13 @@ switch ($route) {
             $codigo = strtoupper(trim($_GET['codigo'] ?? ''));
             $rid    = intval($_GET['restaurante_id'] ?? 0);
             if (!$codigo || !$rid) json_response(['valido' => false]);
-            $stmt = $pdo->prepare('SELECT tipo, valor, descripcion FROM codigos_promo WHERE restaurante_id=:rid AND codigo=:c AND activo=1');
+            $stmt = $pdo->prepare('SELECT tipo, valor, descripcion, usos, usos_maximo FROM codigos_promo WHERE restaurante_id=:rid AND codigo=:c AND activo=1');
             $stmt->execute([':rid' => $rid, ':c' => $codigo]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($row) {
+                if ($row['usos_maximo'] !== null && (int)$row['usos'] >= (int)$row['usos_maximo']) {
+                    json_response(['valido' => false, 'motivo' => 'agotado']);
+                }
                 json_response(['valido' => true, 'tipo' => $row['tipo'], 'valor' => (float)$row['valor'], 'descripcion' => $row['descripcion']]);
             }
             json_response(['valido' => false]);

@@ -48,6 +48,10 @@ export const useCarritoStore = defineStore('carrito', () => {
     return 'ok'
   }
 
+  const eliminar = (productoId) => {
+    items.value = items.value.filter(i => i.producto.id !== productoId)
+  }
+
   const vaciar = () => {
     items.value = []
     _avisosMostrados = new Set() // resetear al vaciar el carrito
@@ -66,7 +70,7 @@ export const useCarritoStore = defineStore('carrito', () => {
 
   const avisoYaMostrado = (catId) => _avisosMostrados.has(catId)
 
-  return { items, agregar, vaciar, total, cantidadEnCarrito, tieneCategoriaEnCarrito, marcarAvisoMostrado, avisoYaMostrado }
+  return { items, agregar, eliminar, vaciar, total, cantidadEnCarrito, tieneCategoriaEnCarrito, marcarAvisoMostrado, avisoYaMostrado }
 }, {
   persist: { paths: ['items'] },
 })

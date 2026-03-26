@@ -84,18 +84,27 @@
               <!-- Cuponera de recompensas -->
               <div v-if="historial?.activo" class="cuponera">
                 <div v-if="historial.tiene_recompensa" class="cuponera-recompensa">
-                  🎁 ¡Recompensa lista! Se aplica a este pedido.
+                  🎁 ¡Premio ganado! Completaste tus {{ historial.necesarias }} compras —
+                  {{ historial.tipo === 'descuento_fijo' ? '$' + Number(historial.valor).toFixed(0) : historial.valor + '%' }} de descuento aplicado.
                 </div>
                 <template v-else>
                   <p class="cuponera-texto">
-                    Llevas <strong>{{ historial.compras_en_ciclo }}</strong> de <strong>{{ historial.necesarias }}</strong> compras para tu recompensa
+                    <template v-if="historial.compras_en_ciclo + 1 >= historial.necesarias">
+                      🎁 ¡Con esta compra ganas tu recompensa!
+                    </template>
+                    <template v-else>
+                      Con esta compra tendrías <strong>{{ historial.compras_en_ciclo + 1 }}</strong> de <strong>{{ historial.necesarias }}</strong>
+                    </template>
+                  </p>
+                  <p class="cuponera-premio">
+                    Premio: {{ historial.tipo === 'descuento_fijo' ? '$' + Number(historial.valor).toFixed(0) : historial.valor + '%' }} de descuento
                   </p>
                   <div class="cuponera-sellos">
                     <span
                       v-for="i in Math.min(historial.necesarias, 10)"
                       :key="i"
                       class="sello"
-                      :class="{ 'sello-lleno': i <= historial.compras_en_ciclo }"
+                      :class="{ 'sello-lleno': i <= Math.min(historial.compras_en_ciclo + 1, historial.necesarias) }"
                     >★</span>
                     <span v-if="historial.necesarias > 10" class="cuponera-resto">+{{ historial.necesarias - 10 }}</span>
                   </div>
@@ -107,20 +116,25 @@
               <input :value="nombre" @input="nombre = ucfirst($event.target.value)" placeholder="¿Cómo te llamamos?" maxlength="60" />
             </div>
             <!-- Código de descuento / promotor -->
-            <div v-if="pedidosConfig.codigos_promo_habilitado && (!historial || historial.compras === 0)" class="campo">
+            <div v-if="pedidosConfig.codigos_promo_habilitado" class="campo">
               <label>Código de descuento (opcional)</label>
               <div class="promo-wrap">
                 <input
                   v-model="codigoPromo"
+                  :disabled="!!historial?.tiene_recompensa"
                   placeholder="Ej: JUAN10"
                   maxlength="20"
                   @input="codigoPromo = codigoPromo.toUpperCase(); onCodigoPromoInput()"
                 />
-                <span v-if="promoValidando" class="promo-status promo-wait">…</span>
-                <span v-else-if="promoValidada" class="promo-status promo-ok">
-                  ✓ {{ promoValidada.tipo === 'descuento_fijo' ? '-$' + Number(promoValidada.valor).toFixed(2) : '-' + promoValidada.valor + '%' }}
-                </span>
-                <span v-else-if="promoError" class="promo-status promo-err">✗ Inválido</span>
+                <span v-if="historial?.tiene_recompensa" class="promo-status promo-wait">No disponible con recompensa activa</span>
+                <template v-else>
+                  <span v-if="promoValidando" class="promo-status promo-wait">…</span>
+                  <span v-else-if="promoValidada" class="promo-status promo-ok">
+                    ✓ {{ promoValidada.tipo === 'descuento_fijo' ? '-$' + Number(promoValidada.valor).toFixed(2) : '-' + promoValidada.valor + '%' }}
+                  </span>
+                  <span v-else-if="promoError === 'agotado'" class="promo-status promo-err">✗ Código agotado</span>
+                  <span v-else-if="promoError" class="promo-status promo-err">✗ Inválido</span>
+                </template>
               </div>
             </div>
 
@@ -269,7 +283,7 @@ const props = defineProps({
   restauranteId: { type: [Number, String], required: true }
 })
 
-const emit = defineEmits(['close', 'confirmado'])
+const emit = defineEmits(['close', 'confirmado', 'stock-agotado'])
 const { get, post } = useApi()
 const carritoStore = useCarritoStore()
 
@@ -282,7 +296,7 @@ const referencia     = ref('')
 const denominacion   = ref('')
 const codigoPromo    = ref('')
 const promoValidada  = ref(null)   // { tipo, valor, descripcion } si es válido
-const promoError     = ref(false)
+const promoError     = ref('')     // '' = sin error | 'invalido' | 'agotado'
 const promoValidando = ref(false)
 let _promoTimer = null
 const enviando       = ref(false)
@@ -301,11 +315,11 @@ watch(telefono, async (val) => {
     historial.value = data.activo ? data : null
   } catch { historial.value = null }
 
-  // Si es cliente recurrente, limpiar cupón que pudiera haber quedado activo
-  if (historial.value && historial.value.compras > 0) {
+  // Si el cliente tiene recompensa activa, limpiar cupón (no se permiten ambos)
+  if (historial.value?.tiene_recompensa) {
     codigoPromo.value   = ''
     promoValidada.value = null
-    promoError.value    = false
+    promoError.value    = ''
   }
 })
 
@@ -318,6 +332,7 @@ const descuento = computed(() => {
 
 const descuentoPromo = computed(() => {
   if (!promoValidada.value) return 0
+  if (historial.value?.tiene_recompensa) return 0
   const { tipo, valor } = promoValidada.value
   if (tipo === 'descuento_porcentaje') return Math.min(subtotal.value * (valor / 100), subtotal.value)
   return Math.min(valor, subtotal.value)
@@ -326,16 +341,16 @@ const descuentoPromo = computed(() => {
 const onCodigoPromoInput = () => {
   clearTimeout(_promoTimer)
   promoValidada.value = null
-  promoError.value = false
+  promoError.value = ''
   const codigo = codigoPromo.value.trim()
   if (codigo.length < 3) return
   promoValidando.value = true
   _promoTimer = setTimeout(async () => {
     try {
       const data = await get('validar-codigo-promo', { codigo, restaurante_id: props.restauranteId }, false)
-      if (data.valido) { promoValidada.value = data; promoError.value = false }
-      else             { promoValidada.value = null;  promoError.value = true }
-    } catch { promoError.value = true }
+      if (data.valido) { promoValidada.value = data; promoError.value = '' }
+      else             { promoValidada.value = null;  promoError.value = data.motivo === 'agotado' ? 'agotado' : 'invalido' }
+    } catch { promoError.value = 'invalido' }
     finally  { promoValidando.value = false }
   }, 600)
 }
@@ -493,7 +508,7 @@ const confirmar = async () => {
     denominacion.value   = ''
     codigoPromo.value    = ''
     promoValidada.value  = null
-    promoError.value     = false
+    promoError.value     = ''
     historial.value      = null
     tipoEntrega.value    = 'recoger'
     metodoPago.value     = 'efectivo'
@@ -501,7 +516,13 @@ const confirmar = async () => {
 
     emit('confirmado')
   } catch (err) {
-    errorMsg.value = 'Error al enviar el pedido. Intenta de nuevo.'
+    if (err.status === 409 && err.data?.tipo === 'stock_agotado') {
+      const productoId = err.data.producto_id
+      carritoStore.eliminar(productoId)
+      emit('stock-agotado', err.message)
+    } else {
+      errorMsg.value = 'Error al enviar el pedido. Intenta de nuevo.'
+    }
   } finally {
     enviando.value = false
   }
@@ -767,6 +788,12 @@ const confirmar = async () => {
 .cuponera-texto {
   font-size: 0.8rem;
   color: #666;
+  margin: 0 0 4px;
+}
+.cuponera-premio {
+  font-size: 0.75rem;
+  color: #b45309;
+  font-weight: 600;
   margin: 0 0 8px;
 }
 .cuponera-sellos {

@@ -27,7 +27,14 @@ export function useApi() {
         window.location.href = import.meta.env.BASE_URL + 'admin'
         throw new Error('Sesión expirada')
       }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      if (!res.ok) {
+        let data = {}
+        try { data = await res.json() } catch {}
+        const err = new Error(data.error || `HTTP ${res.status}`)
+        err.status = res.status
+        err.data = data
+        throw err
+      }
       const data = await res.json()
       loading.value = false
       return data
