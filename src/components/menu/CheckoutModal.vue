@@ -8,6 +8,11 @@
         <button class="btn-cerrar" @click="$emit('close')">✕</button>
       </div>
 
+      <!-- Banner pedido programado -->
+      <div v-if="pedidoProgramado" class="banner-programado">
+        📅 Estás haciendo un pedido programado
+      </div>
+
       <div class="checkout-body">
 
         <!-- ── 1. Resumen del carrito ── -->
@@ -16,19 +21,23 @@
           <div class="items-lista">
             <div v-for="(item, idx) in carritoStore.items" :key="idx"
                class="item-row" :class="{ 'item-bloqueado': esItemBloqueado(item) }">
-              <div class="item-cant-ctrl">
-                <button class="cant-btn" @click="reducir(idx)">−</button>
-                <span class="cant-num">{{ item.cantidad }}</span>
-                <button class="cant-btn"
-                  :disabled="esItemBloqueado(item) || (item.producto.stock !== null && item.producto.stock !== undefined && item.cantidad >= item.producto.stock)"
-                  @click="item.cantidad++">+</button>
-              </div>
-              <div class="item-info">
+              <!-- Fila superior: controles + nombre + precio -->
+              <div class="item-top">
+                <div class="item-cant-ctrl">
+                  <button class="cant-btn" @click="reducir(idx)">−</button>
+                  <span class="cant-num">{{ item.cantidad }}</span>
+                  <button class="cant-btn"
+                    :disabled="esItemBloqueado(item) || (item.producto.stock !== null && item.producto.stock !== undefined && item.cantidad >= item.producto.stock)"
+                    @click="item.cantidad++">+</button>
+                </div>
                 <span class="item-nombre">{{ item.producto.nombre }}</span>
+                <span class="item-subtotal">${{ ((item.precio_unitario ?? item.producto.precio) * item.cantidad).toFixed(2) }}</span>
+              </div>
+              <!-- Fila inferior: chips + observación a todo el ancho -->
+              <div class="item-bottom">
                 <span v-if="esItemBloqueado(item)" class="chip-item-bloqueado">
                   {{ item.producto.stock === 0 ? 'Sin stock' : 'Próximamente' }} — elimina este ítem para continuar
                 </span>
-                <!-- Chips de opciones seleccionadas -->
                 <div v-if="item.opciones?.length" class="item-opciones">
                   <span v-for="op in item.opciones" :key="op.opcion_id" class="chip-opcion">
                     {{ op.opcion_nombre }}<template v-if="op.precio_extra > 0"> +${{ Number(op.precio_extra).toFixed(2) }}</template>
@@ -42,7 +51,6 @@
                   maxlength="100"
                 />
               </div>
-              <span class="item-subtotal">${{ ((item.precio_unitario ?? item.producto.precio) * item.cantidad).toFixed(2) }}</span>
             </div>
           </div>
         </section>
@@ -74,7 +82,44 @@
           </div>
         </section>
 
-        <!-- ── 3. Datos del cliente ── -->
+        <!-- ── 3. Fecha y hora programada (solo si pedidoProgramado) ── -->
+        <!-- v-show en lugar de v-if: evita el error parentNode null de VueDatePicker al desmontar -->
+        <section v-show="pedidoProgramado" class="checkout-section seccion-programado">
+          <h3 class="section-title">📅 ¿Cuándo lo quieres recibir?</h3>
+          <div class="campos">
+            <div class="campo">
+              <label>Fecha *</label>
+              <VueDatePicker
+                v-model="fechaProgramada"
+                :min-date="minFecha"
+                :time-config="{ enableTimePicker: false }"
+                :format="fmtFechaDisplay"
+                :disabled-dates="disabledDates"
+                auto-apply
+                placeholder="Selecciona una fecha"
+              />
+            </div>
+            <div class="campo">
+              <label>Hora aproximada *</label>
+              <VueDatePicker
+                v-model="horaProgramada"
+                time-picker
+                :hours-increment="1"
+                :minutes-increment="15"
+                :min-time="minHora"
+                :max-time="maxHora"
+                auto-apply
+                placeholder="Selecciona una hora"
+                :disabled="!fechaProgramada"
+              />
+              <span v-if="fechaProgramada && minHoraStr" class="campo-hint">
+                Horario: {{ minHoraStr }} – {{ maxHoraStr }}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── 4. Datos del cliente ── -->
         <section class="checkout-section">
           <h3 class="section-title">Tus datos</h3>
           <div class="campos">
@@ -129,10 +174,17 @@
                 <span v-if="historial?.tiene_recompensa" class="promo-status promo-wait">No disponible con recompensa activa</span>
                 <template v-else>
                   <span v-if="promoValidando" class="promo-status promo-wait">…</span>
+                  <span v-else-if="promoValidada && !promoEfectiva && tipoEntrega !== 'envio'" class="promo-status promo-wait">
+                    Solo aplica para envíos a domicilio
+                  </span>
+                  <span v-else-if="promoValidada && !promoEfectiva" class="promo-status promo-wait">
+                    Ya tienes envío gratis por superar los ${{ umbralGratis?.toFixed(0) }}
+                  </span>
                   <span v-else-if="promoValidada" class="promo-status promo-ok">
-                    ✓ {{ promoValidada.tipo === 'descuento_fijo' ? '-$' + Number(promoValidada.valor).toFixed(2) : '-' + promoValidada.valor + '%' }}
+                    ✓ {{ promoValidada.tipo === 'envio_gratis' ? 'Envío gratis' : promoValidada.tipo === 'descuento_fijo' ? '-$' + Number(promoValidada.valor).toFixed(2) : '-' + promoValidada.valor + '%' }}
                   </span>
                   <span v-else-if="promoError === 'agotado'" class="promo-status promo-err">✗ Código agotado</span>
+                  <span v-else-if="promoError === 'telefono'" class="promo-status promo-err">✗ Este cupón es personal, verifica tu número</span>
                   <span v-else-if="promoError" class="promo-status promo-err">✗ Inválido</span>
                 </template>
               </div>
@@ -263,8 +315,11 @@
           :disabled="enviando || hayItemsBloqueados"
           @click="confirmar"
         >
-          {{ enviando ? 'Enviando...' : '✓ Confirmar pedido por WhatsApp' }}
+          {{ enviando ? 'Abriendo WhatsApp...' : '📲 Abrir WhatsApp y enviar →' }}
         </button>
+        <p v-if="!enviando" class="hint-whatsapp">
+          Solo da clic en "Enviar" en WhatsApp para completar tu pedido
+        </p>
 
       </div>
     </div>
@@ -273,14 +328,16 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { VueDatePicker } from '@vuepic/vue-datepicker'
 import { useApi } from '../../composables/useApi.js'
 import { ucfirst } from '../../utils/ucfirst.js'
 import { useCarritoStore } from '../../stores/carrito.js'
 
 const props = defineProps({
-  pedidosConfig: { type: Object, required: true },
-  mesa:          { type: String, default: null  },
-  restauranteId: { type: [Number, String], required: true }
+  pedidosConfig:    { type: Object,  required: true },
+  mesa:             { type: String,  default: null  },
+  restauranteId:    { type: [Number, String], default: null },
+  pedidoProgramado: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['close', 'confirmado', 'stock-agotado'])
@@ -299,8 +356,70 @@ const promoValidada  = ref(null)   // { tipo, valor, descripcion } si es válido
 const promoError     = ref('')     // '' = sin error | 'invalido' | 'agotado'
 const promoValidando = ref(false)
 let _promoTimer = null
-const enviando       = ref(false)
-const errorMsg       = ref('')
+const enviando          = ref(false)
+const errorMsg          = ref('')
+const fechaProgramada   = ref(null)   // Date object (VueDatePicker)
+const horaProgramada    = ref(null)   // { hours, minutes } (VueDatePicker time-picker)
+
+// ── Horarios para pedido programado ──
+const _DIAS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
+
+const _horarioDelDia = (date) => {
+  const horarios = props.pedidosConfig?.tienda_horarios
+  if (!horarios || !date) return null
+  // Acepta Date object o string "yyyy-MM-dd"
+  const d = date instanceof Date ? date : new Date(date + 'T12:00:00')
+  return horarios[_DIAS[d.getDay()]] || null
+}
+
+// Mínimo: mañana como Date object
+const minFecha = computed(() => {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  d.setHours(0, 0, 0, 0)
+  return d
+})
+
+const fmtFechaDisplay = (d) =>
+  d ? d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }) : ''
+
+// Deshabilita días cerrados en el calendario
+const disabledDates = (date) => {
+  const h = _horarioDelDia(date)
+  return !h || !h.activo
+}
+
+// min/max hora para el time-picker según el día elegido
+const minHora = computed(() => {
+  const h = _horarioDelDia(fechaProgramada.value)
+  if (!h?.apertura) return null
+  const [hours, minutes] = h.apertura.split(':').map(Number)
+  return { hours, minutes }
+})
+const maxHora = computed(() => {
+  const h = _horarioDelDia(fechaProgramada.value)
+  if (!h?.cierre) return null
+  const [hours, minutes] = h.cierre.split(':').map(Number)
+  return { hours, minutes }
+})
+
+// Strings legibles para el hint y para el POST
+const minHoraStr = computed(() => _horarioDelDia(fechaProgramada.value)?.apertura || null)
+const maxHoraStr = computed(() => _horarioDelDia(fechaProgramada.value)?.cierre   || null)
+
+const fechaProgramadaStr = computed(() => {
+  if (!fechaProgramada.value) return null
+  const d = fechaProgramada.value
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+})
+const horaProgramadaStr = computed(() => {
+  if (!horaProgramada.value) return null
+  const { hours, minutes } = horaProgramada.value
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+})
+
+// Limpiar hora si cambia la fecha (el rango válido puede cambiar)
+watch(fechaProgramada, () => { horaProgramada.value = null })
 const copiados       = ref({ banco: false, titular: false, clabe: false, cuenta: false })
 
 // ── Recompensas ──
@@ -308,6 +427,21 @@ const historial = ref(null)
 
 watch(telefono, async (val) => {
   const digits = val.replace(/\D/g, '')
+
+  // Re-validar restricción de teléfono del cupón en cada cambio
+  if (promoValidada.value?.telefono_restringido) {
+    const telRest = promoValidada.value.telefono_restringido.replace(/\D/g, '')
+    if (digits !== telRest) {
+      promoValidada.value = null
+      promoError.value    = 'telefono'
+    }
+  }
+
+  // Si el cupón está en espera de teléfono correcto, re-validar cuando el número cambia
+  if (promoError.value === 'telefono' && codigoPromo.value.trim().length >= 3) {
+    onCodigoPromoInput()
+  }
+
   if (digits.length !== 10) { historial.value = null; return }
   if (!props.restauranteId) return
   try {
@@ -331,9 +465,10 @@ const descuento = computed(() => {
 })
 
 const descuentoPromo = computed(() => {
-  if (!promoValidada.value) return 0
+  if (!promoEfectiva.value) return 0
   if (historial.value?.tiene_recompensa) return 0
-  const { tipo, valor } = promoValidada.value
+  const { tipo, valor } = promoEfectiva.value
+  if (tipo === 'envio_gratis') return 0  // el delivery se anula, no hay descuento en subtotal
   if (tipo === 'descuento_porcentaje') return Math.min(subtotal.value * (valor / 100), subtotal.value)
   return Math.min(valor, subtotal.value)
 })
@@ -348,8 +483,23 @@ const onCodigoPromoInput = () => {
   _promoTimer = setTimeout(async () => {
     try {
       const data = await get('validar-codigo-promo', { codigo, restaurante_id: props.restauranteId }, false)
-      if (data.valido) { promoValidada.value = data; promoError.value = '' }
-      else             { promoValidada.value = null;  promoError.value = data.motivo === 'agotado' ? 'agotado' : 'invalido' }
+      if (data.valido) {
+        // Validar restricción de teléfono si aplica
+        if (data.telefono_restringido) {
+          const telLimpio = telefono.value.replace(/\D/g, '')
+          const telRest   = data.telefono_restringido.replace(/\D/g, '')
+          if (telLimpio !== telRest) {
+            promoValidada.value = null
+            promoError.value    = 'telefono'
+            return
+          }
+        }
+        promoValidada.value = data
+        promoError.value    = ''
+      } else {
+        promoValidada.value = null
+        promoError.value    = data.motivo === 'agotado' ? 'agotado' : 'invalido'
+      }
     } catch { promoError.value = 'invalido' }
     finally  { promoValidando.value = false }
   }, 600)
@@ -366,8 +516,28 @@ const umbralGratis = computed(() => {
   return v !== null && v !== undefined ? parseFloat(v) : null
 })
 
-const envioEsGratis = computed(() =>
+// Envío gratis ya cubierto solo por el umbral de monto (independiente de cupón)
+const envioGratisPorUmbral = computed(() =>
   tipoEntrega.value === 'envio' && umbralGratis.value !== null && subtotal.value >= umbralGratis.value
+)
+
+// Cupón efectivo: null cuando el cupón envio_gratis no puede aportar nada.
+// Casos: cliente eligió recoger (no hay delivery) o el umbral de monto ya cubre el envío.
+// Evita consumir canjes sin que el cliente reciba beneficio real.
+const promoEfectiva = computed(() => {
+  if (!promoValidada.value) return null
+  if (promoValidada.value.tipo === 'envio_gratis') {
+    if (tipoEntrega.value !== 'envio') return null   // recoger en tienda — no hay delivery
+    if (envioGratisPorUmbral.value) return null       // umbral ya lo cubre
+  }
+  return promoValidada.value
+})
+
+const envioEsGratis = computed(() =>
+  tipoEntrega.value === 'envio' && (
+    envioGratisPorUmbral.value ||
+    promoEfectiva.value?.tipo === 'envio_gratis'
+  )
 )
 
 const costoEnvio = computed(() => {
@@ -418,6 +588,8 @@ const reducir = (idx) => {
 
 const validar = () => {
   if (!carritoStore.items.length) return 'El carrito está vacío.'
+  if (props.pedidoProgramado && !fechaProgramada.value) return 'Selecciona la fecha para tu pedido programado.'
+  if (props.pedidoProgramado && !horaProgramada.value) return 'Selecciona la hora para tu pedido programado.'
   if (!telefono.value.trim()) return 'Por favor escribe tu teléfono.'
   if (!nombre.value.trim()) return 'Por favor escribe tu nombre.'
   if (tipoEntrega.value === 'envio') {
@@ -458,7 +630,9 @@ const confirmar = async () => {
       aplicar_recompensa:   historial.value?.tiene_recompensa || false,
       descuento_recompensa: descuento.value,
       descuento_promo:      descuentoPromo.value,
-      codigo_promo: promoValidada.value ? codigoPromo.value.trim().toUpperCase() : null,
+      codigo_promo: promoEfectiva.value ? codigoPromo.value.trim().toUpperCase() : null,
+      fecha_programada: fechaProgramadaStr.value,
+      hora_programada:  horaProgramadaStr.value,
     }
 
     const res = await post('pedidos', body, false)
@@ -494,6 +668,7 @@ const confirmar = async () => {
       ...(metodoPago.value === 'efectivo' && denominacion.value ? [`Con: $${parseFloat(denominacion.value).toFixed(0)}`] : []),
       `*Nombre:* ${nombre.value.trim()}`,
       ...(props.mesa ? [`*Mesa:* ${props.mesa}`] : []),
+      ...(props.pedidoProgramado && fechaProgramadaStr.value ? [`📅 *Pedido programado para:* ${fmtFechaDisplay(fechaProgramada.value)} a las ${horaProgramadaStr.value}`] : []),
     ]
 
     const waPhone = props.pedidosConfig.pedidos_whatsapp?.replace(/\D/g, '') || ''
@@ -513,12 +688,16 @@ const confirmar = async () => {
     tipoEntrega.value    = 'recoger'
     metodoPago.value     = 'efectivo'
     errorMsg.value       = ''
+    fechaProgramada.value = null
+    horaProgramada.value  = null
 
     emit('confirmado')
   } catch (err) {
     if (err.status === 409 && err.data?.tipo === 'stock_agotado') {
       const productoId = err.data.producto_id
+      const nombreProd = err.data.nombre || carritoStore.items.find(i => i.producto.id === productoId)?.producto.nombre || 'Un platillo'
       carritoStore.eliminar(productoId)
+      errorMsg.value = `"${nombreProd}" ya no está disponible y fue eliminado de tu carrito. Revisa tu pedido y confirma de nuevo.`
       emit('stock-agotado', err.message)
     } else {
       errorMsg.value = 'Error al enviar el pedido. Intenta de nuevo.'
@@ -582,34 +761,58 @@ const confirmar = async () => {
 
 .checkout-body {
   overflow-y: auto;
-  padding: 16px 20px 32px;
+  padding: 10px 12px 28px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 8px;
+  background: #f4f4f6;
 }
 
-/* ── Secciones ── */
-.checkout-section { display: flex; flex-direction: column; gap: 12px; }
+/* ── Secciones como tarjetas ── */
+.checkout-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+}
 
 .section-title {
-  font-size: 0.8rem;
-  font-weight: 700;
+  font-size: 0.78rem;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #aaa;
+  letter-spacing: 0.07em;
+  color: var(--accent, #FF6B35);
   margin: 0;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 /* ── Items ── */
-.items-lista { display: flex; flex-direction: column; gap: 10px; }
+.items-lista { display: flex; flex-direction: column; gap: 8px; }
 
 .item-row {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
   background: #fafafa;
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 10px 12px;
+  border: 1px solid #efefef;
+}
+
+.item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.item-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .item-cant-ctrl {
@@ -629,8 +832,7 @@ const confirmar = async () => {
 
 .cant-num { font-weight: 800; font-size: 0.95rem; min-width: 18px; text-align: center; }
 
-.item-info { flex: 1; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.item-nombre { font-size: 0.9rem; font-weight: 700; color: #1a1a1a; }
+.item-nombre { flex: 1; font-size: 0.9rem; font-weight: 700; color: #1a1a1a; min-width: 0; }
 
 .item-opciones {
   display: flex;
@@ -648,12 +850,14 @@ const confirmar = async () => {
   padding: 2px 8px;
   font-size: 0.72rem;
   font-weight: 600;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .item-obs-input {
-  padding: 5px 8px; border: 1px solid #e0e0e0; border-radius: 6px;
-  font-size: 0.8rem; font-family: inherit; outline: none;
+  width: 100%;
+  padding: 6px 8px; border: 1px solid #e0e0e0; border-radius: 6px;
+  font-size: 0.82rem; font-family: inherit; outline: none; box-sizing: border-box;
 }
 .item-obs-input:focus { border-color: var(--accent, #FF6B35); }
 
@@ -854,9 +1058,10 @@ const confirmar = async () => {
 
 /* ── Totales ── */
 .totales {
-  background: #f9f9f9;
-  border-radius: 10px;
-  padding: 14px 16px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -876,11 +1081,53 @@ const confirmar = async () => {
 
 .error-msg { font-size: 0.85rem; color: #c62828; text-align: center; margin: 0; }
 
+.hint-whatsapp {
+  text-align: center;
+  font-size: 0.78rem;
+  color: #888;
+  margin: 0;
+}
+
 /* .btn-confirmar extiende .btn-primary (global en theme.css) — solo sobreescribe tamaño */
 .btn-confirmar {
   width: 100%;
   padding: 15px;
   border-radius: 14px;
   font-size: 1rem;
+}
+
+.seccion-programado {
+  border-left: 3px solid #6C8EBF;
+  background: color-mix(in srgb, #6C8EBF 8%, white);
+}
+.seccion-programado .campos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 480px) {
+  .seccion-programado .campos { grid-template-columns: 1fr; }
+}
+.seccion-programado .campo label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 4px;
+}
+.campo-hint {
+  display: block;
+  color: #3A5A8C;
+  font-size: 0.78rem;
+  margin-top: 4px;
+}
+
+.banner-programado {
+  background: #4a7abf;
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 10px 20px;
+  text-align: center;
 }
 </style>

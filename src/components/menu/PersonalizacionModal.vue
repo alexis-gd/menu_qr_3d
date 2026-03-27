@@ -203,7 +203,7 @@
       </div><!-- /.modal-scroll -->
 
       <!-- ── Sticky footer CTA ── -->
-      <div class="modal-footer">
+      <div class="modal-footer" v-if="!modoLectura">
         <button
           :class="['btn-agregar', { 'btn-agregar--listo': puedeAgregar }]"
           @click="emitirAgregar"
@@ -229,6 +229,7 @@ import SvgIcon from '../SvgIcon.vue'
 const props = defineProps({
   producto: { type: Object, required: true },
   logoUrl: { type: String, default: null },
+  modoLectura: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['close', 'agregar', 'ir-categoria'])

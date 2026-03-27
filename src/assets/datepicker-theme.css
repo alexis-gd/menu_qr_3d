@@ -1,0 +1,11 @@
+/* ── @vuepic/vue-datepicker — override de tema con accent del proyecto ── */
+:root {
+  --dp-primary-color:      var(--accent, #FF6B35);
+  --dp-primary-text-color: #fff;
+  --dp-border-color:       #e0e0e0;
+  --dp-border-radius:      10px;
+  --dp-font-size:          0.88rem;
+  --dp-menu-min-width:     240px;
+  --dp-cell-border-radius: 8px;
+  --dp-button-height:      35px;
+}

@@ -72,7 +72,8 @@ CREATE TABLE IF NOT EXISTS restaurantes (
   tienda_cerrada_manual  TINYINT(1)    NOT NULL DEFAULT 0,  -- 1 = menú cerrado manualmente (override horarios)
   tienda_horarios        JSON          NULL DEFAULT NULL,    -- horario semanal: {"lunes":{"activo":true,"apertura":"08:00","cierre":"22:00"}, ...}
     -- NULL = sin horarios configurados = tienda siempre abierta (salvo cierre manual)
-  stock_minimo_aviso     SMALLINT      NOT NULL DEFAULT 5,   -- umbral para badge "Últimas N piezas" (0 = desactivado)
+  stock_minimo_aviso       SMALLINT      NOT NULL DEFAULT 5,   -- umbral para badge "Últimas N piezas" (0 = desactivado)
+  pedidos_programar_activo TINYINT(1)    NOT NULL DEFAULT 0,   -- Fase 20a: muestra botón "Programar pedido" en popup de tienda cerrada
   activo          TINYINT(1)    NOT NULL DEFAULT 1,
   created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -110,6 +111,19 @@ CREATE TABLE IF NOT EXISTS restaurantes (
 -- ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS descuento_recompensa DECIMAL(8,2) NOT NULL DEFAULT 0.00;
 -- ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS descuento_promo DECIMAL(8,2) NOT NULL DEFAULT 0.00;
 -- ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS codigo_promo VARCHAR(20) DEFAULT NULL;
+-- Fase 19a (folio no secuencial):
+-- CREATE UNIQUE INDEX IF NOT EXISTS uq_pedido_folio ON pedidos (restaurante_id, numero_pedido);
+-- Fase 19b (cupón envío gratis + teléfono restringido):
+-- ALTER TABLE codigos_promo MODIFY COLUMN tipo ENUM('descuento_porcentaje','descuento_fijo','envio_gratis') NOT NULL DEFAULT 'descuento_porcentaje';
+-- ALTER TABLE codigos_promo ADD COLUMN IF NOT EXISTS usos_maximo INT UNSIGNED NULL DEFAULT NULL;
+-- ALTER TABLE codigos_promo ADD COLUMN IF NOT EXISTS telefono_restringido VARCHAR(20) NULL DEFAULT NULL;
+-- Fase 19c (ajuste manual de pedido):
+-- ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS ajuste_manual DECIMAL(10,2) NOT NULL DEFAULT 0.00;
+-- ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS ajuste_nota VARCHAR(100) NULL DEFAULT NULL;
+-- Fase 20a (popup tienda cerrada + pedidos programados):
+-- ALTER TABLE restaurantes ADD COLUMN IF NOT EXISTS pedidos_programar_activo TINYINT(1) NOT NULL DEFAULT 0;
+-- ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS fecha_programada DATE NULL AFTER ajuste_nota;
+-- ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS hora_programada TIME NULL AFTER fecha_programada;
 
 -- ------------------------------------------------------------
 -- TABLA: mesas
@@ -228,7 +242,7 @@ CREATE TABLE IF NOT EXISTS sesiones_admin (
 CREATE TABLE IF NOT EXISTS pedidos (
   id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   restaurante_id  INT UNSIGNED  NOT NULL,
-  numero_pedido   VARCHAR(20)   NOT NULL,           -- formato YYYYMMDD-XXXX (ej: 20260305-0001)
+  numero_pedido   VARCHAR(20)   NOT NULL,           -- formato YYYYMMDD-KBR4 (fecha + 3 consonantes + 1 dígito, no secuencial)
   nombre_cliente  VARCHAR(100)  NOT NULL,
   telefono        VARCHAR(20),
   tipo_entrega    ENUM('recoger','envio') NOT NULL DEFAULT 'recoger',
@@ -242,6 +256,10 @@ CREATE TABLE IF NOT EXISTS pedidos (
   descuento_promo      DECIMAL(8,2)  NOT NULL DEFAULT 0.00,  -- descuento aplicado por código de promotor
   codigo_promo         VARCHAR(20)   DEFAULT NULL,            -- código de promotor utilizado (snapshot)
   total                DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  ajuste_manual        DECIMAL(10,2) NOT NULL DEFAULT 0.00,  -- Fase 19: ajuste post-venta. Negativo=descuento, Positivo=cargo extra
+  ajuste_nota          VARCHAR(100)  NULL DEFAULT NULL,       -- motivo del ajuste (ej: "amigo", "error en precio")
+  fecha_programada     DATE          NULL DEFAULT NULL,       -- Fase 20a: fecha del pedido programado
+  hora_programada      TIME          NULL DEFAULT NULL,       -- Fase 20a: hora aproximada del pedido programado
   status          ENUM('nuevo','visto','en_preparacion','listo','entregado','cancelado') NOT NULL DEFAULT 'nuevo',
   created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (restaurante_id) REFERENCES restaurantes(id) ON DELETE CASCADE
@@ -358,9 +376,12 @@ CREATE TABLE IF NOT EXISTS codigos_promo (
   restaurante_id  INT UNSIGNED  NOT NULL,
   codigo          VARCHAR(20)   NOT NULL,
   descripcion     VARCHAR(200)  DEFAULT NULL,     -- ej: "Promotor Juan - 10% descuento"
-  tipo            ENUM('fijo','porcentaje') NOT NULL DEFAULT 'fijo',
-  valor           DECIMAL(8,2)  NOT NULL DEFAULT 0.00,
+  tipo            ENUM('descuento_porcentaje','descuento_fijo','envio_gratis') NOT NULL DEFAULT 'descuento_porcentaje',
+    -- descuento_porcentaje: % del subtotal; descuento_fijo: monto fijo; envio_gratis: anula costo_envio
+  valor           DECIMAL(8,2)  NOT NULL DEFAULT 0.00,  -- 0 cuando tipo=envio_gratis
   usos            INT UNSIGNED  NOT NULL DEFAULT 0,  -- contador acumulado de usos
+  usos_maximo     INT UNSIGNED  NULL DEFAULT NULL,   -- NULL = sin límite
+  telefono_restringido VARCHAR(20) NULL DEFAULT NULL, -- solo este teléfono puede usarlo (NULL = cualquiera)
   activo          TINYINT(1)    NOT NULL DEFAULT 1,
   created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_codigo_restaurante (restaurante_id, codigo),
@@ -515,8 +536,12 @@ LIMIT 1;
 - **`productos.disponible`**: 0 = "Próximamente" (visible sin botón de compra); 1 = normal. Distinto de `activo=0` (borrado lógico, no aparece).
 - **`restaurantes.stock_minimo_aviso`**: umbral para badge "Últimas N piezas" en menú público. 0 = badge desactivado.
 - **Sistema de recompensas (sellos)**: `clientes.total_compras` se incrementa por cada pedido. `ciclos_completados = FLOOR(total_compras / compras_necesarias)`. `tiene_recompensa = ciclos_completados > recompensas_ganadas`. Al aplicar recompensa: `recompensas_ganadas += 1`. **Cuidado:** cambiar `compras_necesarias` afecta a todos los clientes inmediatamente (incluidos los que tenían sellos acumulados).
-- **Códigos de promotor**: el restaurante crea códigos en `codigos_promo`. Cliente los ingresa en checkout. API valida y devuelve descuento. `codigos_promo.usos` se incrementa en cada uso. Sin límite de usos por defecto.
-- **Descuentos en pedidos**: `descuento_recompensa` y `descuento_promo` se guardan como snapshot al momento del pedido. `total = subtotal + costo_envio - descuento_recompensa - descuento_promo`.
+- **Códigos de promotor (Fase 13+19b)**: tipos: `descuento_porcentaje`, `descuento_fijo`, `envio_gratis`. `usos_maximo NULL` = sin límite. `telefono_restringido` = solo ese número puede canjearlo.
+- **Cupón `envio_gratis`**: al aplicarse, `costo_envio` queda en 0. `descuento_promo` registra el monto que se perdonó. No se aplica si el cliente elige "recoger" ni si ya hay envío gratis por umbral de monto.
+- **Descuentos en pedidos**: `descuento_recompensa` y `descuento_promo` guardados como snapshot. `total = subtotal + costo_envio - descuento_recompensa - descuento_promo`. El `total` original NUNCA se reescribe.
+- **Ajuste manual (Fase 19c)**: `ajuste_manual` es aditivo al `total` original (positivo=cargo, negativo=descuento). `total_final = total + ajuste_manual` se computa en el SELECT (no se almacena). No afecta recompensas ni reversión en cancelación. `ajuste_nota` es el motivo (opcional).
+- **Pedidos programados (Fase 20a)**: `fecha_programada DATE` y `hora_programada TIME` son opcionales (NULL si pedido normal). Se guardan en POST cuando `pedido_programado=true` en el checkout. TabPedidos muestra borde azul + chip "📅 Prog." cuando `fecha_programada IS NOT NULL`. `pedidos_programar_activo` en `restaurantes` controla si el botón aparece en el popup de tienda cerrada.
+- **Folio no secuencial (Fase 19a)**: formato `YYYYMMDD-KBR4` (3 consonantes sin I/O/U + 1 dígito). Generado con `random_int()` PHP en loop de 5 intentos con verificación de unicidad. Índice UNIQUE en `(restaurante_id, numero_pedido)`.
 - **`productos.foto_principal`** es relativo a `/uploads/` (ej: `fotos/1/foto_1_0_1234.jpg`). URL completa: `UPLOADS_URL . $foto_principal`. Se asigna automáticamente al subir la primera foto.
 - **`fotos_producto.ruta`** es relativo al webroot (ej: `uploads/fotos/1/foto.jpg`). Solo para referencia interna.
 - `fotos_producto.url_publica` es URL absoluta (históricamente para Meshy API, ahora solo referencia).

@@ -21,6 +21,9 @@
 - [x] **Fase 12** — Stock mínimo aviso configurable por restaurante (`stock_minimo_aviso`), badge "Últimas N" desactivable
 - [x] **Fase 13** — Códigos de promotor: restaurante crea códigos con descuento fijo/%, cliente ingresa en checkout, validación en tiempo real, CRUD en TabNegocio
 - [x] **Fase 14** — Descuentos guardados en pedidos (`descuento_recompensa`, `descuento_promo`, `codigo_promo`), visibles en TabPedidos
+- [x] **Fase 19** — Folio no secuencial + Ajuste manual de pedido + Cupón envío gratis + Tab Reportes (corte de ventas)
+- [x] **@vuepic/vue-datepicker v12** — Date pickers en TabReportes + time pickers en TabNegocio
+- [x] **Fase 20a** — Popup tienda cerrada + modo lectura + pedidos programados
 
 ### Funcionalidades Implementadas
 - [x] API endpoints: `menu`, `login`, `restaurantes`, `categorias`, `productos`, `mesas`, `upload-fotos`, `upload-glb`, `upload-logo`, `job-status`
@@ -29,8 +32,9 @@
 - [x] Subida manual de .glb validado por magic bytes (`glTF`) desde admin
 - [x] Model-Viewer en modal con AR nativo (webxr + quick-look) cuando `tiene_ar = 1`
 - [x] CRUD mesas por restaurante, QR generado en browser con lib `qrcode` (npm)
-- [x] QR descargable como PNG; URL = `{origin}/menu/?r={slug}&mesa={numero}`
+- [x] QR descargable como PNG; URL = `{origin}/menu/` (sin `?r=`). `?mesa=N` sigue funcionando.
 - [x] Badge "Mesa X" en header del menú público cuando URL incluye `?mesa=`
+- [x] **URL limpia — sin `?r=slug`** — `GET menu` en la API acepta request sin parámetro `restaurante`; si no viene, devuelve el primer restaurante activo (single-tenant). `MenuPublico` limpia `?r=` de la URL con `router.replace` tras la primera carga exitosa (preserva `?mesa=` y `?preview=`). Links viejos con `?r=rest1` siguen funcionando transparentemente. `menuUrl` en Dashboard ya genera la URL sin `?r=`.
 - [x] Autenticación via cookies HttpOnly (`Set-Cookie` en login, `$_COOKIE['token']` en helpers.php, `credentials: 'include'` en fetch)
 - [x] Protección de rutas admin con beforeEach guard async (caché de auth-check, `resetAuth()` exportado)
 - [x] CORS habilitado en `/uploads/` vía `.htaccess` (necesario para model-viewer en dev)
@@ -65,7 +69,7 @@
 - [x] **Watermark circular** — Logo del restaurante como `<img>` circular (`border-radius: 50%`, `object-fit: cover`) en top-left de la foto. Tamaños: 26px en cards, 34px en modales, 44px en lightbox. Opacity 45%. Prop `logoUrl` agregada a ProductoModal y PersonalizacionModal, pasada desde MenuPublico.
 - [x] **Fase 15 — Toggle códigos de promotor** — `restaurantes.codigos_promo_habilitado TINYINT DEFAULT 1`. Toggle en header de la card "Códigos de promotor" en TabNegocio. CheckoutModal oculta el campo con `v-if="pedidosConfig.codigos_promo_habilitado"`. Migración: `fase15_codigos_promo_habilitado.sql`.
 - [x] **Validación stock en carrito y checkout** — `carrito.js`: `cantidadEnCarrito(id)` suma unidades en carrito; `agregar()` retorna `'ok'` o `'stock_agotado'`. Toast rojo en `MenuPublico` cuando se rechaza. Checkout: botón "+" deshabilitado al llegar al límite del stock.
-- [x] **Polling silencioso + visibilitychange** — `MenuPublico` recarga datos cada 90s y al volver al tab. `TabPlatillos` recarga lista cada 120s y al volver al tab. Evita stock desactualizado.
+- [x] **Refresco silencioso sin UX disruption** — `MenuPublico` y `TabPlatillos` recargan datos solo al volver al tab (`visibilitychange`). Los intervalos de 90s/120s se eliminaron porque causaban saltos de scroll (Vue destruía el DOM al activar `loading=true`). `TabPedidos` mantiene el intervalo de 30s (pedidos del admin requieren frescura) con save/restore de `window.scrollY` + `nextTick`. El spinner de carga solo aparece en la primera carga (`cargandoInicio` en MenuPublico; `loadingX && !items.length` en los tabs). Los refrescos posteriores son 100% silenciosos.
 - [x] **Teléfono siempre requerido en checkout** — Campo teléfono visible siempre (no solo en envío a domicilio).
 - [x] **Fix sw-track en Teleport** — El modal de edición de TabPlatillos usa `<Teleport to="body">` — `var(--accent)` no llegaba al overlay. Fix: prop `accent` en TabPlatillos, `--accent` aplicado como CSS var en el overlay teleportado. Dashboard pasa `:accent="temaAccent"`.
 - [x] **Fix grupo-tipo selector** — Reemplazado `<select>` con emojis en `<option>` (HTML no permite SVG) por grupo de botones personalizados con SvgIcon (`.grupo-tipo-btns` / `.tipo-btn`). Fix alineación: `min-width: 0` en `.grupo-nombre-input`.
@@ -127,7 +131,15 @@ Campos en `restaurantes`:
 
 `tienda_abierta` es **calculado en PHP** (no almacenado): `false` si `tienda_cerrada_manual=1` O si la hora actual está fuera del rango del día actual. `true` si no hay horarios configurados (NULL).
 
-Cuando `tienda_abierta = false` en el menú público: el contenido del menú se reemplaza por `TiendaCerradaView.vue` (SVG + horarios). El header y footer del restaurante permanecen visibles.
+Cuando `tienda_abierta = false` en el menú público (Fase 20a): aparece `TiendaCerradaPopup.vue` (bottom-sheet overlay, 2 pasos) pero el menú sigue visible en **modo lectura** (sin carrito, sin botón "+"). El admin puede activar `pedidos_programar_activo` para mostrar el botón "Programar pedido" que lleva al paso 2 del popup. Al aceptar, el cliente entra en modo scheduling: carrito activo, checkout muestra picker de fecha/hora, pedido se guarda con `fecha_programada` y `hora_programada`.
+
+`modoLectura` computed en MenuPublico: `(!tiendaAbierta && !pedidoProgramado) || !pedidosActivos`. CarritoFlotante y botones "+" se ocultan cuando `modoLectura=true`.
+
+`TiendaCerradaView.vue` sigue en el proyecto pero ya no se usa (reemplazado por el popup).
+
+**Pitfall VueDatePicker v-if**: Los pickers dentro de `v-if` causan `TypeError: Cannot read properties of null (reading 'parentNode')` al desmontarse mientras el dropdown está teleportado a `<body>`. Fix obligatorio: usar `v-show` en el contenedor de VueDatePicker.
+
+**Bug pendiente (Fase 20a)**: El date picker del checkout muestra selector de hora dentro del calendario a pesar de `:enable-time-picker="false"`. Causa exacta desconocida (posiblemente conflicto con el contexto del modal `v-show`). Workaround buscado: configuración correcta de VueDatePicker para forzar solo vista de calendario sin tiempo.
 
 ### Watermark automático (Fase 10)
 Logo del restaurante superpuesto en fotos de productos con `opacity: 0.15`. Activo automáticamente cuando `restaurante.logo_url` existe. Sin toggle. Implementado como div CSS con `background-image` en `ProductoCard.vue`.
@@ -187,6 +199,10 @@ Logo del restaurante superpuesto en fotos de productos con `opacity: 0.15`. Acti
 - ⚠️ **Fase 12 — Stock mínimo en QA**: ejecutar `database/migrations/fase12_stock_minimo_aviso.sql` (agrega `stock_minimo_aviso` en `restaurantes`).
 - ⚠️ **Fase 13 — Códigos promo en QA**: ejecutar `database/migrations/fase13_codigos_promo.sql` (crea `codigos_promo`, agrega `codigo_promo` en `pedidos`).
 - ⚠️ **Fase 14 — Descuentos en pedidos en QA**: ejecutar `database/migrations/fase14_pedidos_descuentos.sql` (agrega `descuento_recompensa`, `descuento_promo` en `pedidos`).
+- ⚠️ **Fase 19a — Folio único en QA**: ejecutar `database/migrations/fase19a_folio_no_secuencial.sql` (UNIQUE INDEX en `pedidos(restaurante_id, numero_pedido)`).
+- ⚠️ **Fase 19b — Cupón envío gratis en QA**: ejecutar `database/migrations/fase19b_cupon_envio.sql` (MODIFY tipo ENUM + ADD `usos_maximo` + ADD `telefono_restringido` en `codigos_promo`).
+- ⚠️ **Fase 19c — Ajuste manual en QA**: ejecutar `database/migrations/fase19c_ajuste_pedido.sql` (agrega `ajuste_manual`, `ajuste_nota` en `pedidos`).
+- ⚠️ **Fase 20a — Popup tienda + pedidos programados en QA**: ejecutar `database/migrations/fase20a_popup_tienda_cerrada.sql` (agrega `pedidos_programar_activo` en `restaurantes`; `fecha_programada`, `hora_programada` en `pedidos`).
 
 ### Testing Local
 - ✅ Base de datos: MySQL tablas creadas
@@ -298,8 +314,9 @@ Los modelos 3D se generan automáticamente desde fotos tomadas por el dueño del
 │   │           ├── TabPlatillos.vue
 │   │           ├── TabCategorias.vue
 │   │           ├── TabApariencia.vue
-│   │           ├── TabNegocio.vue
-│   │           └── TabPedidos.vue
+│   │           ├── TabNegocio.vue      ← time pickers @vuepic/vue-datepicker para horarios
+│   │           ├── TabPedidos.vue      ← ajuste manual inline (Fase 19)
+│   │           └── TabReportes.vue     ← corte de ventas (Fase 19, nuevo)
 │   ├── stores/
 │   │   └── carrito.js             ← Pinia store con persistedstate
 │   ├── composables/
@@ -415,6 +432,8 @@ Todos bajo `/api/index.php` con parámetro `?route=`:
 | PUT | `/api/?route=pedidos&id={id}` | Actualizar status del pedido | Sí |
 | GET | `/api/?route=producto-grupos&producto_id={id}` | Grupos y opciones de un producto | No |
 | POST | `/api/?route=producto-grupos` | Guardar/reemplazar grupos+opciones de un producto | Sí |
+| GET | `/api/?route=reportes&restaurante_id={id}&desde=YYYY-MM-DD&hasta=YYYY-MM-DD` | Corte de ventas: resumen + por_dia | Sí |
+| PUT | `/api/?route=pedidos&id={id}` | Actualizar status **o** aplicar ajuste_manual+ajuste_nota | Sí |
 
 ---
 

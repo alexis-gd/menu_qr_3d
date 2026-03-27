@@ -71,7 +71,7 @@
             {{ producto.tiene_ar ? 'Ver en 3D' : 'Ver más' }}
           </button>
           <button
-            v-if="pedidosActivos && !bloqueado"
+            v-if="pedidosActivos && !bloqueado && !modoLectura"
             class="btn-agregar"
             @click.stop="$emit('agregar')"
             aria-label="Agregar al carrito"
@@ -91,7 +91,8 @@ const props = defineProps({
   producto: { type: Object, required: true },
   pedidosActivos: { type: Boolean, default: false },
   logoUrl: { type: String, default: null },
-  stockMinimoAviso: { type: Number, default: 5 }
+  stockMinimoAviso: { type: Number, default: 5 },
+  modoLectura: { type: Boolean, default: false }
 })
 
 defineEmits(['click', 'agregar'])

@@ -230,7 +230,7 @@ watch(() => props.restaurante, (rest) => {
 // Generar QR cuando el tab se activa
 watch(() => props.active, (isActive) => {
   if (isActive) setTimeout(generarQR, 100)
-})
+}, { immediate: true })
 
 const temaActualData = computed(() => {
   const t = temas.find(t => t.id === formRest.value.tema) || temas[0]

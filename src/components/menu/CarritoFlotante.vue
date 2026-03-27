@@ -47,7 +47,6 @@ const totalItems = computed(() => props.carrito.reduce((s, i) => s + i.cantidad,
   opacity: 0.92;
 }
 
-
 .carrito-badge {
   background: #fff;
   color: var(--accent, #FF6B35);

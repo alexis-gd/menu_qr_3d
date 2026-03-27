@@ -1,7 +1,7 @@
 <template>
   <div class="menu-publico" :class="`tema-${tema}`">
-    <!-- Loading -->
-    <div v-if="loading" class="full-loading">
+    <!-- Loading inicial (los refrescos silenciosos no muestran esto) -->
+    <div v-if="cargandoInicio" class="full-loading">
       <div class="loading-spinner"></div>
       <p>Cargando menú...</p>
     </div>
@@ -32,16 +32,14 @@
         </div>
       </header>
 
-      <!-- ── Tienda cerrada ── -->
-      <TiendaCerradaView
-        v-if="!tiendaAbierta"
-        :horarios="restaurante?.tienda_horarios"
-        :nombre="restaurante?.nombre"
-      />
+      <!-- ── Banner: modo pedido programado ── -->
+      <div v-if="pedidoProgramado" class="banner-programado">
+        <span>📅 Estás haciendo un pedido programado</span>
+        <button class="banner-programado-close" @click="cancelarProgramado" aria-label="Cancelar pedido programado">×</button>
+      </div>
 
-      <template v-else>
-        <!-- ── Navegación de categorías (sticky) ── -->
-        <nav class="cat-nav">
+      <!-- ── Navegación de categorías (sticky) ── -->
+      <nav class="cat-nav">
           <button
             v-for="cat in categoriasVisibles"
             :key="cat.id"
@@ -86,18 +84,20 @@
                 :pedidos-activos="pedidosActivos"
                 :logo-url="logoUrl"
                 :stock-minimo-aviso="stockMinimoAviso"
+                :modo-lectura="modoLectura"
                 @click="abrirModal(prod)"
                 @agregar="onCardAgregar(prod)"
               />
             </div>
           </section>
         </main>
-      </template>
 
       <!-- ── Footer ── -->
       <footer class="menu-footer">
         <p>Menú digital con tecnología 3D • Toca cualquier platillo para ver más</p>
         <a href="https://nodosmx.com/" target="_blank" rel="noopener noreferrer">Desarrollado por NodosMX</a>
+        <p class="footer-love">Hecho con <span class="footer-heart" :style="{ color: 'var(--accent)' }">❤</span> en Las Choapas</p>
+        <p class="footer-version">Versión {{ appVersion }}</p>
       </footer>
     </template>
 
@@ -108,6 +108,7 @@
       :pedidos-activos="pedidosActivos"
       :stock-minimo-aviso="stockMinimoAviso"
       :logo-url="logoUrl"
+      :modo-lectura="modoLectura"
       @close="productoSeleccionado = null"
       @agregar="({ producto, observacion }) => { agregarAlCarrito(producto, observacion); productoSeleccionado = null }"
     />
@@ -117,9 +118,21 @@
       v-if="productoPersonalizacion"
       :producto="productoPersonalizacion"
       :logo-url="logoUrl"
+      :modo-lectura="modoLectura"
       @close="productoPersonalizacion = null"
       @agregar="onAgregarConOpciones"
       @ir-categoria="onIrCategoria"
+    />
+
+    <!-- Popup tienda cerrada -->
+    <TiendaCerradaPopup
+      v-if="!tiendaAbierta && popupVisible"
+      :horarios="restaurante?.tienda_horarios"
+      :nombre="restaurante?.nombre || ''"
+      :programar-activo="programarActivo"
+      :cerrado-manual="!!restaurante?.tienda_cerrada_manual"
+      @cerrar="popupVisible = false"
+      @programar="pedidoProgramado = true"
     />
 
     <!-- Toast "agregado al carrito" -->
@@ -138,7 +151,7 @@
 
     <!-- Carrito flotante -->
     <CarritoFlotante
-      v-if="pedidosActivos && tiendaAbierta"
+      v-if="pedidosActivos && !modoLectura"
       :carrito="carrito"
       @abrir="mostrarCheckout = true"
     />
@@ -149,6 +162,7 @@
       :pedidos-config="pedidosConfig"
       :mesa="mesaNumero"
       :restaurante-id="restaurante?.id"
+      :pedido-programado="pedidoProgramado"
       @close="mostrarCheckout = false"
       @confirmado="onPedidoConfirmado"
       @stock-agotado="onStockAgotado"
@@ -173,7 +187,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useApi } from '../composables/useApi.js'
 import { useCarritoStore } from '../stores/carrito.js'
 import { resolverIcono } from '../utils/iconosCategorias.js'
@@ -184,11 +198,15 @@ import ProductoModal from '../components/menu/ProductoModal.vue'
 import PersonalizacionModal from '../components/menu/PersonalizacionModal.vue'
 import CarritoFlotante from '../components/menu/CarritoFlotante.vue'
 import CheckoutModal from '../components/menu/CheckoutModal.vue'
-import TiendaCerradaView from '../components/menu/TiendaCerradaView.vue'
+import TiendaCerradaPopup from '../components/menu/TiendaCerradaPopup.vue'
 import { trackViewItem, trackAddToCart } from '../composables/useAnalytics.js'
 
 const route = useRoute()
-const { get, loading, error } = useApi()
+const router = useRouter()
+const { get, error } = useApi()
+
+// Solo true en la carga inicial — los refrescos silenciosos no muestran el spinner
+const cargandoInicio = ref(true)
 
 const restaurante = ref(null)
 const categorias = ref([])
@@ -196,7 +214,8 @@ const categoriasVisibles = computed(() => categorias.value.filter(c => c.product
 const productoSeleccionado     = ref(null)
 const productoPersonalizacion  = ref(null)
 const catActiva  = ref(null)
-const mesaNumero = route.query.mesa || null
+const mesaNumero  = route.query.mesa || null
+const appVersion  = __APP_VERSION__
 
 // ── Carrito ──
 const carritoStore    = useCarritoStore()
@@ -208,15 +227,15 @@ const avisoProducto   = ref(null)
 let toastTimer      = null
 let toastStockTimer = null
 
-const pedidosActivos = computed(() => !!restaurante.value?.pedidos_activos)
-const pedidosConfig  = computed(() => restaurante.value || {})
+const pedidosActivos   = computed(() => !!restaurante.value?.pedidos_activos)
+const programarActivo  = computed(() => !!restaurante.value?.pedidos_programar_activo)
+const pedidosConfig    = computed(() => restaurante.value || {})
 
 const tema         = computed(() => restaurante.value?.tema || 'calido')
 // Tick por minuto para re-evaluar horarios automáticamente
 const ahora = ref(new Date())
-let _horarioTimer   = null
-let _menuPollTimer  = null
-let _visibilityFn   = null
+let _horarioTimer  = null
+let _visibilityFn  = null
 
 const tiendaAbierta = computed(() => {
   if (route.query.preview === 'debug2026') return true
@@ -234,6 +253,27 @@ const tiendaAbierta = computed(() => {
 })
 const logoUrl           = computed(() => restaurante.value?.logo_url || null)
 const stockMinimoAviso  = computed(() => restaurante.value?.stock_minimo_aviso ?? 5)
+
+const popupVisible     = ref(false)
+const pedidoProgramado = ref(false)
+
+const modoLectura = computed(() =>
+  (!tiendaAbierta.value && !pedidoProgramado.value) || !pedidosActivos.value
+)
+
+watch(tiendaAbierta, (abierta) => {
+  if (!abierta) {
+    popupVisible.value = true
+    pedidoProgramado.value = false
+  } else {
+    popupVisible.value = false
+  }
+})
+
+const cancelarProgramado = () => {
+  pedidoProgramado.value = false
+  popupVisible.value = true
+}
 
 const agregarAlCarrito = (producto, observacion = '', opciones = []) => {
   const resultado = carritoStore.agregar(producto, observacion, opciones)
@@ -314,31 +354,36 @@ watch(() => restaurante.value?.logo_url, (url) => {
 
 const cargarMenu = async (esPrimeraCarga = false) => {
   const slug = route.query.r
-  if (!slug) return
   try {
-    const data = await get('menu', { restaurante: slug }, false)
+    const params = slug ? { restaurante: slug } : {}
+    const data = await get('menu', params, false)
     restaurante.value = data.restaurante
     categorias.value = data.categorias || []
-    if (esPrimeraCarga && categorias.value.length) {
-      catActiva.value = categorias.value[0].id
+    if (esPrimeraCarga) {
+      cargandoInicio.value = false
+      if (categorias.value.length) catActiva.value = categorias.value[0].id
+      if (!tiendaAbierta.value) popupVisible.value = true
+      // Limpiar ?r= de la URL silenciosamente (preservar mesa, preview y otros params)
+      if (route.query.r) {
+        const q = { ...route.query }
+        delete q.r
+        router.replace({ query: q })
+      }
     }
   } catch (err) {
-    if (esPrimeraCarga) console.error('Error cargando menú:', err)
+    if (esPrimeraCarga) {
+      cargandoInicio.value = false
+      error.value = 'No se pudo cargar el menú.'
+    }
   }
 }
 
 onMounted(async () => {
   _horarioTimer = setInterval(() => { ahora.value = new Date() }, 60_000)
-  const slug = route.query.r
-  if (!slug) {
-    error.value = 'No se especificó el restaurante. Escanea el código QR de tu mesa.'
-    return
-  }
   await cargarMenu(true)
   initObserver()
-  // Refresco silencioso: cada 90s + al volver a la pestaña
-  _menuPollTimer = setInterval(() => cargarMenu(), 90_000)
-  _visibilityFn  = () => { if (!document.hidden) cargarMenu() }
+  // Refresco silencioso solo al volver a la pestaña (evita saltos de scroll con interval)
+  _visibilityFn = () => { if (!document.hidden) cargarMenu() }
   document.addEventListener('visibilitychange', _visibilityFn)
 })
 
@@ -366,11 +411,15 @@ const initObserver = () => {
   setTimeout(actualizarCatActiva, 200)
 }
 
+watch(mostrarCheckout, open => {
+  document.body.style.overflow = open ? 'hidden' : ''
+})
+
 onUnmounted(() => {
   if (_scrollListener) window.removeEventListener('scroll', _scrollListener)
   if (_visibilityFn)   document.removeEventListener('visibilitychange', _visibilityFn)
   clearInterval(_horarioTimer)
-  clearInterval(_menuPollTimer)
+  document.body.style.overflow = ''
 })
 
 const irACategoria = (catId) => {
@@ -825,6 +874,19 @@ const abrirModal = (producto) => {
   transition: opacity 0.2s;
 }
 .menu-footer a:hover { opacity: 1; }
+.footer-version {
+  font-size: 0.72rem;
+  opacity: 0.6;
+  margin: 0;
+}
+.footer-love {
+  font-size: 0.75rem;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.85;
+}
 
 /* ── Responsive ── */
 @media (min-width: 600px) {
@@ -857,7 +919,7 @@ const abrirModal = (producto) => {
   font-size: 0.88rem;
   font-weight: 700;
   white-space: nowrap;
-  z-index: 500;
+  z-index: 700;
   pointer-events: none;
   box-shadow: 0 4px 16px rgba(0,0,0,0.18);
 }
@@ -932,4 +994,33 @@ const abrirModal = (producto) => {
   .aviso-overlay { align-items: center; padding: 20px; }
   .aviso-popup   { border-radius: 20px; }
 }
+
+/* ── Banner pedido programado ── */
+.banner-programado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: #6C8EBF;
+  color: #fff;
+  padding: 9px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.banner-programado-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  opacity: 0.8;
+  flex-shrink: 0;
+}
+.banner-programado-close:hover { opacity: 1; }
 </style>

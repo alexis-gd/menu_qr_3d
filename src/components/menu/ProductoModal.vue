@@ -96,8 +96,8 @@
           Próximamente disponible
         </div>
 
-        <!-- Agregar al carrito (solo si no está bloqueado) -->
-        <div v-if="pedidosActivos && !bloqueado" class="carrito-section">
+        <!-- Agregar al carrito (solo si no está bloqueado y no es modo lectura) -->
+        <div v-if="pedidosActivos && !bloqueado && !modoLectura" class="carrito-section">
           <textarea
             :value="observacion"
             @input="observacion = ucfirst($event.target.value)"
@@ -127,6 +127,7 @@ const props = defineProps({
   pedidosActivos: { type: Boolean, default: false },
   stockMinimoAviso: { type: Number, default: 5 },
   logoUrl: { type: String, default: null },
+  modoLectura: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['close', 'agregar'])

@@ -1,22 +1,133 @@
 <template>
   <div class="tab-content">
+
+    <!-- ── Corte de ventas (colapsable) ── -->
+    <div class="card">
+      <div class="card-header collapsible" @click="reporteAbierto = !reporteAbierto">
+        <h2><SvgIcon :path="mdiChartBar" :size="18" /> Corte de ventas</h2>
+        <span class="chevron">{{ reporteAbierto ? '▲' : '▼' }}</span>
+      </div>
+      <div v-show="reporteAbierto" class="card-body">
+        <div class="periodo-pills">
+          <button
+            v-for="p in periodos" :key="p.id"
+            :class="['periodo-pill', { active: periodoActivo === p.id }]"
+            @click.stop="selPeriodo(p.id)"
+          >{{ p.label }}</button>
+        </div>
+        <p v-if="labelRango" class="rango-label">{{ labelRango }}</p>
+        <div v-if="periodoActivo === 'custom'" class="fechas-custom">
+          <VueDatePicker
+            v-show="periodoActivo === 'custom'"
+            v-model="pickerDesde"
+            :enable-time-picker="false"
+            :max-date="hoyDate"
+            :format="fmtDia"
+            :teleport="true"
+            auto-apply
+            placeholder="Desde"
+            @update:model-value="v => fechaDesde = fmtIso(v)"
+          />
+          <span class="fechas-sep">—</span>
+          <VueDatePicker
+            v-show="periodoActivo === 'custom'"
+            v-model="pickerHasta"
+            :enable-time-picker="false"
+            :min-date="pickerDesde || undefined"
+            :max-date="hoyDate"
+            :format="fmtDia"
+            :teleport="true"
+            auto-apply
+            placeholder="Hasta (opcional)"
+            @update:model-value="v => fechaHasta = fmtIso(v)"
+          />
+          <button class="btn-primary btn-sm" @click="cargarReporte" :disabled="!pickerDesde">Consultar</button>
+        </div>
+
+        <div v-if="reporteCargando" class="loading-inline" style="margin-top:12px"><div class="spinner"></div></div>
+
+        <template v-else-if="resumen">
+          <div class="reporte-cards">
+            <div class="stat-card stat-principal">
+              <span class="stat-label">Ingresos netos</span>
+              <span class="stat-valor">${{ fmt(resumen.ingresos_netos) }}</span>
+              <span class="stat-sub">{{ resumen.total_pedidos }} pedido{{ resumen.total_pedidos !== 1 ? 's' : '' }}</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Efectivo</span>
+              <span class="stat-valor">${{ fmt(resumen.efectivo) }}</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Transferencia</span>
+              <span class="stat-valor">${{ fmt(resumen.transferencia) }}</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Terminal</span>
+              <span class="stat-valor">${{ fmt(resumen.terminal) }}</span>
+            </div>
+            <div class="stat-card stat-envio">
+              <span class="stat-label">Ingresos por envío</span>
+              <span class="stat-valor">${{ fmt(resumen.total_envios) }}</span>
+            </div>
+            <div v-if="resumen.desc_recompensa > 0" class="stat-card stat-descuento">
+              <span class="stat-label">Desc. recompensa</span>
+              <span class="stat-valor">-${{ fmt(resumen.desc_recompensa) }}</span>
+            </div>
+            <div v-if="resumen.desc_promo > 0" class="stat-card stat-descuento">
+              <span class="stat-label">Desc. cupón</span>
+              <span class="stat-valor">-${{ fmt(resumen.desc_promo) }}</span>
+            </div>
+            <div v-if="resumen.ajustes_negativos > 0" class="stat-card stat-descuento">
+              <span class="stat-label">Ajustes manuales</span>
+              <span class="stat-valor">-${{ fmt(resumen.ajustes_negativos) }}</span>
+            </div>
+          </div>
+
+          <div v-if="porDia.length > 1" style="margin-top:14px">
+            <table class="dia-tabla">
+              <thead>
+                <tr>
+                  <th>Día</th>
+                  <th class="txt-right">Pedidos</th>
+                  <th class="txt-right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="d in porDia" :key="d.dia">
+                  <td>{{ fmtFecha(d.dia) }}</td>
+                  <td class="txt-right">{{ d.pedidos }}</td>
+                  <td class="txt-right">${{ fmt(d.total_dia) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p v-if="resumen.total_pedidos === 0" class="empty-reporte">Sin pedidos en este período.</p>
+        </template>
+      </div>
+    </div>
+
+    <!-- ── Pedidos recibidos ── -->
     <div class="card">
       <div class="card-header">
         <h2>Pedidos recibidos</h2>
         <button @click="loadPedidos" class="btn-refresh"><SvgIcon :path="mdiRefresh" :size="16" /> Actualizar</button>
       </div>
       <div class="card-body no-pad">
-        <div v-if="loadingPedidos" class="loading-inline"><div class="spinner"></div></div>
+        <div v-if="loadingPedidos && !pedidos.length" class="loading-inline"><div class="spinner"></div></div>
         <div v-else-if="!pedidos.length" class="empty-state" style="padding:40px">
           <SvgIcon :path="mdiCart" :size="40" />
           <p>Sin pedidos todavía.</p>
         </div>
         <div v-else class="pedidos-lista">
-          <div v-for="ped in pedidos" :key="ped.id" class="pedido-card">
+          <div v-for="ped in pedidos" :key="ped.id" :class="['pedido-card', { 'pedido-card--programado': ped.fecha_programada }]">
             <div class="pedido-header">
               <div class="pedido-id">
                 <strong>#{{ ped.numero_pedido }}</strong>
                 <span class="pedido-hora">{{ formatHora(ped.created_at) }}</span>
+                <span v-if="ped.fecha_programada" class="chip-programado">
+                  📅 {{ fmtFechaProgramada(ped.fecha_programada, ped.hora_programada) }}
+                </span>
               </div>
               <span :class="['pedido-status', 'status-' + ped.status]">{{ statusLabel(ped.status) }}</span>
             </div>
@@ -65,7 +176,9 @@
                 <span v-if="ped.costo_envio > 0">Envío: ${{ Number(ped.costo_envio).toFixed(2) }}</span>
                 <span v-if="Number(ped.descuento_recompensa) > 0" class="pedido-descuento">🎁 Recompensa: -${{ Number(ped.descuento_recompensa).toFixed(2) }}</span>
                 <span v-if="Number(ped.descuento_promo) > 0" class="pedido-descuento">🏷️ {{ ped.codigo_promo }}: -${{ Number(ped.descuento_promo).toFixed(2) }}</span>
-                <strong>Total: ${{ Number(ped.total).toFixed(2) }}</strong>
+                <span v-if="Number(ped.ajuste_manual) < 0" class="pedido-descuento">✏️ Ajuste: -${{ Math.abs(Number(ped.ajuste_manual)).toFixed(2) }}<small v-if="ped.ajuste_nota"> ({{ ped.ajuste_nota }})</small></span>
+                <span v-else-if="Number(ped.ajuste_manual) > 0" class="pedido-cargo">✏️ +${{ Number(ped.ajuste_manual).toFixed(2) }}<small v-if="ped.ajuste_nota"> ({{ ped.ajuste_nota }})</small></span>
+                <strong>Total: ${{ Number(ped.total_final ?? ped.total).toFixed(2) }}</strong>
               </div>
             </div>
             <div class="pedido-acciones">
@@ -74,10 +187,25 @@
               <button v-if="ped.status === 'en_preparacion'" @click="cambiarStatus(ped.id, 'listo')"          class="btn-status btn-listo"><SvgIcon :path="mdiCheck" :size="14" /> Listo</button>
               <button v-if="ped.status === 'listo'"          @click="cambiarStatus(ped.id, 'entregado')"      class="btn-status btn-entregado"><SvgIcon :path="mdiCheckCircle" :size="14" /> Entregado</button>
               <button v-if="!['entregado','cancelado'].includes(ped.status)" @click="cambiarStatus(ped.id, 'cancelado')" class="btn-status btn-cancelar">Cancelar</button>
+              <button @click="iniciarAjuste(ped)" class="btn-status btn-ajustar"><SvgIcon :path="mdiPencil" :size="14" /> Ajustar</button>
               <button @click="copiarPedido(ped)" class="btn-status btn-copiar">
                 <SvgIcon :path="copiadoId === ped.id ? mdiCheck : mdiContentCopy" :size="14" />
                 {{ copiadoId === ped.id ? 'Copiado' : 'Copiar' }}
               </button>
+            </div>
+            <div v-if="ajustandoId === ped.id" class="ajuste-form">
+              <div class="ajuste-row">
+                <div class="ajuste-signo-wrap">
+                  <button :class="['ajuste-signo', { active: ajusteForm.signo === 'descuento' }]" @click="ajusteForm.signo = 'descuento'">Descuento</button>
+                  <button :class="['ajuste-signo', { active: ajusteForm.signo === 'cargo' }]" @click="ajusteForm.signo = 'cargo'">Cargo extra</button>
+                </div>
+                <input v-model="ajusteForm.monto" type="number" min="0" step="0.01" placeholder="Monto" class="ajuste-input" />
+              </div>
+              <input v-model="ajusteForm.nota" type="text" maxlength="100" placeholder="Motivo (ej: descuento familiar)" class="ajuste-input-text" />
+              <div class="ajuste-btns">
+                <button @click="ajustandoId = null" class="btn-status btn-cancelar">Cancelar</button>
+                <button @click="guardarAjuste(ped)" class="btn-status btn-listo">Guardar</button>
+              </div>
             </div>
           </div>
         </div>
@@ -87,12 +215,14 @@
 </template>
 
 <script setup>
-import { ref, watch, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted, nextTick } from 'vue'
 import {
-  mdiCart, mdiRefresh, mdiAccount, mdiPhone, mdiSeat,
+  mdiCart, mdiRefresh, mdiAccount, mdiSeat,
   mdiMoped, mdiHome, mdiBank, mdiCash, mdiCheck, mdiCheckCircle,
-  mdiMapMarker, mdiWhatsapp, mdiContentCopy,
+  mdiMapMarker, mdiWhatsapp, mdiContentCopy, mdiPencil,
+  mdiChartBar,
 } from '@mdi/js'
+import { VueDatePicker } from '@vuepic/vue-datepicker'
 import { useApi } from '../../../composables/useApi.js'
 import SvgIcon from '../../SvgIcon.vue'
 
@@ -105,10 +235,104 @@ const emit = defineEmits(['notif'])
 
 const { get, put } = useApi()
 
+// ── Pedidos ──
 const pedidos        = ref([])
 const loadingPedidos = ref(false)
 const copiadoId      = ref(null)
+const ajustandoId    = ref(null)
+const ajusteForm     = ref({ monto: '', signo: 'descuento', nota: '' })
 let   pedidosInterval = null
+
+// ── Reporte de ventas ──
+const reporteAbierto = ref(false)
+const hoyDate = new Date()
+const localIso = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+const hoy = localIso()
+const periodos = [
+  { id: 'hoy',    label: 'Hoy'           },
+  { id: 'ayer',   label: 'Ayer'          },
+  { id: 'semana', label: 'Esta semana'   },
+  { id: 'mes',    label: 'Este mes'      },
+  { id: 'custom', label: 'Personalizado' },
+]
+const periodoActivo = ref('hoy')
+const fechaDesde    = ref(hoy)
+const fechaHasta    = ref(hoy)
+const pickerDesde   = ref(null)
+const pickerHasta   = ref(null)
+const reporteCargando = ref(false)
+const resumen       = ref(null)
+const porDia        = ref([])
+
+const labelRango = computed(() => {
+  if (periodoActivo.value === 'custom') return null
+  const desde = fmtFecha(fechaDesde.value)
+  const hasta = fechaHasta.value === hoy ? `Hoy (${fmtFecha(hoy)})` : fmtFecha(fechaHasta.value)
+  if (periodoActivo.value === 'hoy') return desde
+  return `${desde} — ${hasta}`
+})
+
+function calcularRango(id) {
+  const ahora = new Date()
+  const yy    = ahora.getFullYear()
+  const mm    = String(ahora.getMonth() + 1).padStart(2, '0')
+  if (id === 'hoy')  return [hoy, hoy]
+  if (id === 'ayer') { const a = new Date(ahora); a.setDate(a.getDate()-1); return [localIso(a), localIso(a)] }
+  if (id === 'mes')  return [`${yy}-${mm}-01`, hoy]
+  const dow   = ahora.getDay() || 7
+  const lunes = new Date(ahora)
+  lunes.setDate(ahora.getDate() - (dow - 1))
+  return [localIso(lunes), hoy]
+}
+
+const fmtDia = (d) => d ? d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''
+const fmtIso = (d) => d ? localIso(d) : ''
+const fmt    = (v) => Number(v || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const fmtFecha = (iso) => {
+  const [y, m, d] = iso.split('-')
+  const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
+  return `${parseInt(d)} ${meses[parseInt(m) - 1]} ${y}`
+}
+
+async function cargarReporte() {
+  if (!props.restauranteId) return
+  if (periodoActivo.value === 'custom' && !pickerHasta.value) {
+    fechaHasta.value = fechaDesde.value
+  }
+  reporteCargando.value = true
+  try {
+    const data = await get('reportes', {
+      restaurante_id: props.restauranteId,
+      desde: fechaDesde.value,
+      hasta: fechaHasta.value,
+    })
+    resumen.value = data.resumen
+    porDia.value  = data.por_dia || []
+  } catch (err) {
+    emit('notif', { texto: err.message || 'Error al cargar reporte', tipo: 'error' })
+    resumen.value = null
+  } finally {
+    reporteCargando.value = false
+  }
+}
+
+function selPeriodo(id) {
+  periodoActivo.value = id
+  pickerDesde.value   = null
+  pickerHasta.value   = null
+  if (id !== 'custom') {
+    const [d, h] = calcularRango(id)
+    fechaDesde.value = d
+    fechaHasta.value = h
+    cargarReporte()
+  }
+}
+
+// Cargar reporte al abrir el colapsable por primera vez
+watch(reporteAbierto, (open) => {
+  if (open && !resumen.value) selPeriodo('hoy')
+})
 
 const agruparOpciones = (opciones) => {
   const map = {}
@@ -125,6 +349,13 @@ const formatHora = (ts) => {
 }
 
 const statusLabel = (s) => ({ nuevo: 'Nuevo', visto: 'Visto', en_preparacion: 'En preparación', listo: 'Listo', entregado: 'Entregado', cancelado: 'Cancelado' })[s] || s
+
+const fmtFechaProgramada = (fecha, hora) => {
+  if (!fecha) return ''
+  const [y, m, d] = fecha.split('-')
+  const fechaStr = `${d}/${m}/${y}`
+  return hora ? `${fechaStr} ${hora.slice(0, 5)}` : fechaStr
+}
 
 function generarTextoWA(ped) {
   const lineas = [
@@ -147,7 +378,9 @@ function generarTextoWA(ped) {
     ...(Number(ped.costo_envio) === 0 && ped.tipo_entrega === 'envio' ? [`Envio: GRATIS`] : []),
     ...(Number(ped.descuento_recompensa) > 0 ? [`Descuento recompensa: -$${Number(ped.descuento_recompensa).toFixed(2)}`] : []),
     ...(Number(ped.descuento_promo) > 0 ? [`Codigo ${ped.codigo_promo}: -$${Number(ped.descuento_promo).toFixed(2)}`] : []),
-    `*Total: $${Number(ped.total).toFixed(2)}*`,
+    ...(Number(ped.ajuste_manual) < 0 ? [`Ajuste: -$${Math.abs(Number(ped.ajuste_manual)).toFixed(2)}${ped.ajuste_nota ? ` (${ped.ajuste_nota})` : ''}`] : []),
+    ...(Number(ped.ajuste_manual) > 0 ? [`Cargo extra: +$${Number(ped.ajuste_manual).toFixed(2)}${ped.ajuste_nota ? ` (${ped.ajuste_nota})` : ''}`] : []),
+    `*Total: $${Number(ped.total_final ?? ped.total).toFixed(2)}*`,
     ``,
     `*Entrega:* ${ped.tipo_entrega === 'envio' ? 'A domicilio' : 'Recoger en local'}`,
     ...(ped.tipo_entrega === 'envio' && ped.direccion ? [`*Direccion:* ${ped.direccion}`] : []),
@@ -172,12 +405,38 @@ async function copiarPedido(ped) {
 }
 
 async function loadPedidos() {
+  const scrollY = window.scrollY
   loadingPedidos.value = true
   try {
     const res = await get('pedidos', { restaurante_id: props.restauranteId })
     pedidos.value = res.pedidos || []
+    await nextTick()
+    window.scrollTo({ top: scrollY, behavior: 'instant' })
   } finally {
     loadingPedidos.value = false
+  }
+}
+
+function iniciarAjuste(ped) {
+  const actual = Number(ped.ajuste_manual) || 0
+  ajusteForm.value = {
+    monto: actual !== 0 ? String(Math.abs(actual)) : '',
+    signo: actual >= 0 ? 'cargo' : 'descuento',
+    nota:  ped.ajuste_nota || '',
+  }
+  ajustandoId.value = ped.id
+}
+
+async function guardarAjuste(ped) {
+  const monto  = parseFloat(ajusteForm.value.monto) || 0
+  const ajuste = ajusteForm.value.signo === 'descuento' ? -Math.abs(monto) : Math.abs(monto)
+  try {
+    await put('pedidos', { ajuste_manual: ajuste, ajuste_nota: ajusteForm.value.nota, restaurante_id: props.restauranteId }, { id: ped.id })
+    ajustandoId.value = null
+    await loadPedidos()
+    emit('notif', { texto: 'Ajuste guardado', tipo: 'ok' })
+  } catch (err) {
+    emit('notif', { texto: err.message || 'Error al guardar ajuste', tipo: 'error' })
   }
 }
 
@@ -198,7 +457,7 @@ watch(() => props.active, (isActive) => {
     loadPedidos()
     pedidosInterval = setInterval(loadPedidos, 30000)
   }
-})
+}, { immediate: true })
 
 onUnmounted(() => clearInterval(pedidosInterval))
 </script>
@@ -210,6 +469,20 @@ onUnmounted(() => clearInterval(pedidosInterval))
 .pedidos-lista { display: flex; flex-direction: column; }
 .pedido-card   { border-bottom: 1px solid #f0f0f0; padding: 16px 20px; }
 .pedido-card:last-child { border-bottom: none; }
+.pedido-card--programado { border-left: 3px solid #6C8EBF; padding-left: 17px; }
+
+.chip-programado {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #EBF0F8;
+  color: #3A5A8C;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-left: 6px;
+}
 
 .pedido-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .pedido-id     { display: flex; align-items: center; gap: 10px; }
@@ -256,6 +529,7 @@ onUnmounted(() => clearInterval(pedidosInterval))
 .pedido-totales { display: flex; justify-content: flex-end; align-items: center; gap: 12px; font-size: 0.88rem; color: #888; flex-wrap: wrap; }
 .pedido-totales strong { color: #1a1a1a; font-size: 0.95rem; }
 .pedido-descuento { font-size: 0.78rem; font-weight: 700; color: #27ae60; background: #eafaf1; border-radius: 6px; padding: 2px 8px; }
+.pedido-cargo     { font-size: 0.78rem; font-weight: 700; color: #e65100; background: #fff3e0; border-radius: 6px; padding: 2px 8px; }
 
 .pedido-acciones { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .btn-status  { display: inline-flex; align-items: center; gap: 5px; padding: 6px 14px; border: none; border-radius: 7px; font-size: 0.82rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
@@ -267,4 +541,45 @@ onUnmounted(() => clearInterval(pedidosInterval))
 .btn-cancelar  { background: #ffebee; color: #c62828; }
 .btn-copiar    { background: #f0f0f0; color: #555; margin-left: auto; }
 .btn-copiar:hover { background: #e4e4e4; }
+.btn-ajustar   { background: #fef9c3; color: #854d0e; }
+.btn-ajustar:hover { background: #fef08a; }
+
+.ajuste-form { margin-top: 10px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.ajuste-row  { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ajuste-signo-wrap { display: flex; gap: 4px; }
+.ajuste-signo { padding: 4px 10px; border-radius: 6px; border: 1px solid #e0e0e0; background: #f5f5f5; color: #555; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+.ajuste-signo.active { background: var(--accent, #e65100); color: #fff; border-color: var(--accent, #e65100); }
+.ajuste-input { width: 90px; padding: 5px 8px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 0.88rem; }
+.ajuste-input-text { width: 100%; padding: 5px 8px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 0.88rem; }
+.ajuste-btns { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* ── Corte de ventas ── */
+.periodo-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+.periodo-pill  { padding: 6px 14px; border-radius: 20px; border: 1px solid #e0e0e0; background: #f5f5f5; color: #555; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: background 0.15s, color 0.15s; }
+.periodo-pill.active { background: var(--accent, #e65100); color: #fff; border-color: var(--accent, #e65100); }
+
+.rango-label { font-size: 0.78rem; color: #888; margin: 0 0 8px; }
+
+.fechas-custom { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.fechas-custom :deep(.dp__input) { padding: 6px 10px 6px 34px; font-size: 0.88rem; border-radius: 8px; }
+.fechas-custom :deep(.dp__input_wrap) { min-width: 140px; }
+.fechas-sep { color: #aaa; }
+
+.reporte-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 14px; }
+.stat-card { background: #fafafa; border: 1px solid #f0f0f0; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 3px; }
+.stat-label { font-size: 0.7rem; font-weight: 700; color: #999; text-transform: uppercase; letter-spacing: 0.04em; }
+.stat-valor { font-size: 1.2rem; font-weight: 800; color: #1a1a1a; }
+.stat-sub   { font-size: 0.72rem; color: #aaa; }
+.stat-principal { border-color: var(--accent, #e65100); border-width: 2px; }
+.stat-principal .stat-valor { color: var(--accent, #e65100); }
+.stat-descuento .stat-valor { color: #e74c3c; }
+.stat-envio .stat-valor     { color: #1565c0; }
+
+.dia-tabla { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 4px; }
+.dia-tabla th { padding: 8px 12px; font-size: 0.72rem; font-weight: 700; color: #999; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid #f0f0f0; background: #fafafa; }
+.dia-tabla td { padding: 8px 12px; border-bottom: 1px solid #f5f5f5; color: #333; }
+.dia-tabla tr:last-child td { border-bottom: none; }
+.txt-right { text-align: right; }
+.empty-reporte { font-size: 0.85rem; color: #aaa; text-align: center; padding: 16px 0 4px; }
+.btn-sm { padding: 6px 14px; font-size: 0.82rem; }
 </style>

@@ -1,6 +1,6 @@
 {
   "name": "menu-qr-3d",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@mdi/js": "^7.4.47",
+    "@vuepic/vue-datepicker": "^12.1.0",
     "html2canvas": "^1.4.1",
     "pinia": "^3.0.4",
     "pinia-plugin-persistedstate": "^4.7.1",

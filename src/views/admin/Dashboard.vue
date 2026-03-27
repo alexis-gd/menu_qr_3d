@@ -96,7 +96,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { mdiSilverwareForkKnife, mdiFormatListBulleted, mdiPalette, mdiCog, mdiCart, mdiLogout, mdiContentSave } from '@mdi/js'
+import { mdiSilverwareForkKnife, mdiPalette, mdiCog, mdiCart, mdiLogout, mdiContentSave } from '@mdi/js'
 import { resetAuth } from '../../router/index.js'
 import { useApi } from '../../composables/useApi.js'
 import { THEMES as temas, THEMES_EXTRA as TEMAS_EXTRA } from '../../utils/themes.js'
@@ -116,7 +116,10 @@ const categorias      = ref([])
 const cargandoInicial = ref(true)
 const errorInicial    = ref(null)
 const notif           = ref(null)
-const tabActivo         = ref('menu')
+const VALID_TABS = ['menu', 'apariencia', 'negocio', 'pedidos']
+const _savedTab  = localStorage.getItem('dashboard_tab')
+const tabActivo  = ref(VALID_TABS.includes(_savedTab) ? _savedTab : 'menu')
+watch(tabActivo, val => localStorage.setItem('dashboard_tab', val))
 const temaPreview       = ref(null)
 const tabAparienciaRef  = ref(null)
 const tabNegocioRef     = ref(null)
@@ -133,7 +136,7 @@ function guardarTabActivo() {
 }
 
 const tabs = [
-  { id: 'menu',       icon: mdiSilverwareForkKnife,   label: 'Menú'  },
+  { id: 'menu',       icon: mdiSilverwareForkKnife,   label: 'Menú'       },
   { id: 'apariencia', icon: mdiPalette,                label: 'Apariencia' },
   { id: 'negocio',    icon: mdiCog,                   label: 'Negocio'    },
   { id: 'pedidos',    icon: mdiCart,                  label: 'Pedidos'    },
@@ -151,7 +154,7 @@ const menuUrl = computed(() => {
   if (!restaurante.value?.slug) return ''
   const origin = import.meta.env.VITE_PUBLIC_ORIGIN || window.location.origin
   const base   = import.meta.env.BASE_URL
-  return `${origin}${base}?r=${restaurante.value.slug}`
+  return `${origin}${base}`
 })
 
 const mostrarNotif = ({ texto, tipo = 'ok' }) => {

@@ -67,12 +67,8 @@ $route = $_GET['route'] ?? '';
 switch ($route) {
     case 'menu':
         $slug = $_GET['restaurante'] ?? null;
-        if (!$slug) {
-            json_response(['error' => 'restaurante requerido'], 400);
-        }
 
-        $stmt = $pdo->prepare(
-            'SELECT
+        $baseQuery = 'SELECT
                 r.id AS restaurante_id,
                 r.nombre AS restaurante_nombre,
                 r.descripcion AS restaurante_descripcion,
@@ -94,6 +90,7 @@ switch ($route) {
                 r.tienda_horarios,
                 r.stock_minimo_aviso,
                 r.codigos_promo_habilitado,
+                r.pedidos_programar_activo,
                 c.id AS cat_id,
                 c.nombre AS cat_nombre,
                 c.icono AS cat_icono,
@@ -113,11 +110,16 @@ switch ($route) {
                 p.aviso_categoria_id
              FROM restaurantes r
              LEFT JOIN categorias c ON c.restaurante_id = r.id AND c.activo = 1
-             LEFT JOIN productos p ON p.categoria_id = c.id AND p.activo = 1
-             WHERE r.slug = :slug AND r.activo = 1
-             ORDER BY c.orden ASC, p.orden ASC, p.nombre ASC'
-        );
-        $stmt->execute([':slug' => $slug]);
+             LEFT JOIN productos p ON p.categoria_id = c.id AND p.activo = 1';
+
+        if ($slug) {
+            $stmt = $pdo->prepare($baseQuery . ' WHERE r.slug = :slug AND r.activo = 1 ORDER BY c.orden ASC, p.orden ASC, p.nombre ASC');
+            $stmt->execute([':slug' => $slug]);
+        } else {
+            // Single-tenant: devuelve el primer restaurante activo
+            $stmt = $pdo->prepare($baseQuery . ' WHERE r.activo = 1 ORDER BY r.id ASC, c.orden ASC, p.orden ASC, p.nombre ASC');
+            $stmt->execute();
+        }
         $rows = $stmt->fetchAll();
 
         if (!$rows) {
@@ -167,6 +169,7 @@ switch ($route) {
             'tienda_horarios'          => $rows[0]['tienda_horarios'] ? json_decode($rows[0]['tienda_horarios'], true) : null,
             'stock_minimo_aviso'         => (int) $rows[0]['stock_minimo_aviso'],
             'codigos_promo_habilitado'   => (bool) $rows[0]['codigos_promo_habilitado'],
+            'pedidos_programar_activo'   => (bool) $rows[0]['pedidos_programar_activo'],
         ];
 
         $categoriasMap = [];
@@ -311,7 +314,7 @@ switch ($route) {
         // GET: lista restaurantes (auth requerida)
         if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             require_auth();
-            $stmt = $pdo->prepare('SELECT id, slug, nombre, descripcion, logo_url, color_primario, tema, qr_frase, qr_frase_activa, qr_wifi_nombre, qr_wifi_clave, qr_wifi_activo, pedidos_activos, pedidos_envio_activo, pedidos_envio_costo, pedidos_envio_gratis_desde, pedidos_whatsapp, pedidos_trans_clabe, pedidos_trans_cuenta, pedidos_trans_titular, pedidos_trans_banco, pedidos_trans_activo, pedidos_terminal_activo, compartir_mensaje, tienda_cerrada_manual, tienda_horarios, stock_minimo_aviso, codigos_promo_habilitado FROM restaurantes WHERE activo = 1 ORDER BY nombre');
+            $stmt = $pdo->prepare('SELECT id, slug, nombre, descripcion, logo_url, color_primario, tema, qr_frase, qr_frase_activa, qr_wifi_nombre, qr_wifi_clave, qr_wifi_activo, pedidos_activos, pedidos_envio_activo, pedidos_envio_costo, pedidos_envio_gratis_desde, pedidos_whatsapp, pedidos_trans_clabe, pedidos_trans_cuenta, pedidos_trans_titular, pedidos_trans_banco, pedidos_trans_activo, pedidos_terminal_activo, compartir_mensaje, tienda_cerrada_manual, tienda_horarios, stock_minimo_aviso, codigos_promo_habilitado, pedidos_programar_activo FROM restaurantes WHERE activo = 1 ORDER BY nombre');
             $stmt->execute();
             $rows = $stmt->fetchAll();
             foreach ($rows as &$r) {
@@ -354,7 +357,7 @@ switch ($route) {
                 json_response(['error' => 'id requerido'], 400);
             }
             $body = json_decode(file_get_contents('php://input'), true) ?: [];
-            $allowed = ['nombre', 'descripcion', 'tema', 'color_primario', 'qr_frase', 'qr_frase_activa', 'qr_wifi_nombre', 'qr_wifi_clave', 'qr_wifi_activo', 'pedidos_activos', 'pedidos_envio_activo', 'pedidos_envio_costo', 'pedidos_envio_gratis_desde', 'pedidos_whatsapp', 'pedidos_trans_clabe', 'pedidos_trans_cuenta', 'pedidos_trans_titular', 'pedidos_trans_banco', 'pedidos_trans_activo', 'pedidos_terminal_activo', 'compartir_mensaje', 'tienda_cerrada_manual', 'tienda_horarios', 'stock_minimo_aviso', 'codigos_promo_habilitado'];
+            $allowed = ['nombre', 'descripcion', 'tema', 'color_primario', 'qr_frase', 'qr_frase_activa', 'qr_wifi_nombre', 'qr_wifi_clave', 'qr_wifi_activo', 'pedidos_activos', 'pedidos_envio_activo', 'pedidos_envio_costo', 'pedidos_envio_gratis_desde', 'pedidos_whatsapp', 'pedidos_trans_clabe', 'pedidos_trans_cuenta', 'pedidos_trans_titular', 'pedidos_trans_banco', 'pedidos_trans_activo', 'pedidos_terminal_activo', 'compartir_mensaje', 'tienda_cerrada_manual', 'tienda_horarios', 'stock_minimo_aviso', 'codigos_promo_habilitado', 'pedidos_programar_activo'];
             // Serializar tienda_horarios si viene como array
             if (isset($body['tienda_horarios']) && is_array($body['tienda_horarios'])) {
                 $body['tienda_horarios'] = json_encode($body['tienda_horarios'], JSON_UNESCAPED_UNICODE);
@@ -761,6 +764,9 @@ switch ($route) {
                         p.tipo_entrega, p.direccion, p.referencia, p.metodo_pago, p.denominacion,
                         p.mesa, p.subtotal, p.costo_envio, p.total,
                         p.descuento_recompensa, p.descuento_promo, p.codigo_promo,
+                        p.ajuste_manual, p.ajuste_nota,
+                        (p.total + p.ajuste_manual) AS total_final,
+                        p.fecha_programada, p.hora_programada,
                         p.status, p.created_at
                  FROM pedidos p
                  WHERE p.restaurante_id = :rid
@@ -788,9 +794,11 @@ switch ($route) {
                 }
                 unset($item);
                 $ped['items'] = $items;
-                $ped['subtotal']   = (float) $ped['subtotal'];
-                $ped['costo_envio'] = (float) $ped['costo_envio'];
-                $ped['total']      = (float) $ped['total'];
+                $ped['subtotal']      = (float) $ped['subtotal'];
+                $ped['costo_envio']  = (float) $ped['costo_envio'];
+                $ped['total']        = (float) $ped['total'];
+                $ped['ajuste_manual']= (float) $ped['ajuste_manual'];
+                $ped['total_final']  = (float) $ped['total_final'];
             }
             unset($ped);
             json_response(['pedidos' => $pedidos]);
@@ -816,12 +824,22 @@ switch ($route) {
                 json_response(['error' => 'metodo_pago inválido'], 400);
             }
 
-            // Generar numero_pedido: YYYYMMDD-XXXX (con padding en base al último del día)
-            $hoy = date('Ymd');
-            $stmtNum = $pdo->prepare("SELECT COUNT(*) FROM pedidos WHERE restaurante_id=:rid AND DATE(created_at)=CURDATE()");
-            $stmtNum->execute([':rid' => (int)$restaurante_id]);
-            $countHoy = (int) $stmtNum->fetchColumn();
-            $numero_pedido = $hoy . '-' . str_pad($countHoy + 1, 4, '0', STR_PAD_LEFT);
+            // Generar numero_pedido: YYYYMMDD-KBR4 (fecha + sufijo aleatorio no secuencial)
+            // Formato: consonantes sin I/O/U para evitar ambigüedad al leerlo en voz alta
+            $numero_pedido = null;
+            for ($__i = 0; $__i < 5; $__i++) {
+                $__letras = 'BCDFGHJKLMNPQRSTVWXYZ';
+                $__l = strlen($__letras);
+                $__sufijo = $__letras[random_int(0, $__l - 1)]
+                          . $__letras[random_int(0, $__l - 1)]
+                          . $__letras[random_int(0, $__l - 1)]
+                          . random_int(0, 9);
+                $__candidato = date('Ymd') . '-' . $__sufijo;
+                $__stmtChk = $pdo->prepare('SELECT 1 FROM pedidos WHERE restaurante_id=:r AND numero_pedido=:n');
+                $__stmtChk->execute([':r' => (int)$restaurante_id, ':n' => $__candidato]);
+                if (!$__stmtChk->fetchColumn()) { $numero_pedido = $__candidato; break; }
+            }
+            if (!$numero_pedido) json_response(['error' => 'Error generando folio, intente de nuevo'], 500);
 
             $subtotal   = (float) ($body['subtotal'] ?? 0);
             $costo_envio = (float) ($body['costo_envio'] ?? 0);
@@ -832,21 +850,36 @@ switch ($route) {
             $promo_valida = null;
             if ($codigo_promo_input) {
                 $stmtPromoChk = $pdo->prepare(
-                    'SELECT id, tipo, valor, usos, usos_maximo FROM codigos_promo WHERE restaurante_id=:rid AND codigo=:c AND activo=1'
+                    'SELECT id, tipo, valor, usos, usos_maximo, telefono_restringido FROM codigos_promo WHERE restaurante_id=:rid AND codigo=:c AND activo=1'
                 );
                 $stmtPromoChk->execute([':rid' => (int)$restaurante_id, ':c' => $codigo_promo_input]);
                 $promo_valida = $stmtPromoChk->fetch(PDO::FETCH_ASSOC) ?: null;
                 if ($promo_valida && $promo_valida['usos_maximo'] !== null && (int)$promo_valida['usos'] >= (int)$promo_valida['usos_maximo']) {
                     $promo_valida = null; // tope alcanzado, no aplicar descuento
                 }
+                // Validar restricción por teléfono
+                if ($promo_valida && !empty($promo_valida['telefono_restringido'])) {
+                    $tel_cliente  = preg_replace('/\D/', '', $body['telefono'] ?? '');
+                    $tel_restrict = preg_replace('/\D/', '', $promo_valida['telefono_restringido']);
+                    if ($tel_cliente !== $tel_restrict) {
+                        json_response(['error' => 'Este cupón no es válido para este número', 'tipo' => 'cupon_restringido'], 400);
+                    }
+                }
+                // Cupón de envío gratis: el backend sobreescribe costo_envio para evitar manipulación
+                if ($promo_valida && $promo_valida['tipo'] === 'envio_gratis') {
+                    $costo_envio = 0.0;
+                }
             }
 
             $desc_rec  = max(0, (float)($body['descuento_recompensa'] ?? 0));
             $desc_promo = max(0, (float)($body['descuento_promo'] ?? 0));
 
+            $fecha_programada = !empty($body['fecha_programada']) ? $body['fecha_programada'] : null;
+            $hora_programada  = !empty($body['hora_programada'])  ? $body['hora_programada']  : null;
+
             $stmt = $pdo->prepare(
-                'INSERT INTO pedidos (restaurante_id, numero_pedido, nombre_cliente, telefono, tipo_entrega, direccion, referencia, metodo_pago, denominacion, mesa, subtotal, costo_envio, total, descuento_recompensa, descuento_promo, codigo_promo)
-                 VALUES (:rid, :np, :nc, :tel, :te, :dir, :ref, :mp, :den, :mesa, :sub, :env, :tot, :drec, :dpro, :cp)'
+                'INSERT INTO pedidos (restaurante_id, numero_pedido, nombre_cliente, telefono, tipo_entrega, direccion, referencia, metodo_pago, denominacion, mesa, subtotal, costo_envio, total, descuento_recompensa, descuento_promo, codigo_promo, fecha_programada, hora_programada)
+                 VALUES (:rid, :np, :nc, :tel, :te, :dir, :ref, :mp, :den, :mesa, :sub, :env, :tot, :drec, :dpro, :cp, :fp, :hp)'
             );
             $stmt->execute([
                 ':rid'  => (int)$restaurante_id,
@@ -865,6 +898,8 @@ switch ($route) {
                 ':drec' => $desc_rec,
                 ':dpro' => $desc_promo,
                 ':cp'   => $promo_valida ? $codigo_promo_input : null,
+                ':fp'   => $fecha_programada,
+                ':hp'   => $hora_programada,
             ]);
             $pedido_id = $pdo->lastInsertId();
 
@@ -985,12 +1020,29 @@ switch ($route) {
             json_response(['id' => (int)$pedido_id, 'numero_pedido' => $numero_pedido], 201);
         }
 
-        // PUT: actualizar status del pedido (auth)
+        // PUT: actualizar status O ajuste_manual del pedido (auth)
         if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
             require_auth();
             $id = $_GET['id'] ?? null;
             if (!$id) json_response(['error' => 'id requerido'], 400);
             $body = json_decode(file_get_contents('php://input'), true) ?: [];
+
+            // Rama: ajuste manual de monto (solo admin, no toca recompensas)
+            if (array_key_exists('ajuste_manual', $body)) {
+                $rid_ajuste = intval($body['restaurante_id'] ?? 0);
+                if (!$rid_ajuste) json_response(['error' => 'restaurante_id requerido'], 400);
+                $pdo->prepare(
+                    'UPDATE pedidos SET ajuste_manual=:am, ajuste_nota=:an WHERE id=:id AND restaurante_id=:rid'
+                )->execute([
+                    ':am'  => (float)$body['ajuste_manual'],
+                    ':an'  => isset($body['ajuste_nota']) ? substr(trim($body['ajuste_nota']), 0, 100) : null,
+                    ':id'  => (int)$id,
+                    ':rid' => $rid_ajuste,
+                ]);
+                json_response(['success' => true]);
+            }
+
+            // Rama: cambio de status
             $status = $body['status'] ?? null;
             $validStatuses = ['nuevo','visto','en_preparacion','listo','entregado','cancelado'];
             if (!$status || !in_array($status, $validStatuses, true)) {
@@ -1269,15 +1321,17 @@ switch ($route) {
             $rid2   = intval($body['restaurante_id'] ?? 0);
             $codigo = strtoupper(trim($body['codigo'] ?? ''));
             if (!$rid2 || !$codigo) json_response(['error' => 'restaurante_id y codigo son requeridos'], 400);
-            $tipo        = in_array($body['tipo'] ?? '', ['descuento_porcentaje','descuento_fijo']) ? $body['tipo'] : 'descuento_fijo';
+            $tipo        = in_array($body['tipo'] ?? '', ['descuento_porcentaje','descuento_fijo','envio_gratis']) ? $body['tipo'] : 'descuento_fijo';
             $valor       = max(0, (float)($body['valor'] ?? 0));
             $desc        = trim($body['descripcion'] ?? '') ?: null;
             $usos_maximo = isset($body['usos_maximo']) && $body['usos_maximo'] !== null && $body['usos_maximo'] !== ''
                 ? max(1, (int)$body['usos_maximo']) : null;
+            $tel_rest    = !empty($body['telefono_restringido']) ? preg_replace('/\D/', '', trim($body['telefono_restringido'])) : null;
+            $tel_rest    = ($tel_rest && strlen($tel_rest) >= 8) ? $tel_rest : null;
             try {
                 $pdo->prepare(
-                    'INSERT INTO codigos_promo (restaurante_id, codigo, descripcion, tipo, valor, usos_maximo) VALUES (:rid, :c, :d, :t, :v, :um)'
-                )->execute([':rid' => $rid2, ':c' => $codigo, ':d' => $desc, ':t' => $tipo, ':v' => $valor, ':um' => $usos_maximo]);
+                    'INSERT INTO codigos_promo (restaurante_id, codigo, descripcion, tipo, valor, usos_maximo, telefono_restringido) VALUES (:rid, :c, :d, :t, :v, :um, :tr)'
+                )->execute([':rid' => $rid2, ':c' => $codigo, ':d' => $desc, ':t' => $tipo, ':v' => $valor, ':um' => $usos_maximo, ':tr' => $tel_rest]);
                 json_response(['id' => (int)$pdo->lastInsertId()], 201);
             } catch (\PDOException $e) {
                 if ($e->getCode() === '23000') json_response(['error' => 'Ese código ya existe para este restaurante'], 409);
@@ -1290,7 +1344,7 @@ switch ($route) {
             $body = json_decode(file_get_contents('php://input'), true) ?: [];
             if (!$id) json_response(['error' => 'id requerido'], 400);
             $fields = []; $params = [':id' => $id];
-            foreach (['activo','tipo','valor','descripcion','usos_maximo'] as $f) {
+            foreach (['activo','tipo','valor','descripcion','usos_maximo','telefono_restringido'] as $f) {
                 if (array_key_exists($f, $body)) { $fields[] = "$f=:$f"; $params[":$f"] = $body[$f]; }
             }
             if ($fields) $pdo->prepare('UPDATE codigos_promo SET '.implode(',', $fields).' WHERE id=:id')->execute($params);
@@ -1313,16 +1367,80 @@ switch ($route) {
             $codigo = strtoupper(trim($_GET['codigo'] ?? ''));
             $rid    = intval($_GET['restaurante_id'] ?? 0);
             if (!$codigo || !$rid) json_response(['valido' => false]);
-            $stmt = $pdo->prepare('SELECT tipo, valor, descripcion, usos, usos_maximo FROM codigos_promo WHERE restaurante_id=:rid AND codigo=:c AND activo=1');
+            $stmt = $pdo->prepare('SELECT tipo, valor, descripcion, usos, usos_maximo, telefono_restringido FROM codigos_promo WHERE restaurante_id=:rid AND codigo=:c AND activo=1');
             $stmt->execute([':rid' => $rid, ':c' => $codigo]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($row) {
                 if ($row['usos_maximo'] !== null && (int)$row['usos'] >= (int)$row['usos_maximo']) {
                     json_response(['valido' => false, 'motivo' => 'agotado']);
                 }
-                json_response(['valido' => true, 'tipo' => $row['tipo'], 'valor' => (float)$row['valor'], 'descripcion' => $row['descripcion']]);
+                json_response([
+                    'valido'               => true,
+                    'tipo'                 => $row['tipo'],
+                    'valor'                => (float)$row['valor'],
+                    'descripcion'          => $row['descripcion'],
+                    'telefono_restringido' => $row['telefono_restringido'] ?: null,
+                ]);
             }
             json_response(['valido' => false]);
+        }
+        json_response(['error' => 'Método no soportado'], 405);
+        break;
+
+    // ── reportes: corte de ventas por período (auth) ─────────────────────────
+    case 'reportes':
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            require_auth();
+            $rid   = intval($_GET['restaurante_id'] ?? 0);
+            $desde = $_GET['desde'] ?? date('Y-m-d');
+            $hasta = $_GET['hasta'] ?? date('Y-m-d');
+            if (!$rid) json_response(['error' => 'restaurante_id requerido'], 400);
+            // Sanitizar fechas
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $desde)) $desde = date('Y-m-d');
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $hasta)) $hasta = date('Y-m-d');
+            if ($hasta < $desde) $hasta = $desde;
+
+            // Resumen agregado (excluye cancelados)
+            $stmtRes = $pdo->prepare(
+                'SELECT
+                    COUNT(*) AS total_pedidos,
+                    COALESCE(SUM(p.total + p.ajuste_manual), 0) AS ingresos_netos,
+                    COALESCE(SUM(p.costo_envio), 0) AS total_envios,
+                    COALESCE(SUM(p.descuento_recompensa), 0) AS desc_recompensa,
+                    COALESCE(SUM(p.descuento_promo), 0) AS desc_promo,
+                    COALESCE(SUM(GREATEST(0, -p.ajuste_manual)), 0) AS ajustes_negativos,
+                    COALESCE(SUM(CASE WHEN p.metodo_pago=\'efectivo\'      THEN p.total+p.ajuste_manual ELSE 0 END), 0) AS efectivo,
+                    COALESCE(SUM(CASE WHEN p.metodo_pago=\'transferencia\' THEN p.total+p.ajuste_manual ELSE 0 END), 0) AS transferencia,
+                    COALESCE(SUM(CASE WHEN p.metodo_pago=\'terminal\'      THEN p.total+p.ajuste_manual ELSE 0 END), 0) AS terminal
+                 FROM pedidos p
+                 WHERE p.restaurante_id=:rid AND p.status != \'cancelado\'
+                   AND DATE(p.created_at) BETWEEN :desde AND :hasta'
+            );
+            $stmtRes->execute([':rid' => $rid, ':desde' => $desde, ':hasta' => $hasta]);
+            $resumen = $stmtRes->fetch(PDO::FETCH_ASSOC);
+            // Castear a float
+            foreach ($resumen as $k => $v) {
+                $resumen[$k] = $k === 'total_pedidos' ? (int)$v : (float)$v;
+            }
+
+            // Desglose por día
+            $stmtDia = $pdo->prepare(
+                'SELECT DATE(p.created_at) AS dia, COUNT(*) AS pedidos,
+                        COALESCE(SUM(p.total + p.ajuste_manual), 0) AS total_dia
+                 FROM pedidos p
+                 WHERE p.restaurante_id=:rid AND p.status != \'cancelado\'
+                   AND DATE(p.created_at) BETWEEN :desde AND :hasta
+                 GROUP BY DATE(p.created_at) ORDER BY dia ASC'
+            );
+            $stmtDia->execute([':rid' => $rid, ':desde' => $desde, ':hasta' => $hasta]);
+            $por_dia = $stmtDia->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($por_dia as &$d) {
+                $d['pedidos']   = (int)$d['pedidos'];
+                $d['total_dia'] = (float)$d['total_dia'];
+            }
+            unset($d);
+
+            json_response(['resumen' => $resumen, 'por_dia' => $por_dia]);
         }
         json_response(['error' => 'Método no soportado'], 405);
         break;

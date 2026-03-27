@@ -172,7 +172,7 @@
       </div>
 
       <div class="card-body no-pad">
-        <div v-if="loadingProductos" class="loading-inline"><div class="spinner"></div></div>
+        <div v-if="loadingProductos && !productos.length" class="loading-inline"><div class="spinner"></div></div>
         <div v-else-if="!productosFiltrados.length" class="empty-state">
           <SvgIcon :path="mdiSilverwareForkKnife" :size="40" />
           <p>{{ categoriaFiltro ? 'Sin platillos en esta categoría.' : 'Sin platillos todavía.\nAgrega el primero arriba.' }}</p>
@@ -918,14 +918,12 @@ const abrirPreview = (prod) => {
 
 const cerrarMenu = () => { menuAbierto.value = null }
 
-let _platillosPollTimer = null
 let _platillosVisibilityFn = null
 
 onMounted(() => {
   loadProductos()
   document.addEventListener('click', cerrarMenu)
   document.addEventListener('click', cerrarPickerGlobal)
-  _platillosPollTimer = setInterval(() => loadProductos(), 120_000)
   _platillosVisibilityFn = () => { if (!document.hidden) loadProductos() }
   document.addEventListener('visibilitychange', _platillosVisibilityFn)
 })
@@ -933,7 +931,6 @@ onUnmounted(() => {
   document.removeEventListener('click', cerrarMenu)
   document.removeEventListener('click', cerrarPickerGlobal)
   if (_platillosVisibilityFn) document.removeEventListener('visibilitychange', _platillosVisibilityFn)
-  clearInterval(_platillosPollTimer)
 })
 </script>
 
