@@ -1076,6 +1076,10 @@ switch ($route) {
                      VALUES (:pid, :prod_id, :nombre, :precio, :cant, :obs, :sub)'
                 );
                 $nuevoSubtotal = 0.0;
+                $stmtOpcIns = $pdo->prepare(
+                    'INSERT INTO pedido_item_opciones (pedido_item_id, grupo_nombre, opcion_nombre, precio_extra)
+                     VALUES (:iid, :gn, :on, :pe)'
+                );
                 foreach ($items as $item) {
                     $precio = (float)($item['precio_unitario'] ?? 0);
                     $cant   = max(1, (int)($item['cantidad'] ?? 1));
@@ -1090,6 +1094,18 @@ switch ($route) {
                         ':obs'     => isset($item['observacion']) && $item['observacion'] ? substr(trim($item['observacion']), 0, 100) : null,
                         ':sub'     => $sub,
                     ]);
+                    // Guardar opciones de personalización si las trae
+                    if (!empty($item['opciones']) && is_array($item['opciones'])) {
+                        $newItemId = (int)$pdo->lastInsertId();
+                        foreach ($item['opciones'] as $opc) {
+                            $stmtOpcIns->execute([
+                                ':iid' => $newItemId,
+                                ':gn'  => substr($opc['grupo_nombre'] ?? '', 0, 100),
+                                ':on'  => substr($opc['opcion_nombre'] ?? '', 0, 100),
+                                ':pe'  => (float)($opc['precio_extra'] ?? 0),
+                            ]);
+                        }
+                    }
                 }
 
                 // Recalcular total del pedido
@@ -1595,6 +1611,13 @@ switch ($route) {
             foreach ($resumen as $k => $v) {
                 $resumen[$k] = in_array($k, $int_fields) ? (int)$v : (float)$v;
             }
+            // Contar cancelados del período (separado porque el query principal los excluye)
+            $stmtCan = $pdo->prepare(
+                'SELECT COUNT(*) FROM pedidos WHERE restaurante_id=:rid AND status=\'cancelado\'
+                   AND DATE(created_at) BETWEEN :desde AND :hasta'
+            );
+            $stmtCan->execute([':rid' => $rid, ':desde' => $desde, ':hasta' => $hasta]);
+            $resumen['pedidos_cancelados'] = (int)$stmtCan->fetchColumn();
 
             // Desglose por día
             $stmtDia = $pdo->prepare(

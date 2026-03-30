@@ -85,6 +85,10 @@
               <span class="stat-label">Ajustes manuales</span>
               <span class="stat-valor">-${{ fmt(resumen.ajustes_negativos) }}</span>
             </div>
+            <div v-if="resumen.pedidos_cancelados > 0" class="stat-card stat-cancelado">
+              <span class="stat-label">Cancelados</span>
+              <span class="stat-valor">{{ resumen.pedidos_cancelados }} pedido{{ resumen.pedidos_cancelados !== 1 ? 's' : '' }}</span>
+            </div>
           </div>
 
           <div v-if="porDia.length > 1" style="margin-top:14px">
@@ -207,13 +211,20 @@
             <!-- ── Editor de items ── -->
             <div v-if="editarId === ped.id" class="editor-pedido">
               <div class="editor-items">
-                <div v-for="(item, idx) in editarItems" :key="idx" class="editor-item-row">
-                  <button @click="cambiarCant(idx, -1)" class="qty-btn"><SvgIcon :path="mdiMinus" :size="13" /></button>
-                  <span class="qty-val">{{ item.cantidad }}</span>
-                  <button @click="cambiarCant(idx, 1)"  class="qty-btn"><SvgIcon :path="mdiPlus" :size="13" /></button>
-                  <span class="editor-item-nombre">{{ item.nombre_producto }}</span>
-                  <span class="editor-item-precio">${{ (item.precio_unitario * item.cantidad).toFixed(2) }}</span>
-                  <button @click="editarItems.splice(idx, 1)" class="qty-btn qty-del"><SvgIcon :path="mdiClose" :size="13" /></button>
+                <div v-for="(item, idx) in editarItems" :key="idx" class="editor-item-wrap">
+                  <div class="editor-item-row">
+                    <button @click="cambiarCant(idx, -1)" class="qty-btn"><SvgIcon :path="mdiMinus" :size="13" /></button>
+                    <span class="qty-val">{{ item.cantidad }}</span>
+                    <button @click="cambiarCant(idx, 1)"  class="qty-btn"><SvgIcon :path="mdiPlus" :size="13" /></button>
+                    <span class="editor-item-nombre">{{ item.nombre_producto }}</span>
+                    <span class="editor-item-precio">${{ (item.precio_unitario * item.cantidad).toFixed(2) }}</span>
+                    <button @click="editarItems.splice(idx, 1)" class="qty-btn qty-del"><SvgIcon :path="mdiClose" :size="13" /></button>
+                  </div>
+                  <div v-if="item.opciones && item.opciones.length" class="editor-item-opciones">
+                    <span v-for="(o, j) in item.opciones" :key="j" class="editor-opc-chip">
+                      {{ o.opcion_nombre }}<span v-if="o.precio_extra > 0"> +${{ Number(o.precio_extra).toFixed(0) }}</span>
+                    </span>
+                  </div>
                 </div>
                 <p v-if="!editarItems.length" class="editor-empty">Sin ítems — agrega al menos uno</p>
               </div>
@@ -234,6 +245,15 @@
                   </button>
                 </div>
               </div>
+              <!-- Modal de personalización para productos con opciones -->
+              <PersonalizacionModal
+                v-if="productoParaPersonalizar"
+                :producto="productoParaPersonalizar"
+                :modoLectura="false"
+                @agregar="onPersonalizacionAgregar"
+                @close="productoParaPersonalizar = null"
+                @ir-categoria="productoParaPersonalizar = null"
+              />
             </div>
 
             <div v-if="ajustandoId === ped.id" class="ajuste-form">
@@ -268,6 +288,7 @@ import {
 import { VueDatePicker } from '@vuepic/vue-datepicker'
 import { useApi } from '../../../composables/useApi.js'
 import SvgIcon from '../../SvgIcon.vue'
+import PersonalizacionModal from '../../menu/PersonalizacionModal.vue'
 
 const props = defineProps({
   restauranteId: { type: Number, required: true },
@@ -293,6 +314,7 @@ const guardandoEdicion = ref(false)
 const productosMenu   = ref([])       // lista plana de todos los productos del menú
 const buscarProd      = ref('')
 const eliminandoId    = ref(null)
+const productoParaPersonalizar = ref(null)  // producto abierto en PersonalizacionModal
 
 const productosFiltrados = computed(() => {
   const q = buscarProd.value.trim().toLowerCase()
@@ -510,7 +532,14 @@ async function cargarProductosMenu() {
     const lista = []
     for (const cat of data.categorias || []) {
       for (const p of cat.productos || []) {
-        lista.push({ id: p.id, nombre: p.nombre, precio: parseFloat(p.precio), activo: p.activo })
+        lista.push({
+          id: p.id,
+          nombre: p.nombre,
+          precio: parseFloat(p.precio),
+          activo: p.activo,
+          tiene_personalizacion: !!p.tiene_personalizacion,
+          grupos: p.grupos || [],
+        })
       }
     }
     productosMenu.value = lista
@@ -542,7 +571,13 @@ function cambiarCant(idx, delta) {
 }
 
 function agregarItem(prod) {
-  const existe = editarItems.value.find(i => i.producto_id === prod.id && !i.observacion)
+  buscarProd.value = ''
+  // Productos personalizables abren el modal de selección de opciones
+  if (prod.tiene_personalizacion && prod.grupos && prod.grupos.length) {
+    productoParaPersonalizar.value = prod
+    return
+  }
+  const existe = editarItems.value.find(i => i.producto_id === prod.id && !i.observacion && !i.opciones?.length)
   if (existe) {
     existe.cantidad++
   } else {
@@ -552,9 +587,26 @@ function agregarItem(prod) {
       precio_unitario: prod.precio,
       cantidad:        1,
       observacion:     '',
+      opciones:        [],
     })
   }
-  buscarProd.value = ''
+}
+
+function onPersonalizacionAgregar({ producto, observacion, opciones }) {
+  const extraTotal = (opciones || []).reduce((s, o) => s + (o.precio_extra || 0), 0)
+  editarItems.value.push({
+    producto_id:     producto.id,
+    nombre_producto: producto.nombre,
+    precio_unitario: Number(producto.precio) + extraTotal,
+    cantidad:        1,
+    observacion:     observacion || '',
+    opciones:        (opciones || []).map(o => ({
+      grupo_nombre:  o.grupo_nombre,
+      opcion_nombre: o.opcion_nombre,
+      precio_extra:  o.precio_extra || 0,
+    })),
+  })
+  productoParaPersonalizar.value = null
 }
 
 async function guardarEdicion(ped) {
@@ -702,7 +754,10 @@ onUnmounted(() => clearInterval(pedidosInterval))
 /* ── Editor inline de pedido ── */
 .editor-pedido { margin-top: 10px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
 .editor-items  { display: flex; flex-direction: column; gap: 6px; }
-.editor-item-row { display: flex; align-items: center; gap: 6px; background: #fff; border-radius: 7px; padding: 6px 10px; }
+.editor-item-wrap { background: #fff; border-radius: 7px; padding: 6px 10px; display: flex; flex-direction: column; gap: 4px; }
+.editor-item-row { display: flex; align-items: center; gap: 6px; }
+.editor-item-opciones { display: flex; flex-wrap: wrap; gap: 4px; padding-left: 88px; }
+.editor-opc-chip { font-size: 0.76rem; background: #e0f2fe; color: #0369a1; border-radius: 10px; padding: 2px 7px; }
 .qty-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 6px; border: 1px solid #cbd5e1; background: #f8fafc; cursor: pointer; flex-shrink: 0; }
 .qty-btn:hover { background: #e2e8f0; }
 .qty-del  { border-color: #fca5a5; background: #fff1f2; }
@@ -752,6 +807,7 @@ onUnmounted(() => clearInterval(pedidosInterval))
 .stat-principal .stat-valor { color: var(--accent, #e65100); }
 .stat-descuento .stat-valor { color: #e74c3c; }
 .stat-envio .stat-valor     { color: #1565c0; }
+.stat-cancelado .stat-valor { color: #6b7280; }
 
 .dia-tabla { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 4px; }
 .dia-tabla th { padding: 8px 12px; font-size: 0.72rem; font-weight: 700; color: #999; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid #f0f0f0; background: #fafafa; }
