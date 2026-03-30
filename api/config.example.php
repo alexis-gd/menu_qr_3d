@@ -67,8 +67,12 @@ $_CONFIGS = [
             'uploads_url' => '',         // URL pública de uploads (con slash final)
         ],
         'services' => [
-            'admin_token'   => '',       // token estático para autenticación del panel
-            'meshy_api_key' => '',       // API key de meshy.ai para modelos 3D
+            'admin_token'    => '',       // token estático para autenticación del panel
+            'meshy_api_key'  => '',       // API key de meshy.ai para modelos 3D
+            // Notificaciones push (VAPID) — generar con api/vapid_generate.php
+            'vapid_public_key'  => '',   // clave pública (seguro exponerla en JS)
+            'vapid_private_key' => '',   // clave privada (NUNCA exponer — solo servidor)
+            'vapid_subject'     => '',   // ej: 'mailto:tu@email.com'
         ],
     ],
 
@@ -88,7 +92,10 @@ $_CONFIGS = [
             'uploads_url' => 'http://menu.local/uploads/',
         ],
         'services' => [
-            'admin_token' => 'CAMBIA_ESTE_TOKEN_LOCAL',
+            'admin_token'       => 'CAMBIA_ESTE_TOKEN_LOCAL',
+            'vapid_public_key'  => '',
+            'vapid_private_key' => '',
+            'vapid_subject'     => 'mailto:local@example.com',
         ],
     ],
 
@@ -192,8 +199,11 @@ define('DB_USER',       config('db.user'));
 define('DB_PASS',       config('db.pass'));
 define('BASE_URL',      config('app.url'));
 define('UPLOADS_URL',   config('paths.uploads_url'));
-define('MESHY_API_KEY', config('services.meshy_api_key'));
-define('ADMIN_TOKEN',   config('services.admin_token'));
+define('MESHY_API_KEY',     config('services.meshy_api_key'));
+define('ADMIN_TOKEN',       config('services.admin_token'));
+define('VAPID_PUBLIC_KEY',  config('services.vapid_public_key',  ''));
+define('VAPID_PRIVATE_KEY', config('services.vapid_private_key', ''));
+define('VAPID_SUBJECT',     config('services.vapid_subject',     ''));
 
 
 // ══════════════════════════════════════════════════════════════════════════════

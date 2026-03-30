@@ -1,6 +1,6 @@
 {
   "name": "menu-qr-3d",
-  "version": "20.0.0",
+  "version": "20.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.0",
-    "vite": "^5.0.0"
+    "vite": "^5.0.0",
+    "vite-plugin-pwa": "^1.2.0"
   }
 }

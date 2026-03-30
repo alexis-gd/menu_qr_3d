@@ -1017,6 +1017,12 @@ switch ($route) {
             }
             // ────────────────────────────────────────────────────────────────
 
+            // Notificar al restaurante via push sin romper la creación del pedido
+            // si el helper aún no está disponible en el servidor.
+            if (function_exists('notify_new_order')) {
+                notify_new_order($pdo, (int)$restaurante_id, $numero_pedido);
+            }
+
             json_response(['id' => (int)$pedido_id, 'numero_pedido' => $numero_pedido], 201);
         }
 
@@ -1387,6 +1393,50 @@ switch ($route) {
         json_response(['error' => 'Método no soportado'], 405);
         break;
 
+    // ── vapid-key: devuelve la clave pública VAPID (pública, sin auth) ───────
+    case 'vapid-key':
+        json_response(['public_key' => VAPID_PUBLIC_KEY ?: null]);
+        break;
+
+    // ── push-subscribe: guardar suscripción push de un dispositivo admin ─────
+    case 'push-subscribe':
+        require_auth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') json_response(['error' => 'Método no soportado'], 405);
+        $body = json_decode(file_get_contents('php://input'), true) ?: [];
+        $rid  = (int)($body['restaurante_id'] ?? 0);
+        $sub  = $body['subscription'] ?? null;
+        if (!$rid || !$sub || empty($sub['endpoint']) || empty($sub['keys']['p256dh']) || empty($sub['keys']['auth'])) {
+            json_response(['error' => 'Datos de suscripción inválidos'], 400);
+        }
+        $endpoint = $sub['endpoint'];
+        $stmt = $pdo->prepare(
+            'INSERT INTO push_subscriptions (restaurante_id, endpoint, subscription_data)
+             VALUES (:rid, :ep, :data)
+             ON DUPLICATE KEY UPDATE subscription_data = :data2, restaurante_id = :rid2'
+        );
+        $encoded = json_encode($sub);
+        $stmt->execute([
+            ':rid'   => $rid,
+            ':ep'    => $endpoint,
+            ':data'  => $encoded,
+            ':data2' => $encoded,
+            ':rid2'  => $rid,
+        ]);
+        json_response(['ok' => true], 201);
+        break;
+
+    // ── push-unsubscribe: eliminar suscripción push ───────────────────────────
+    case 'push-unsubscribe':
+        require_auth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') json_response(['error' => 'Método no soportado'], 405);
+        $body     = json_decode(file_get_contents('php://input'), true) ?: [];
+        $endpoint = $body['endpoint'] ?? '';
+        if (!$endpoint) json_response(['error' => 'endpoint requerido'], 400);
+        $pdo->prepare('DELETE FROM push_subscriptions WHERE endpoint = :ep')
+            ->execute([':ep' => $endpoint]);
+        json_response(['ok' => true]);
+        break;
+
     // ── reportes: corte de ventas por período (auth) ─────────────────────────
     case 'reportes':
         if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -1409,6 +1459,7 @@ switch ($route) {
                     COALESCE(SUM(p.descuento_recompensa), 0) AS desc_recompensa,
                     COALESCE(SUM(p.descuento_promo), 0) AS desc_promo,
                     COALESCE(SUM(GREATEST(0, -p.ajuste_manual)), 0) AS ajustes_negativos,
+                    COUNT(CASE WHEN p.codigo_promo IS NOT NULL AND p.descuento_promo = 0 THEN 1 END) AS cupones_envio_gratis,
                     COALESCE(SUM(CASE WHEN p.metodo_pago=\'efectivo\'      THEN p.total+p.ajuste_manual ELSE 0 END), 0) AS efectivo,
                     COALESCE(SUM(CASE WHEN p.metodo_pago=\'transferencia\' THEN p.total+p.ajuste_manual ELSE 0 END), 0) AS transferencia,
                     COALESCE(SUM(CASE WHEN p.metodo_pago=\'terminal\'      THEN p.total+p.ajuste_manual ELSE 0 END), 0) AS terminal
@@ -1419,8 +1470,9 @@ switch ($route) {
             $stmtRes->execute([':rid' => $rid, ':desde' => $desde, ':hasta' => $hasta]);
             $resumen = $stmtRes->fetch(PDO::FETCH_ASSOC);
             // Castear a float
+            $int_fields = ['total_pedidos', 'cupones_envio_gratis'];
             foreach ($resumen as $k => $v) {
-                $resumen[$k] = $k === 'total_pedidos' ? (int)$v : (float)$v;
+                $resumen[$k] = in_array($k, $int_fields) ? (int)$v : (float)$v;
             }
 
             // Desglose por día

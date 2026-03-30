@@ -24,9 +24,10 @@
 - [x] **Fase 19** — Folio no secuencial + Ajuste manual de pedido + Cupón envío gratis + Tab Reportes (corte de ventas)
 - [x] **@vuepic/vue-datepicker v12** — Date pickers en TabReportes + time pickers en TabNegocio
 - [x] **Fase 20a** — Popup tienda cerrada + modo lectura + pedidos programados
+- [x] **Fase 21** — Notificaciones push para pedidos nuevos + PWA/service worker del panel admin
 
 ### Funcionalidades Implementadas
-- [x] API endpoints: `menu`, `login`, `restaurantes`, `categorias`, `productos`, `mesas`, `upload-fotos`, `upload-glb`, `upload-logo`, `job-status`
+- [x] API endpoints: `menu`, `login`, `restaurantes`, `categorias`, `productos`, `mesas`, `upload-fotos`, `upload-glb`, `upload-logo`, `job-status`, `vapid-key`, `push-subscribe`, `push-unsubscribe`
 - [x] CRUD completo de productos (create, read, update, delete lógico)
 - [x] Subida de múltiples fotos por producto + actualiza `foto_principal` automáticamente
 - [x] Subida manual de .glb validado por magic bytes (`glTF`) desde admin
@@ -68,6 +69,8 @@
 - [x] **Lightbox fullscreen** — `LightboxImagen.vue` componente reutilizable: Teleport a body, fondo negro, imagen centrada con zoom-in animado, cierre por click fuera / botón X / Esc, `touch-action: pinch-zoom` en móvil. Usado en `ProductoModal.vue` y `PersonalizacionModal.vue` al tocar la foto (cursor `zoom-in`).
 - [x] **Watermark circular** — Logo del restaurante como `<img>` circular (`border-radius: 50%`, `object-fit: cover`) en top-left de la foto. Tamaños: 26px en cards, 34px en modales, 44px en lightbox. Opacity 45%. Prop `logoUrl` agregada a ProductoModal y PersonalizacionModal, pasada desde MenuPublico.
 - [x] **Fase 15 — Toggle códigos de promotor** — `restaurantes.codigos_promo_habilitado TINYINT DEFAULT 1`. Toggle en header de la card "Códigos de promotor" en TabNegocio. CheckoutModal oculta el campo con `v-if="pedidosConfig.codigos_promo_habilitado"`. Migración: `fase15_codigos_promo_habilitado.sql`.
+- [x] **Fase 21 — Push notifications de pedidos** — Admin: `TabNegocio.vue` agrega card "🔔 Notificaciones de pedidos" con detección de soporte, aviso especial para iOS instalado en pantalla de inicio, toggle por dispositivo/navegador y mensajes de estado. Frontend: `vite-plugin-pwa` con `injectManifest`, `src/sw.js` como service worker y `public/pwa-icon.svg` para instalar el panel como app. API: `GET vapid-key` expone la clave pública, `POST push-subscribe` guarda la suscripción y `POST push-unsubscribe` la elimina. Backend: `notify_new_order()` en `api/helpers.php` envía push silenciosamente al crear un pedido; `api/index.php` lo llama de forma defensiva con `function_exists()` para no romper deploys incompletos. Config: nuevas claves `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` en `api/config*.php`. BD: nueva tabla `push_subscriptions`. Migración: `database/migrations/fase21_push_subscriptions.sql`.
+- [x] **Reporte: cupones de envío gratis** — `GET reportes` ahora devuelve `cupones_envio_gratis` contando pedidos con `codigo_promo` y `descuento_promo = 0`, y `TabPedidos.vue` los muestra como card de resumen. En la lista de pedidos, un código promo con descuento cero se etiqueta como "Envío gratis" en vez de ocultarse.
 - [x] **Validación stock en carrito y checkout** — `carrito.js`: `cantidadEnCarrito(id)` suma unidades en carrito; `agregar()` retorna `'ok'` o `'stock_agotado'`. Toast rojo en `MenuPublico` cuando se rechaza. Checkout: botón "+" deshabilitado al llegar al límite del stock.
 - [x] **Refresco silencioso sin UX disruption** — `MenuPublico` y `TabPlatillos` recargan datos solo al volver al tab (`visibilitychange`). Los intervalos de 90s/120s se eliminaron porque causaban saltos de scroll (Vue destruía el DOM al activar `loading=true`). `TabPedidos` mantiene el intervalo de 30s (pedidos del admin requieren frescura) con save/restore de `window.scrollY` + `nextTick`. El spinner de carga solo aparece en la primera carga (`cargandoInicio` en MenuPublico; `loadingX && !items.length` en los tabs). Los refrescos posteriores son 100% silenciosos.
 - [x] **Teléfono siempre requerido en checkout** — Campo teléfono visible siempre (no solo en envío a domicilio).
@@ -139,7 +142,7 @@ Cuando `tienda_abierta = false` en el menú público (Fase 20a): aparece `Tienda
 
 **Pitfall VueDatePicker v-if**: Los pickers dentro de `v-if` causan `TypeError: Cannot read properties of null (reading 'parentNode')` al desmontarse mientras el dropdown está teleportado a `<body>`. Fix obligatorio: usar `v-show` en el contenedor de VueDatePicker.
 
-**Bug pendiente (Fase 20a)**: El date picker del checkout muestra selector de hora dentro del calendario a pesar de `:enable-time-picker="false"`. Causa exacta desconocida (posiblemente conflicto con el contexto del modal `v-show`). Workaround buscado: configuración correcta de VueDatePicker para forzar solo vista de calendario sin tiempo.
+**Fix aplicado (Fase 20a)**: En `@vuepic/vue-datepicker` v12, `:enable-time-picker="false"` no basta para ocultar el reloj del selector de fecha. El ajuste correcto es `:time-config="{ enableTimePicker: false }"`. Mantener este patrón en futuros pickers de solo fecha.
 
 ### Watermark automático (Fase 10)
 Logo del restaurante superpuesto en fotos de productos con `opacity: 0.15`. Activo automáticamente cuando `restaurante.logo_url` existe. Sin toggle. Implementado como div CSS con `background-image` en `ProductoCard.vue`.
@@ -203,6 +206,7 @@ Logo del restaurante superpuesto en fotos de productos con `opacity: 0.15`. Acti
 - ⚠️ **Fase 19b — Cupón envío gratis en QA**: ejecutar `database/migrations/fase19b_cupon_envio.sql` (MODIFY tipo ENUM + ADD `usos_maximo` + ADD `telefono_restringido` en `codigos_promo`).
 - ⚠️ **Fase 19c — Ajuste manual en QA**: ejecutar `database/migrations/fase19c_ajuste_pedido.sql` (agrega `ajuste_manual`, `ajuste_nota` en `pedidos`).
 - ⚠️ **Fase 20a — Popup tienda + pedidos programados en QA**: ejecutar `database/migrations/fase20a_popup_tienda_cerrada.sql` (agrega `pedidos_programar_activo` en `restaurantes`; `fecha_programada`, `hora_programada` en `pedidos`).
+- ⚠️ **Fase 21 — Push subscriptions en QA**: ejecutar `database/migrations/fase21_push_subscriptions.sql` (crea `push_subscriptions`). Además, subir `api/vendor/` si el hosting no tiene Composer, configurar claves VAPID en `api/config.php`/`env.php` y desplegar el build con `sw.js` y `pwa-icon.svg`.
 
 ### Testing Local
 - ✅ Base de datos: MySQL tablas creadas
@@ -216,6 +220,7 @@ Logo del restaurante superpuesto en fotos de productos con `opacity: 0.15`. Acti
 - ✅ Badge de mesa visible en menú público con `?mesa=N`
 - ✅ Fase 7 BD aplicada: tablas `producto_grupos`, `producto_opciones`, `pedido_item_opciones` + columnas en `productos`
 - ✅ Fase 7 Vue: PersonalizacionModal funciona con datos de prueba (Poke Bowl Hawaiiano, cat 3, Dolce Mare)
+- ✅ Fase 21 local: service worker compila, endpoints `vapid-key/push-subscribe/push-unsubscribe` existen y el alta de pedidos ya no truena si falta el helper de push en un deploy parcial
 - ⚠️ Meshy API sin key (no aplica al flujo semi-manual actual)
 - ⚠️ Cron no registrado en cPanel (no necesario para flujo semi-manual)
 

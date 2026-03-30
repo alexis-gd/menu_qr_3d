@@ -124,6 +124,16 @@ CREATE TABLE IF NOT EXISTS restaurantes (
 -- ALTER TABLE restaurantes ADD COLUMN IF NOT EXISTS pedidos_programar_activo TINYINT(1) NOT NULL DEFAULT 0;
 -- ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS fecha_programada DATE NULL AFTER ajuste_nota;
 -- ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS hora_programada TIME NULL AFTER fecha_programada;
+-- Fase 21 (push notifications admin):
+-- CREATE TABLE IF NOT EXISTS push_subscriptions (
+--   id INT AUTO_INCREMENT PRIMARY KEY,
+--   restaurante_id INT NOT NULL,
+--   endpoint VARCHAR(700) NOT NULL,
+--   subscription_data JSON NOT NULL,
+--   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--   UNIQUE KEY uq_endpoint (endpoint(500)),
+--   INDEX idx_restaurante (restaurante_id)
+-- );
 
 -- ------------------------------------------------------------
 -- TABLA: mesas
@@ -283,6 +293,21 @@ CREATE TABLE IF NOT EXISTS pedido_items (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------
+-- TABLA: push_subscriptions (Fase 21)
+-- Suscripciones push por dispositivo/navegador del panel admin.
+-- Cada endpoint representa una suscripción única del browser.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id                INT AUTO_INCREMENT PRIMARY KEY,
+  restaurante_id    INT NOT NULL,
+  endpoint          VARCHAR(700) NOT NULL,
+  subscription_data JSON NOT NULL,               -- payload completo PushSubscription.toJSON()
+  created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_endpoint (endpoint(500)),
+  INDEX idx_restaurante (restaurante_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
 -- TABLA: producto_grupos (Fase 7)
 -- Grupos de opciones de un producto (ej: "Tamaño", "Base", "Extras")
 -- ------------------------------------------------------------
@@ -410,6 +435,7 @@ restaurantes
   ├──< pedidos (restaurante_id)
   │      └──< pedido_items (pedido_id)
   │             └──< pedido_item_opciones (pedido_item_id)  ← snapshot Fase 7
+  ├──< push_subscriptions (restaurante_id)    ← endpoints push del admin, Fase 21
   ├──< recompensas_config (restaurante_id)  ← 1:1, Fase 11
   ├──< clientes (restaurante_id)            ← historial por teléfono, Fase 11
   └──< codigos_promo (restaurante_id)       ← códigos de promotor, Fase 13
@@ -541,6 +567,9 @@ LIMIT 1;
 - **Descuentos en pedidos**: `descuento_recompensa` y `descuento_promo` guardados como snapshot. `total = subtotal + costo_envio - descuento_recompensa - descuento_promo`. El `total` original NUNCA se reescribe.
 - **Ajuste manual (Fase 19c)**: `ajuste_manual` es aditivo al `total` original (positivo=cargo, negativo=descuento). `total_final = total + ajuste_manual` se computa en el SELECT (no se almacena). No afecta recompensas ni reversión en cancelación. `ajuste_nota` es el motivo (opcional).
 - **Pedidos programados (Fase 20a)**: `fecha_programada DATE` y `hora_programada TIME` son opcionales (NULL si pedido normal). Se guardan en POST cuando `pedido_programado=true` en el checkout. TabPedidos muestra borde azul + chip "📅 Prog." cuando `fecha_programada IS NOT NULL`. `pedidos_programar_activo` en `restaurantes` controla si el botón aparece en el popup de tienda cerrada.
+- **Push subscriptions (Fase 21)**: `push_subscriptions` guarda una fila por endpoint de navegador/dispositivo. `subscription_data` almacena el objeto completo de `PushSubscription`. `endpoint` es único para permitir re-suscripción con `ON DUPLICATE KEY UPDATE`. Si `Minishlink/WebPush` reporta un endpoint inválido o expirado, el backend lo elimina.
+- **Push de nuevo pedido**: al crear un pedido, el backend envía una notificación push a todas las suscripciones del restaurante usando claves VAPID. Este envío debe fallar de forma silenciosa: nunca debe impedir que el pedido se guarde.
+- **Reporte de cupones de envío gratis**: en `GET reportes`, `cupones_envio_gratis` cuenta pedidos con `codigo_promo IS NOT NULL` y `descuento_promo = 0`. Esto diferencia el cupón tipo `envio_gratis` de los descuentos monetarios normales.
 - **Folio no secuencial (Fase 19a)**: formato `YYYYMMDD-KBR4` (3 consonantes sin I/O/U + 1 dígito). Generado con `random_int()` PHP en loop de 5 intentos con verificación de unicidad. Índice UNIQUE en `(restaurante_id, numero_pedido)`.
 - **`productos.foto_principal`** es relativo a `/uploads/` (ej: `fotos/1/foto_1_0_1234.jpg`). URL completa: `UPLOADS_URL . $foto_principal`. Se asigna automáticamente al subir la primera foto.
 - **`fotos_producto.ruta`** es relativo al webroot (ej: `uploads/fotos/1/foto.jpg`). Solo para referencia interna.

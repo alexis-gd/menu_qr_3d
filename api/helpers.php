@@ -53,6 +53,79 @@ function clear_auth_cookie()
 }
 
 /**
+ * Envía notificaciones push a todos los dispositivos suscritos del restaurante.
+ * Falla silenciosamente si la librería no está instalada o VAPID no está configurado.
+ *
+ * @param PDO    $pdo            Conexión activa
+ * @param int    $restaurante_id ID del restaurante
+ * @param string $numero_pedido  Folio del pedido (ej: "20260330-AB1C")
+ */
+function notify_new_order(PDO $pdo, int $restaurante_id, string $numero_pedido): void
+{
+    $autoload = __DIR__ . '/vendor/autoload.php';
+    if (!file_exists($autoload)) return;
+
+    $pub  = defined('VAPID_PUBLIC_KEY')  ? VAPID_PUBLIC_KEY  : '';
+    $priv = defined('VAPID_PRIVATE_KEY') ? VAPID_PRIVATE_KEY : '';
+    $sub  = defined('VAPID_SUBJECT')     ? VAPID_SUBJECT     : '';
+    if (!$pub || !$priv || !$sub) return;
+
+    require_once $autoload;
+
+    try {
+        $webPush = new \Minishlink\WebPush\WebPush([
+            'VAPID' => [
+                'subject'    => $sub,
+                'publicKey'  => $pub,
+                'privateKey' => $priv,
+            ],
+        ]);
+
+        $stmt = $pdo->prepare(
+            'SELECT endpoint, subscription_data FROM push_subscriptions WHERE restaurante_id = :rid'
+        );
+        $stmt->execute([':rid' => $restaurante_id]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!$rows) return;
+
+        $payload = json_encode([
+            'title' => '🛎️ Nuevo pedido',
+            'body'  => "Pedido #{$numero_pedido} — ¡ábrelo en el panel!",
+            'url'   => '/menu/admin/dashboard',
+        ]);
+
+        $failedEndpoints = [];
+
+        foreach ($rows as $row) {
+            $data = json_decode($row['subscription_data'], true);
+            if (!$data || empty($data['endpoint']) || empty($data['keys']['p256dh']) || empty($data['keys']['auth'])) {
+                continue;
+            }
+            $subscription = \Minishlink\WebPush\Subscription::create([
+                'endpoint'  => $data['endpoint'],
+                'publicKey' => $data['keys']['p256dh'],
+                'authToken' => $data['keys']['auth'],
+            ]);
+            $webPush->queueNotification($subscription, $payload);
+        }
+
+        foreach ($webPush->flush() as $report) {
+            if (!$report->isSuccess()) {
+                $failedEndpoints[] = $report->getEndpoint();
+            }
+        }
+
+        // Limpiar suscripciones caducadas/inválidas
+        foreach ($failedEndpoints as $ep) {
+            $pdo->prepare('DELETE FROM push_subscriptions WHERE endpoint = :ep')
+                ->execute([':ep' => $ep]);
+        }
+    } catch (\Throwable $e) {
+        // Silencioso — push no debe afectar la creación del pedido
+    }
+}
+
+/**
  * Comprueba si la petición está autenticada con ADMIN_TOKEN via cookie HttpOnly.
  * En caso de fallar finaliza con 401.
  */

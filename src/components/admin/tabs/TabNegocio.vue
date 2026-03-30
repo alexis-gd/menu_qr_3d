@@ -363,6 +363,60 @@
       </div>
     </div>
 
+    <!-- Notificaciones push -->
+    <div class="card">
+      <div class="card-header collapsible" @click="secNotif = !secNotif">
+        <h2>🔔 Notificaciones de pedidos</h2>
+        <span class="chevron">{{ secNotif ? '▲' : '▼' }}</span>
+      </div>
+      <div v-show="secNotif" class="card-body">
+        <p class="helper-text">Recibe una notificación nativa en este dispositivo cada vez que llegue un pedido nuevo, aunque el panel esté cerrado.</p>
+
+        <!-- Navegador no soporta push -->
+        <div v-if="!pushSoportado" class="push-estado push-no-soportado">
+          <span>⚠️ Tu navegador no soporta notificaciones push. Usa Chrome o Firefox.</span>
+        </div>
+
+        <!-- VAPID no configurado -->
+        <div v-else-if="!vapidPublicKey" class="push-estado push-no-soportado">
+          <span>⚙️ Las claves VAPID no están configuradas en el servidor. Sigue los pasos de la fase 21 en DEPLOY.md.</span>
+        </div>
+
+        <!-- iOS: recordar instalar en pantalla inicio -->
+        <div v-else-if="esIOS && !esInstalada" class="push-estado push-aviso-ios">
+          <strong>📱 Paso previo en iPhone/iPad:</strong>
+          <ol style="margin:8px 0 0 16px; line-height:1.7">
+            <li>Toca el botón <strong>Compartir</strong> de Safari (cuadrado con flecha ↑)</li>
+            <li>Selecciona <strong>"Añadir a pantalla de inicio"</strong></li>
+            <li>Abre el panel desde el ícono que se creó</li>
+            <li>Vuelve aquí y activa las notificaciones</li>
+          </ol>
+        </div>
+
+        <!-- Estado y botón de suscripción -->
+        <template v-else>
+          <div class="negocio-toggle-row" style="margin-bottom:0">
+            <div>
+              <strong>{{ suscrito ? 'Notificaciones activas en este dispositivo' : 'Notificaciones desactivadas' }}</strong>
+              <p class="helper-text" style="margin:4px 0 0">
+                {{ suscrito
+                  ? 'Recibirás un aviso nativo cada vez que llegue un pedido.'
+                  : 'Activa para que este dispositivo reciba avisos de nuevos pedidos.' }}
+              </p>
+            </div>
+            <label class="sw">
+              <input type="checkbox" :checked="suscrito" @change="togglePush" :disabled="pushCargando" />
+              <span class="sw-track" :style="suscrito ? { background: temaAccent } : {}"></span>
+            </label>
+          </div>
+          <p v-if="pushError" class="push-error">{{ pushError }}</p>
+          <p class="helper-text" style="margin-top:10px; font-size:0.78rem">
+            💡 La suscripción es por dispositivo y navegador. Si usas el panel en varios dispositivos, activa en cada uno por separado.
+          </p>
+        </template>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -417,6 +471,115 @@ const secTienda      = ref(true)
 const secPedidos     = ref(false)
 const secRecompensas = ref(false)
 const secPagos       = ref(false)
+const secNotif       = ref(false)
+
+// ── Notificaciones push ────────────────────────────────────────────────────────
+const vapidPublicKey = ref('')
+const suscrito       = ref(false)
+const pushCargando   = ref(false)
+const pushError      = ref('')
+
+const pushSoportado = computed(() =>
+  typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window
+)
+const esIOS = computed(() =>
+  typeof navigator !== 'undefined' && /iphone|ipad|ipod/i.test(navigator.userAgent)
+)
+const esInstalada = computed(() =>
+  typeof navigator !== 'undefined' &&
+  (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true)
+)
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const raw = atob(base64)
+  return new Uint8Array([...raw].map(c => c.charCodeAt(0)))
+}
+
+const apiBase = import.meta.env.BASE_URL + 'api/?route='
+
+async function cargarEstadoPush() {
+  if (!pushSoportado.value) return
+  try {
+    // Obtener clave pública VAPID
+    const r = await fetch(apiBase + 'vapid-key', { credentials: 'include' })
+    const d = await r.json()
+    vapidPublicKey.value = d.public_key || ''
+  } catch { /* silencioso */ }
+
+  try {
+    // Comprobar si ya hay suscripción activa en el browser.
+    // Usamos getRegistration() en lugar de .ready para no bloquear si el SW
+    // aún no está activo en este ciclo de vida.
+    const reg = await navigator.serviceWorker.getRegistration('/menu/')
+    if (!reg) return
+    const sub = await reg.pushManager.getSubscription()
+    suscrito.value = !!sub
+  } catch { /* silencioso */ }
+}
+
+async function togglePush() {
+  pushError.value = ''
+  if (suscrito.value) {
+    await desactivarNotificaciones()
+  } else {
+    await activarNotificaciones()
+  }
+}
+
+async function activarNotificaciones() {
+  if (!vapidPublicKey.value) return
+  pushCargando.value = true
+  try {
+    const permission = await Notification.requestPermission()
+    if (permission !== 'granted') {
+      pushError.value = 'Permiso denegado. Habilita notificaciones en la configuración del navegador.'
+      return
+    }
+    const reg = await navigator.serviceWorker.getRegistration('/menu/')
+    if (!reg) throw new Error('El Service Worker no está instalado. Asegúrate de usar la versión publicada del panel (no el servidor de desarrollo).')
+    const subscription = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey.value),
+    })
+    await fetch(apiBase + 'push-subscribe', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ restaurante_id: props.restauranteId, subscription: subscription.toJSON() }),
+    })
+    suscrito.value = true
+    emit('notif', { tipo: 'ok', msg: '🔔 Notificaciones activadas en este dispositivo' })
+  } catch (e) {
+    pushError.value = 'No se pudo activar: ' + (e.message || 'error desconocido')
+  } finally {
+    pushCargando.value = false
+  }
+}
+
+async function desactivarNotificaciones() {
+  pushCargando.value = true
+  try {
+    const reg = await navigator.serviceWorker.getRegistration('/menu/')
+    const sub = reg ? await reg.pushManager.getSubscription() : null
+    if (sub) {
+      await fetch(apiBase + 'push-unsubscribe', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: sub.endpoint }),
+      })
+      await sub.unsubscribe()
+    }
+    suscrito.value = false
+    emit('notif', { tipo: 'ok', msg: 'Notificaciones desactivadas en este dispositivo' })
+  } catch (e) {
+    pushError.value = 'Error al desactivar: ' + (e.message || 'error desconocido')
+  } finally {
+    pushCargando.value = false
+  }
+}
 
 const formRecompensas = ref({ activo: false, compras_necesarias: 10, tipo: 'descuento_fijo', valor: 0 })
 
@@ -429,6 +592,7 @@ const codigoAgotado = (c) => c.usos_maximo && Number(c.usos) >= Number(c.usos_ma
 
 onMounted(async () => {
   if (!props.restauranteId) return
+  cargarEstadoPush()
   try {
     const data = await get('recompensas-config', { restaurante_id: props.restauranteId })
     formRecompensas.value = {
@@ -758,4 +922,10 @@ defineExpose({ guardar: guardarRestaurante, guardando })
   transition: border-color 0.15s, color 0.15s;
 }
 .btn-del-codigo:hover { border-color: #e74c3c; color: #e74c3c; }
+
+/* Push notifications */
+.push-estado { padding: 14px 16px; border-radius: 10px; font-size: 0.88rem; line-height: 1.5; }
+.push-no-soportado { background: #f5f5f5; color: #888; }
+.push-aviso-ios { background: #fff8e1; color: #7a5000; border: 1px solid #ffe082; }
+.push-error { color: #e74c3c; font-size: 0.82rem; margin-top: 8px; }
 </style>

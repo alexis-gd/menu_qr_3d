@@ -77,6 +77,10 @@
               <span class="stat-label">Desc. cupón</span>
               <span class="stat-valor">-${{ fmt(resumen.desc_promo) }}</span>
             </div>
+            <div v-if="resumen.cupones_envio_gratis > 0" class="stat-card stat-descuento">
+              <span class="stat-label">Envíos gratis (cupón)</span>
+              <span class="stat-valor">{{ resumen.cupones_envio_gratis }} pedido{{ resumen.cupones_envio_gratis !== 1 ? 's' : '' }}</span>
+            </div>
             <div v-if="resumen.ajustes_negativos > 0" class="stat-card stat-descuento">
               <span class="stat-label">Ajustes manuales</span>
               <span class="stat-valor">-${{ fmt(resumen.ajustes_negativos) }}</span>
@@ -175,7 +179,7 @@
               <div class="pedido-totales">
                 <span v-if="ped.costo_envio > 0">Envío: ${{ Number(ped.costo_envio).toFixed(2) }}</span>
                 <span v-if="Number(ped.descuento_recompensa) > 0" class="pedido-descuento">🎁 Recompensa: -${{ Number(ped.descuento_recompensa).toFixed(2) }}</span>
-                <span v-if="Number(ped.descuento_promo) > 0" class="pedido-descuento">🏷️ {{ ped.codigo_promo }}: -${{ Number(ped.descuento_promo).toFixed(2) }}</span>
+                <span v-if="ped.codigo_promo" class="pedido-descuento">🏷️ {{ ped.codigo_promo }}: {{ Number(ped.descuento_promo) > 0 ? '-$' + Number(ped.descuento_promo).toFixed(2) : 'Envío gratis' }}</span>
                 <span v-if="Number(ped.ajuste_manual) < 0" class="pedido-descuento">✏️ Ajuste: -${{ Math.abs(Number(ped.ajuste_manual)).toFixed(2) }}<small v-if="ped.ajuste_nota"> ({{ ped.ajuste_nota }})</small></span>
                 <span v-else-if="Number(ped.ajuste_manual) > 0" class="pedido-cargo">✏️ +${{ Number(ped.ajuste_manual).toFixed(2) }}<small v-if="ped.ajuste_nota"> ({{ ped.ajuste_nota }})</small></span>
                 <strong>Total: ${{ Number(ped.total_final ?? ped.total).toFixed(2) }}</strong>

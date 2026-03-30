@@ -2,6 +2,7 @@
 
 ## Contexto completo del proyecto
 Lee estos archivos antes de cualquier tarea compleja:
+- `CONTEXT_MAP.md` — que contexto existe, para que sirve cada archivo y como se enlazan
 - `CONTEXTO_PROYECTO.md` — arquitectura, stack, flujos, fases, decisiones técnicas
 - `CONTEXTO_BASE_DE_DATOS.md` — esquema MySQL completo, consultas clave, reglas de negocio
 
@@ -80,11 +81,23 @@ cron/
 ```
 
 ## Comando especial
-"actualiza contextos" = revisar y actualizar los 4 archivos de contexto del proyecto:
-- `CONTEXTO_BASE_DE_DATOS.md`
-- `CONTEXTO_PROYECTO.md`
-- `CLAUDE.md`
-- `MEMORY.md` (en `~/.claude/projects/.../memory/`)
+`actualiza contextos` = ejecutar este flujo:
+1. Leer `CONTEXT_MAP.md`
+2. Revisar los cambios recientes del proyecto antes de editar nada
+3. Decidir que archivos toca actualizar segun el tipo de cambio
+4. Actualizar solo los contextos necesarios entre:
+   - `CLAUDE.md`
+   - `CONTEXTO_PROYECTO.md`
+   - `CONTEXTO_BASE_DE_DATOS.md`
+   - `MEMORY.md` (en `~/.claude/projects/.../memory/`)
+5. Corregir contradicciones obvias entre contextos si existen
+
+Regla:
+- no actualizar todos por inercia
+- si el cambio fue arquitectonico, actualizar `CLAUDE.md`
+- si fue funcional/producto, actualizar `CONTEXTO_PROYECTO.md`
+- si fue schema o SQL, actualizar `CONTEXTO_BASE_DE_DATOS.md`
+- si fue pitfall, bug raro o diferencia de entorno, actualizar `MEMORY.md`
 
 ## Comandos útiles
 ```bash
@@ -246,6 +259,8 @@ Cada vez que Claude Code complete una tarea de las listadas arriba, debe:
 ---
 
 ## LOG DE CAMBIOS ARQUITECTÓNICOS
+
+- [2026-03-30] **Fase 21 + Sistema de contexto** — Contexto: nuevo `CONTEXT_MAP.md` como mapa maestro que explica para qué sirve `CLAUDE.md`, `CONTEXTO_PROYECTO.md`, `CONTEXTO_BASE_DE_DATOS.md` y `MEMORY.md`, y redefine el comando `actualiza contextos` para actualizar solo lo necesario. Push/PWA: `vite.config.js` integra `vite-plugin-pwa` con `injectManifest`; nuevos `src/sw.js` y `public/pwa-icon.svg`; `index.html` añade meta tags iOS. Admin: `TabNegocio.vue` incorpora card de notificaciones push por dispositivo con detección de soporte, estado de suscripción e instrucciones para iOS instalado. API: `vapid-key`, `push-subscribe`, `push-unsubscribe`; `notify_new_order()` en `api/helpers.php` envía pushes usando VAPID y `Minishlink/WebPush`; `api/index.php` hace la llamada de forma defensiva para no romper deploys parciales. BD: migración `database/migrations/fase21_push_subscriptions.sql`. Reportes: `TabPedidos.vue` y `GET reportes` distinguen cupones de envío gratis. Archivos: `CONTEXT_MAP.md`, `CLAUDE.md`, `CONTEXTO_PROYECTO.md`, `CONTEXTO_BASE_DE_DATOS.md`, `api/index.php`, `api/helpers.php`, `api/config.example.php`, `src/components/admin/tabs/TabNegocio.vue`, `src/components/admin/tabs/TabPedidos.vue`, `vite.config.js`, `src/sw.js`, `index.html`.
 
 - [2026-03-26] **UX Dashboard + Footer versionado** — Sin cambios de BD ni API. (1) **Tab activa persistida**: `tabActivo` en Dashboard lee/escribe `localStorage('dashboard_tab')` — el admin recarga y queda en la misma pestaña. Fix derivado: `TabPedidos` y `TabApariencia` añaden `{ immediate: true }` a sus watchers de `props.active` — antes no cargaban datos si `active` ya era `true` desde el inicio (tab persistida). (2) **Body scroll lock**: `watch(mostrarCheckout)` en `MenuPublico.vue` pone `document.body.style.overflow = 'hidden'` al abrir checkout, lo limpia al cerrar y en `onUnmounted`. (3) **Fix warning prop**: `CheckoutModal.restauranteId` cambiado de `required: true` a `default: null` — el componente renderiza con `v-show` antes de que la API devuelva el restaurante. (4) **TabNegocio collapsible**: 5 cards con `.card-header.collapsible` + chevron ▲▼; solo "Estado de la tienda" abre por defecto (`secTienda = ref(true)`). (5) **Footer con versión**: `vite.config.js` inyecta `__APP_VERSION__` desde `package.json` → `MenuPublico.vue` muestra "Hecho con ❤ en Las Choapas" y "Versión X.X.X" al final del footer. (6) **Sistema de versionado**: Semver en `package.json`. `feat:` → minor, `fix:/chore:/refactor:` → patch. Claude corre `npm version patch|minor` antes de cada sesión de commits. **Archivos**: `Dashboard.vue`, `MenuPublico.vue`, `CheckoutModal.vue`, `TabPedidos.vue`, `TabApariencia.vue`, `TabNegocio.vue`, `vite.config.js`, `CLAUDE.md`.
 
