@@ -646,8 +646,8 @@ defineExpose({ guardar: guardarRestaurante, guardando })
 .horario-opcion-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 6px;
+  padding: 6px 10px;
   background: #fff;
   border: 1.5px solid #e8e8e8;
   border-radius: 10px;
@@ -667,8 +667,8 @@ defineExpose({ guardar: guardarRestaurante, guardando })
 /* Indicador circular (idéntico al PersonalizacionModal) */
 .horario-indicator {
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   border: 2px solid #ccc;
   display: flex;
@@ -680,8 +680,8 @@ defineExpose({ guardar: guardarRestaurante, guardando })
   border-color: v-bind(temaAccent);
 }
 .horario-indicator-inner {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: v-bind(temaAccent);
 }
@@ -704,15 +704,24 @@ defineExpose({ guardar: guardarRestaurante, guardando })
 .horario-horas-disabled { opacity: 0.38; pointer-events: none; }
 .horario-sep { color: #aaa; font-size: 0.85rem; }
 
-.dp-time-input { width: 105px; }
+.dp-time-input { width: 80px; }
 .dp-time-input :deep(.dp__input) {
-  padding: 5px 8px;
-  font-size: 0.83rem;
+  padding: 4px 20px 4px 6px;
+  font-size: 0.8rem;
   border-radius: 8px;
   min-height: unset;
-  height: 34px;
+  height: 28px;
+  text-align: center;
 }
 .dp-time-input :deep(.dp__input_icon) { display: none; }
+.dp-time-input :deep(.dp__clear_icon) {
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0;
+  width: 16px;
+  height: 16px;
+}
 
 /* ── Advertencia reglas recompensas ── */
 .aviso-reglas {
