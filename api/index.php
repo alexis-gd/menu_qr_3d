@@ -1051,6 +1051,66 @@ switch ($route) {
                 json_response(['success' => true]);
             }
 
+            // Rama: editar items del pedido (admin reconstruye el pedido)
+            if (array_key_exists('items', $body)) {
+                $rid = intval($body['restaurante_id'] ?? 0);
+                if (!$rid) json_response(['error' => 'restaurante_id requerido'], 400);
+                $items = $body['items'] ?? [];
+                if (empty($items)) json_response(['error' => 'items no puede estar vacío'], 400);
+
+                // Obtener datos actuales del pedido para recalcular total
+                $stmtPed = $pdo->prepare(
+                    'SELECT costo_envio, descuento_recompensa, descuento_promo FROM pedidos WHERE id = :id AND restaurante_id = :rid'
+                );
+                $stmtPed->execute([':id' => (int)$id, ':rid' => $rid]);
+                $pedData = $stmtPed->fetch(PDO::FETCH_ASSOC);
+                if (!$pedData) json_response(['error' => 'Pedido no encontrado'], 404);
+
+                // Borrar items anteriores (cascada borra pedido_item_opciones)
+                $pdo->prepare('DELETE FROM pedido_items WHERE pedido_id = :pid')
+                    ->execute([':pid' => (int)$id]);
+
+                // Insertar nuevos items
+                $stmtIns = $pdo->prepare(
+                    'INSERT INTO pedido_items (pedido_id, producto_id, nombre_producto, precio_unitario, cantidad, observacion, subtotal)
+                     VALUES (:pid, :prod_id, :nombre, :precio, :cant, :obs, :sub)'
+                );
+                $nuevoSubtotal = 0.0;
+                foreach ($items as $item) {
+                    $precio = (float)($item['precio_unitario'] ?? 0);
+                    $cant   = max(1, (int)($item['cantidad'] ?? 1));
+                    $sub    = $precio * $cant;
+                    $nuevoSubtotal += $sub;
+                    $stmtIns->execute([
+                        ':pid'     => (int)$id,
+                        ':prod_id' => isset($item['producto_id']) && $item['producto_id'] ? (int)$item['producto_id'] : null,
+                        ':nombre'  => substr(trim($item['nombre_producto'] ?? 'Producto'), 0, 200),
+                        ':precio'  => $precio,
+                        ':cant'    => $cant,
+                        ':obs'     => isset($item['observacion']) && $item['observacion'] ? substr(trim($item['observacion']), 0, 100) : null,
+                        ':sub'     => $sub,
+                    ]);
+                }
+
+                // Recalcular total del pedido
+                $nuevoTotal = max(0.0,
+                    $nuevoSubtotal
+                    + (float)$pedData['costo_envio']
+                    - (float)$pedData['descuento_recompensa']
+                    - (float)$pedData['descuento_promo']
+                );
+                $pdo->prepare(
+                    'UPDATE pedidos SET subtotal = :sub, total = :tot WHERE id = :id AND restaurante_id = :rid'
+                )->execute([
+                    ':sub' => $nuevoSubtotal,
+                    ':tot' => $nuevoTotal,
+                    ':id'  => (int)$id,
+                    ':rid' => $rid,
+                ]);
+
+                json_response(['success' => true, 'subtotal' => $nuevoSubtotal, 'total' => $nuevoTotal]);
+            }
+
             // Rama: cambio de status
             $status = $body['status'] ?? null;
             $validStatuses = ['nuevo','visto','en_preparacion','listo','entregado','cancelado'];
@@ -1109,6 +1169,60 @@ switch ($route) {
                 }
             }
 
+            json_response(['success' => true]);
+        }
+
+        // DELETE: eliminar pedido (auth) — revierte contadores igual que cancelar
+        if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+            require_auth();
+            $id = $_GET['id'] ?? null;
+            if (!$id) json_response(['error' => 'id requerido'], 400);
+
+            $usaContadaEnRecompensas = db_column_exists($pdo, 'pedidos', 'contada_en_recompensas');
+            $sqlPedDel = $usaContadaEnRecompensas
+                ? 'SELECT telefono, restaurante_id, contada_en_recompensas, descuento_recompensa, codigo_promo, status FROM pedidos WHERE id = :id'
+                : 'SELECT telefono, restaurante_id, descuento_recompensa, codigo_promo, status FROM pedidos WHERE id = :id';
+            $stmtPDel = $pdo->prepare($sqlPedDel);
+            $stmtPDel->execute([':id' => (int)$id]);
+            $pedDel = $stmtPDel->fetch(PDO::FETCH_ASSOC);
+            if (!$pedDel) json_response(['error' => 'Pedido no encontrado'], 404);
+
+            // Solo revertir contadores si el pedido no estaba ya cancelado
+            if ($pedDel['status'] !== 'cancelado') {
+                $telDel = preg_replace('/\D/', '', $pedDel['telefono'] ?? '');
+                if (strlen($telDel) >= 8) {
+                    if ($usaContadaEnRecompensas && (int)($pedDel['contada_en_recompensas'] ?? 0) === 1) {
+                        $pdo->prepare(
+                            'UPDATE clientes SET total_compras = GREATEST(0, total_compras - 1)
+                             WHERE restaurante_id = :rid AND telefono = :tel'
+                        )->execute([':rid' => (int)$pedDel['restaurante_id'], ':tel' => $telDel]);
+                    }
+                    if ((float)$pedDel['descuento_recompensa'] > 0) {
+                        $pdo->prepare(
+                            'UPDATE clientes SET recompensas_ganadas = GREATEST(0, recompensas_ganadas - 1)
+                             WHERE restaurante_id = :rid AND telefono = :tel'
+                        )->execute([':rid' => (int)$pedDel['restaurante_id'], ':tel' => $telDel]);
+                    }
+                }
+                if (!empty($pedDel['codigo_promo'])) {
+                    $pdo->prepare(
+                        'UPDATE codigos_promo SET usos = GREATEST(0, usos - 1)
+                         WHERE restaurante_id = :rid AND codigo = :c'
+                    )->execute([':rid' => (int)$pedDel['restaurante_id'], ':c' => $pedDel['codigo_promo']]);
+                }
+                // Restaurar stock
+                $stmtItemsDel = $pdo->prepare('SELECT producto_id, cantidad FROM pedido_items WHERE pedido_id = :pid');
+                $stmtItemsDel->execute([':pid' => (int)$id]);
+                $stmtRestStockDel = $pdo->prepare(
+                    'UPDATE productos SET stock = stock + :cant WHERE id = :id AND stock IS NOT NULL'
+                );
+                foreach ($stmtItemsDel->fetchAll(PDO::FETCH_ASSOC) as $itDel) {
+                    $stmtRestStockDel->execute([':cant' => (int)$itDel['cantidad'], ':id' => (int)$itDel['producto_id']]);
+                }
+            }
+
+            // Eliminar pedido (CASCADE borra pedido_items y pedido_item_opciones)
+            $pdo->prepare('DELETE FROM pedidos WHERE id = :id')->execute([':id' => (int)$id]);
             json_response(['success' => true]);
         }
 

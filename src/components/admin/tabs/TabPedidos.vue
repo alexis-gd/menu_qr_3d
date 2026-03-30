@@ -192,11 +192,50 @@
               <button v-if="ped.status === 'listo'"          @click="cambiarStatus(ped.id, 'entregado')"      class="btn-status btn-entregado"><SvgIcon :path="mdiCheckCircle" :size="14" /> Entregado</button>
               <button v-if="!['entregado','cancelado'].includes(ped.status)" @click="cambiarStatus(ped.id, 'cancelado')" class="btn-status btn-cancelar">Cancelar</button>
               <button @click="iniciarAjuste(ped)" class="btn-status btn-ajustar"><SvgIcon :path="mdiPencil" :size="14" /> Ajustar</button>
+              <button @click="editarId === ped.id ? (editarId = null) : iniciarEditar(ped)" class="btn-status btn-editar">
+                <SvgIcon :path="mdiPlaylistEdit" :size="14" /> {{ editarId === ped.id ? 'Cerrar' : 'Editar' }}
+              </button>
               <button @click="copiarPedido(ped)" class="btn-status btn-copiar">
                 <SvgIcon :path="copiadoId === ped.id ? mdiCheck : mdiContentCopy" :size="14" />
                 {{ copiadoId === ped.id ? 'Copiado' : 'Copiar' }}
               </button>
+              <button @click="eliminandoId === ped.id ? eliminarPedido(ped.id) : (eliminandoId = ped.id)" class="btn-status btn-eliminar">
+                <SvgIcon :path="mdiDeleteOutline" :size="14" />
+                {{ eliminandoId === ped.id ? '¿Confirmar?' : 'Eliminar' }}
+              </button>
             </div>
+            <!-- ── Editor de items ── -->
+            <div v-if="editarId === ped.id" class="editor-pedido">
+              <div class="editor-items">
+                <div v-for="(item, idx) in editarItems" :key="idx" class="editor-item-row">
+                  <button @click="cambiarCant(idx, -1)" class="qty-btn"><SvgIcon :path="mdiMinus" :size="13" /></button>
+                  <span class="qty-val">{{ item.cantidad }}</span>
+                  <button @click="cambiarCant(idx, 1)"  class="qty-btn"><SvgIcon :path="mdiPlus" :size="13" /></button>
+                  <span class="editor-item-nombre">{{ item.nombre_producto }}</span>
+                  <span class="editor-item-precio">${{ (item.precio_unitario * item.cantidad).toFixed(2) }}</span>
+                  <button @click="editarItems.splice(idx, 1)" class="qty-btn qty-del"><SvgIcon :path="mdiClose" :size="13" /></button>
+                </div>
+                <p v-if="!editarItems.length" class="editor-empty">Sin ítems — agrega al menos uno</p>
+              </div>
+              <div class="editor-buscar">
+                <input v-model="buscarProd" placeholder="🔍 Buscar producto para agregar..." class="editor-search" autocomplete="off" />
+                <div v-if="productosFiltrados.length" class="editor-dropdown">
+                  <button v-for="p in productosFiltrados" :key="p.id" @click="agregarItem(p)" class="editor-prod-opt">
+                    <span>{{ p.nombre }}</span><span class="editor-prod-precio">${{ p.precio.toFixed(2) }}</span>
+                  </button>
+                </div>
+              </div>
+              <div class="editor-footer">
+                <span class="editor-total">Subtotal ítems: <strong>${{ editarSubtotal.toFixed(2) }}</strong></span>
+                <div class="editor-btns">
+                  <button @click="editarId = null" class="btn-status btn-cancelar">Cancelar</button>
+                  <button @click="guardarEdicion(ped)" class="btn-status btn-listo" :disabled="guardandoEdicion">
+                    {{ guardandoEdicion ? 'Guardando...' : 'Guardar cambios' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <div v-if="ajustandoId === ped.id" class="ajuste-form">
               <div class="ajuste-row">
                 <div class="ajuste-signo-wrap">
@@ -224,7 +263,7 @@ import {
   mdiCart, mdiRefresh, mdiAccount, mdiSeat,
   mdiMoped, mdiHome, mdiBank, mdiCash, mdiCheck, mdiCheckCircle,
   mdiMapMarker, mdiWhatsapp, mdiContentCopy, mdiPencil,
-  mdiChartBar,
+  mdiChartBar, mdiPlaylistEdit, mdiDeleteOutline, mdiPlus, mdiMinus, mdiClose,
 } from '@mdi/js'
 import { VueDatePicker } from '@vuepic/vue-datepicker'
 import { useApi } from '../../../composables/useApi.js'
@@ -237,7 +276,7 @@ const props = defineProps({
 
 const emit = defineEmits(['notif'])
 
-const { get, put } = useApi()
+const { get, put, del } = useApi()
 
 // ── Pedidos ──
 const pedidos        = ref([])
@@ -246,6 +285,24 @@ const copiadoId      = ref(null)
 const ajustandoId    = ref(null)
 const ajusteForm     = ref({ monto: '', signo: 'descuento', nota: '' })
 let   pedidosInterval = null
+
+// ── Editor de pedido ──
+const editarId        = ref(null)
+const editarItems     = ref([])       // copia mutable de los items del pedido
+const guardandoEdicion = ref(false)
+const productosMenu   = ref([])       // lista plana de todos los productos del menú
+const buscarProd      = ref('')
+const eliminandoId    = ref(null)
+
+const productosFiltrados = computed(() => {
+  const q = buscarProd.value.trim().toLowerCase()
+  if (q.length < 2) return []
+  return productosMenu.value.filter(p => p.nombre.toLowerCase().includes(q) && p.activo !== 0).slice(0, 12)
+})
+
+const editarSubtotal = computed(() =>
+  editarItems.value.reduce((s, i) => s + i.precio_unitario * i.cantidad, 0)
+)
 
 // ── Reporte de ventas ──
 const reporteAbierto = ref(false)
@@ -422,6 +479,8 @@ async function loadPedidos() {
 }
 
 function iniciarAjuste(ped) {
+  editarId.value    = null
+  eliminandoId.value = null
   const actual = Number(ped.ajuste_manual) || 0
   ajusteForm.value = {
     monto: actual !== 0 ? String(Math.abs(actual)) : '',
@@ -441,6 +500,94 @@ async function guardarAjuste(ped) {
     emit('notif', { texto: 'Ajuste guardado', tipo: 'ok' })
   } catch (err) {
     emit('notif', { texto: err.message || 'Error al guardar ajuste', tipo: 'error' })
+  }
+}
+
+async function cargarProductosMenu() {
+  if (productosMenu.value.length) return
+  try {
+    const data = await get('menu', { restaurante_id: props.restauranteId })
+    const lista = []
+    for (const cat of data.categorias || []) {
+      for (const p of cat.productos || []) {
+        lista.push({ id: p.id, nombre: p.nombre, precio: parseFloat(p.precio), activo: p.activo })
+      }
+    }
+    productosMenu.value = lista
+  } catch { /* silencioso */ }
+}
+
+function iniciarEditar(ped) {
+  editarId.value    = ped.id
+  ajustandoId.value = null
+  buscarProd.value  = ''
+  editarItems.value = ped.items.map(i => ({
+    producto_id:    i.producto_id,
+    nombre_producto: i.nombre_producto,
+    precio_unitario: parseFloat(i.precio_unitario),
+    cantidad:        parseInt(i.cantidad),
+    observacion:     i.observacion || '',
+  }))
+  cargarProductosMenu()
+}
+
+function cambiarCant(idx, delta) {
+  const item = editarItems.value[idx]
+  const nueva = item.cantidad + delta
+  if (nueva < 1) {
+    editarItems.value.splice(idx, 1)
+  } else {
+    item.cantidad = nueva
+  }
+}
+
+function agregarItem(prod) {
+  const existe = editarItems.value.find(i => i.producto_id === prod.id && !i.observacion)
+  if (existe) {
+    existe.cantidad++
+  } else {
+    editarItems.value.push({
+      producto_id:     prod.id,
+      nombre_producto: prod.nombre,
+      precio_unitario: prod.precio,
+      cantidad:        1,
+      observacion:     '',
+    })
+  }
+  buscarProd.value = ''
+}
+
+async function guardarEdicion(ped) {
+  if (editarItems.value.length === 0) {
+    emit('notif', { texto: 'El pedido debe tener al menos 1 item', tipo: 'error' })
+    return
+  }
+  guardandoEdicion.value = true
+  try {
+    await put('pedidos', {
+      restaurante_id: props.restauranteId,
+      items: editarItems.value,
+    }, { id: ped.id })
+    editarId.value = null
+    await loadPedidos()
+    emit('notif', { texto: 'Pedido actualizado', tipo: 'ok' })
+  } catch (err) {
+    emit('notif', { texto: err.message || 'Error al guardar', tipo: 'error' })
+  } finally {
+    guardandoEdicion.value = false
+  }
+}
+
+async function eliminarPedido(id) {
+  eliminandoId.value = id
+  try {
+    await del('pedidos', { id })
+    await loadPedidos()
+    emit('notif', { texto: 'Pedido eliminado', tipo: 'ok' })
+  } catch (err) {
+    emit('notif', { texto: err.message || 'Error al eliminar', tipo: 'error' })
+  } finally {
+    eliminandoId.value = null
   }
 }
 
@@ -547,6 +694,33 @@ onUnmounted(() => clearInterval(pedidosInterval))
 .btn-copiar:hover { background: #e4e4e4; }
 .btn-ajustar   { background: #fef9c3; color: #854d0e; }
 .btn-ajustar:hover { background: #fef08a; }
+.btn-editar    { background: #e0f2fe; color: #0369a1; }
+.btn-editar:hover { background: #bae6fd; }
+.btn-eliminar  { background: #fee2e2; color: #b91c1c; }
+.btn-eliminar:hover { background: #fecaca; }
+
+/* ── Editor inline de pedido ── */
+.editor-pedido { margin-top: 10px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.editor-items  { display: flex; flex-direction: column; gap: 6px; }
+.editor-item-row { display: flex; align-items: center; gap: 6px; background: #fff; border-radius: 7px; padding: 6px 10px; }
+.qty-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 6px; border: 1px solid #cbd5e1; background: #f8fafc; cursor: pointer; flex-shrink: 0; }
+.qty-btn:hover { background: #e2e8f0; }
+.qty-del  { border-color: #fca5a5; background: #fff1f2; }
+.qty-del:hover { background: #ffe4e6; }
+.qty-val  { min-width: 22px; text-align: center; font-weight: 600; font-size: 0.9rem; }
+.editor-item-nombre { flex: 1; font-size: 0.88rem; }
+.editor-item-precio { font-size: 0.88rem; font-weight: 600; color: #0369a1; white-space: nowrap; }
+.editor-empty { text-align: center; color: #94a3b8; font-size: 0.85rem; padding: 8px 0; }
+.editor-buscar { position: relative; }
+.editor-search { width: 100%; padding: 7px 10px; border: 1px solid #bae6fd; border-radius: 8px; font-size: 0.88rem; box-sizing: border-box; background: #fff; }
+.editor-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #bae6fd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,.1); z-index: 50; max-height: 220px; overflow-y: auto; }
+.editor-prod-opt { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 8px 12px; text-align: left; background: none; border: none; border-bottom: 1px solid #f0f9ff; cursor: pointer; font-size: 0.87rem; }
+.editor-prod-opt:last-child { border-bottom: none; }
+.editor-prod-opt:hover { background: #f0f9ff; }
+.editor-prod-precio { color: #0369a1; font-weight: 600; margin-left: 8px; white-space: nowrap; }
+.editor-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.editor-total  { font-size: 0.9rem; color: #0c4a6e; }
+.editor-btns   { display: flex; gap: 6px; }
 
 .ajuste-form { margin-top: 10px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
 .ajuste-row  { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
