@@ -966,6 +966,7 @@ switch ($route) {
 
             // ── Recompensas y Referidos ──────────────────────────────────────
             $tel_pedido = preg_replace('/\D/', '', $body['telefono'] ?? '');
+            $usaContadaEnRecompensas = db_column_exists($pdo, 'pedidos', 'contada_en_recompensas');
             if (strlen($tel_pedido) >= 8) {
                 $stmtRC = $pdo->prepare('SELECT * FROM recompensas_config WHERE restaurante_id = :rid AND activo = 1');
                 $stmtRC->execute([':rid' => (int)$restaurante_id]);
@@ -989,8 +990,10 @@ switch ($route) {
                              ON DUPLICATE KEY UPDATE total_compras = total_compras + 1, ultima_compra = NOW()'
                         )->execute([':rid' => (int)$restaurante_id, ':tel' => $tel_pedido]);
                         // Marcar el pedido como contado para poder revertir si se cancela
-                        $pdo->prepare('UPDATE pedidos SET contada_en_recompensas = 1 WHERE id = :id')
-                            ->execute([':id' => (int)$pedido_id]);
+                        if ($usaContadaEnRecompensas) {
+                            $pdo->prepare('UPDATE pedidos SET contada_en_recompensas = 1 WHERE id = :id')
+                                ->execute([':id' => (int)$pedido_id]);
+                        }
                     }
 
                     $stmtCli = $pdo->prepare('SELECT * FROM clientes WHERE restaurante_id = :rid AND telefono = :tel');
@@ -1059,14 +1062,18 @@ switch ($route) {
 
             // Al cancelar: revertir recompensas, cupón y stock
             if ($status === 'cancelado') {
+                $usaContadaEnRecompensas = db_column_exists($pdo, 'pedidos', 'contada_en_recompensas');
                 // Revertir recompensas
-                $stmtP = $pdo->prepare('SELECT telefono, restaurante_id, contada_en_recompensas, descuento_recompensa, codigo_promo FROM pedidos WHERE id = :id');
+                $sqlPedidoCancelado = $usaContadaEnRecompensas
+                    ? 'SELECT telefono, restaurante_id, contada_en_recompensas, descuento_recompensa, codigo_promo FROM pedidos WHERE id = :id'
+                    : 'SELECT telefono, restaurante_id, descuento_recompensa, codigo_promo FROM pedidos WHERE id = :id';
+                $stmtP = $pdo->prepare($sqlPedidoCancelado);
                 $stmtP->execute([':id' => (int)$id]);
                 $ped = $stmtP->fetch(PDO::FETCH_ASSOC);
                 $tel = preg_replace('/\D/', '', $ped['telefono'] ?? '');
                 if (strlen($tel) >= 8) {
                     // Revertir total_compras solo si fue una compra normal contada
-                    if ($ped && (int)$ped['contada_en_recompensas'] === 1) {
+                    if ($usaContadaEnRecompensas && $ped && (int)$ped['contada_en_recompensas'] === 1) {
                         $pdo->prepare(
                             'UPDATE clientes SET total_compras = GREATEST(0, total_compras - 1)
                              WHERE restaurante_id = :rid AND telefono = :tel'

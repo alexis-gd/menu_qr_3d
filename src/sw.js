@@ -24,8 +24,8 @@ self.addEventListener('push', event => {
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
-      icon: '/menu/pwa-icon.svg',
-      badge: '/menu/pwa-icon.svg',
+      icon: data.icon || '/menu/pwa-icon.svg',
+      badge: data.badge || data.icon || '/menu/pwa-icon.svg',
       tag: 'nuevo-pedido',   // reemplaza notif anterior del mismo tipo
       renotify: true,         // vibra/suena aunque el tag ya exista
       data: { url: data.url },
