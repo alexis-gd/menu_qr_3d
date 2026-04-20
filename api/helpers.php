@@ -168,14 +168,53 @@ function notify_new_order(PDO $pdo, int $restaurante_id, string $numero_pedido):
 }
 
 /**
- * Comprueba si la peticion esta autenticada con ADMIN_TOKEN via cookie HttpOnly.
- * En caso de fallar finaliza con 401.
+ * Crea un token de sesión firmado que incluye uid y rid.
+ * Formato: base64(uid:rid) + '.' + hmac(24 chars)
  */
-function require_auth()
+function create_session_token(int $uid, ?int $rid): string
 {
-    $token = $_COOKIE['token'] ?? null;
+    $payload = base64_encode("$uid:" . ($rid ?? ''));
+    $sig     = substr(hash_hmac('sha256', $payload, ADMIN_TOKEN), 0, 24);
+    return "$payload.$sig";
+}
 
-    if (!$token || $token !== ADMIN_TOKEN) {
+/**
+ * Valida el token y retorna ['uid' => int|null, 'rid' => int|null].
+ * Acepta token estático legacy (ADMIN_TOKEN) para instancias de un solo restaurante.
+ * Retorna null si el token es inválido.
+ */
+function parse_session_token(string $token): ?array
+{
+    // Backwards compat: token estático sin info de usuario
+    if ($token === ADMIN_TOKEN) {
+        return ['uid' => null, 'rid' => null];
+    }
+    $parts = explode('.', $token, 2);
+    if (count($parts) !== 2) return null;
+    [$payload, $sig] = $parts;
+    $expected = substr(hash_hmac('sha256', $payload, ADMIN_TOKEN), 0, 24);
+    if (!hash_equals($expected, $sig)) return null;
+    $decoded = base64_decode($payload);
+    if ($decoded === false || !str_contains($decoded, ':')) return null;
+    [$uid, $rid] = explode(':', $decoded, 2);
+    return [
+        'uid' => $uid !== '' ? (int)$uid : null,
+        'rid' => $rid !== '' ? (int)$rid : null,
+    ];
+}
+
+/**
+ * Comprueba si la peticion esta autenticada via cookie HttpOnly.
+ * En caso de fallar finaliza con 401.
+ * Retorna array ['uid' => int|null, 'rid' => int|null].
+ */
+function require_auth(): array
+{
+    $token   = $_COOKIE['token'] ?? null;
+    $session = $token ? parse_session_token($token) : null;
+
+    if ($session === null) {
         json_response(['error' => 'No autorizado'], 401);
     }
+    return $session;
 }

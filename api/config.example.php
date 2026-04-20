@@ -65,6 +65,7 @@ $_CONFIGS = [
             'fotos'       => __DIR__ . '/../uploads/fotos',
             'modelos'     => __DIR__ . '/../uploads/modelos',
             'uploads_url' => '',         // URL pública de uploads (con slash final)
+            'uploads_rel' => 'uploads',  // nombre relativo al raíz del proyecto (ej: 'uploads_demos' en demo_local)
         ],
         'services' => [
             'admin_token'    => '',       // token estático para autenticación del panel

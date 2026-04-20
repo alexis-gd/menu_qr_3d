@@ -182,6 +182,7 @@
             <div class="prod-thumb" @click="abrirPreview(prod)" title="Ver foto">
               <img
                 v-if="prod.foto_principal"
+                :key="prod.foto_principal"
                 :src="prod.foto_principal"
                 :alt="prod.nombre"
                 @error="($e) => $e.target.style.display='none'"

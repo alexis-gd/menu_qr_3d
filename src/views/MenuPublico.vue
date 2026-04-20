@@ -13,6 +13,9 @@
     </div>
 
     <template v-else>
+      <!-- ── Banner de trial (solo en demos) ── -->
+      <TrialBanner :trial-activo="trialActivo" :dias-restantes="trialDias" />
+
       <!-- ── Header del restaurante ── -->
       <header class="menu-header">
         <div class="header-inner">
@@ -199,6 +202,7 @@ import PersonalizacionModal from '../components/menu/PersonalizacionModal.vue'
 import CarritoFlotante from '../components/menu/CarritoFlotante.vue'
 import CheckoutModal from '../components/menu/CheckoutModal.vue'
 import TiendaCerradaPopup from '../components/menu/TiendaCerradaPopup.vue'
+import TrialBanner from '../components/menu/TrialBanner.vue'
 import { trackViewItem, trackAddToCart } from '../composables/useAnalytics.js'
 
 const route = useRoute()
@@ -257,8 +261,13 @@ const stockMinimoAviso  = computed(() => restaurante.value?.stock_minimo_aviso ?
 const popupVisible     = ref(false)
 const pedidoProgramado = ref(false)
 
+const trialActivo = computed(() => restaurante.value?.trial_activo ?? true)
+const trialDias   = computed(() => restaurante.value?.trial_dias_restantes ?? null)
+
 const modoLectura = computed(() =>
-  (!tiendaAbierta.value && !pedidoProgramado.value) || !pedidosActivos.value
+  !trialActivo.value ||
+  (!tiendaAbierta.value && !pedidoProgramado.value) ||
+  !pedidosActivos.value
 )
 
 watch(tiendaAbierta, (abierta) => {
@@ -353,7 +362,8 @@ watch(() => restaurante.value?.logo_url, (url) => {
 }, { immediate: true })
 
 const cargarMenu = async (esPrimeraCarga = false) => {
-  const slug = route.query.r
+  // URL tiene prioridad; si ya se limpió, recuperar de sessionStorage
+  const slug = route.query.r || sessionStorage.getItem('menu_slug') || null
   try {
     const params = slug ? { restaurante: slug } : {}
     const data = await get('menu', params, false)
@@ -361,6 +371,8 @@ const cargarMenu = async (esPrimeraCarga = false) => {
     categorias.value = data.categorias || []
     if (esPrimeraCarga) {
       cargandoInicio.value = false
+      // Persistir slug para recargas y visibilitychange
+      if (slug) sessionStorage.setItem('menu_slug', slug)
       if (categorias.value.length) catActiva.value = categorias.value[0].id
       if (!tiendaAbierta.value) popupVisible.value = true
       // Limpiar ?r= de la URL silenciosamente (preservar mesa, preview y otros params)

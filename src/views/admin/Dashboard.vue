@@ -26,6 +26,12 @@
     </div>
 
     <div v-else class="panel-body">
+      <!-- ── Aviso trial próximo a vencer (no bloqueante) ── -->
+      <div v-if="!trialVencido && trialDiasAdmin !== null && trialDiasAdmin <= 2" class="trial-aviso">
+        ⏳ Tu período de prueba vence {{ trialDiasAdmin === 0 ? 'hoy' : trialDiasAdmin === 1 ? 'mañana' : `en ${trialDiasAdmin} días` }}.
+        <a :href="`https://wa.me/${VENTAS_WA}?text=${encodeURIComponent('Hola, quiero contratar el menú digital.')}`" target="_blank" rel="noopener noreferrer">Contratar ahora →</a>
+      </div>
+
       <!-- ═══ Tabs ═══ -->
       <nav class="tab-nav">
         <button
@@ -91,6 +97,27 @@
       </div>
     </div>
   </div>
+
+  <!-- ── Overlay: trial vencido (bloqueante) ── -->
+  <Teleport to="body">
+    <div v-if="trialVencido" class="trial-overlay">
+      <div class="trial-overlay__card">
+        <div class="trial-overlay__icon">🔒</div>
+        <h2 class="trial-overlay__titulo">Período de prueba vencido</h2>
+        <p class="trial-overlay__texto">
+          Tu acceso de prueba ha expirado. Contáctanos para activar tu cuenta y seguir usando el menú digital.
+        </p>
+        <a
+          :href="`https://wa.me/${VENTAS_WA}?text=${encodeURIComponent('Hola, quiero contratar el menú digital. Mi restaurante es: ' + (restaurante?.nombre || ''))}`"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="trial-overlay__btn"
+        >
+          📲 Contratar por WhatsApp
+        </a>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup>
@@ -108,6 +135,19 @@ import TabPedidos    from '../../components/admin/tabs/TabPedidos.vue'
 
 const router = useRouter()
 const { get, post } = useApi()
+
+// ── Trial (demos) ──
+const trialVencido = computed(() => {
+  const exp = restaurante.value?.trial_expires_at
+  if (!exp) return false
+  return new Date(exp) <= new Date()
+})
+const trialDiasAdmin = computed(() => {
+  const exp = restaurante.value?.trial_expires_at
+  if (!exp) return null
+  return Math.max(0, Math.ceil((new Date(exp) - new Date()) / 86400000))
+})
+const VENTAS_WA = '529231311146'
 
 // ── Estado compartido ──
 const restaurante     = ref(null)
@@ -154,7 +194,7 @@ const menuUrl = computed(() => {
   if (!restaurante.value?.slug) return ''
   const origin = import.meta.env.VITE_PUBLIC_ORIGIN || window.location.origin
   const base   = import.meta.env.BASE_URL
-  return `${origin}${base}`
+  return `${origin}${base}?r=${restaurante.value.slug}`
 })
 
 const mostrarNotif = ({ texto, tipo = 'ok' }) => {
@@ -209,6 +249,56 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* ─── Trial ─── */
+.trial-aviso {
+  background: #f39c12;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 20px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.trial-aviso a { color: #fff; text-decoration: underline; }
+
+.trial-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(0,0,0,0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.trial-overlay__card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 40px 32px;
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+.trial-overlay__icon { font-size: 48px; margin-bottom: 12px; }
+.trial-overlay__titulo { font-size: 22px; font-weight: 700; color: #1a1a1a; margin: 0 0 12px; }
+.trial-overlay__texto { color: #555; line-height: 1.6; margin: 0 0 24px; }
+.trial-overlay__btn {
+  display: inline-block;
+  background: #25d366;
+  color: #fff;
+  text-decoration: none;
+  padding: 14px 28px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  transition: background 0.2s;
+}
+.trial-overlay__btn:hover { background: #1ebe5d; }
+
 /* ─── Base ─── */
 .admin-panel {
   --accent: #FF6B35;

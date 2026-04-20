@@ -91,6 +91,7 @@ switch ($route) {
                 r.stock_minimo_aviso,
                 r.codigos_promo_habilitado,
                 r.pedidos_programar_activo,
+                r.trial_expires_at,
                 c.id AS cat_id,
                 c.nombre AS cat_nombre,
                 c.icono AS cat_icono,
@@ -170,6 +171,11 @@ switch ($route) {
             'stock_minimo_aviso'         => (int) $rows[0]['stock_minimo_aviso'],
             'codigos_promo_habilitado'   => (bool) $rows[0]['codigos_promo_habilitado'],
             'pedidos_programar_activo'   => (bool) $rows[0]['pedidos_programar_activo'],
+            'trial_activo'               => $rows[0]['trial_expires_at'] === null
+                                            || strtotime($rows[0]['trial_expires_at']) > time(),
+            'trial_dias_restantes'       => $rows[0]['trial_expires_at'] !== null
+                                            ? max(0, (int) ceil((strtotime($rows[0]['trial_expires_at']) - time()) / 86400))
+                                            : null,
         ];
 
         $categoriasMap = [];
@@ -295,8 +301,14 @@ switch ($route) {
             json_response(['error' => 'Credenciales inválidas'], 401);
         }
 
-        // Emitir cookie HttpOnly — el token nunca viaja en el body
-        set_auth_cookie(ADMIN_TOKEN);
+        // Buscar restaurante del usuario para incluirlo en el token
+        $stmtRest = $pdo->prepare('SELECT id FROM restaurantes WHERE usuario_id = :uid AND activo = 1 LIMIT 1');
+        $stmtRest->execute([':uid' => $user['id']]);
+        $restRow = $stmtRest->fetch();
+        $rid = $restRow ? (int)$restRow['id'] : null;
+
+        // Emitir cookie con token firmado — nunca viaja en el body
+        set_auth_cookie(create_session_token($user['id'], $rid));
         json_response(['ok' => true]);
         break;
 
@@ -313,9 +325,11 @@ switch ($route) {
     case 'restaurantes':
         // GET: lista restaurantes (auth requerida)
         if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-            require_auth();
-            $stmt = $pdo->prepare('SELECT id, slug, nombre, descripcion, logo_url, color_primario, tema, qr_frase, qr_frase_activa, qr_wifi_nombre, qr_wifi_clave, qr_wifi_activo, pedidos_activos, pedidos_envio_activo, pedidos_envio_costo, pedidos_envio_gratis_desde, pedidos_whatsapp, pedidos_trans_clabe, pedidos_trans_cuenta, pedidos_trans_titular, pedidos_trans_banco, pedidos_trans_activo, pedidos_terminal_activo, compartir_mensaje, tienda_cerrada_manual, tienda_horarios, stock_minimo_aviso, codigos_promo_habilitado, pedidos_programar_activo FROM restaurantes WHERE activo = 1 ORDER BY nombre');
-            $stmt->execute();
+            $session = require_auth();
+            $ridFilter = $session['rid'];
+            $whereExtra = $ridFilter ? ' AND id = :rid' : '';
+            $stmt = $pdo->prepare('SELECT id, slug, nombre, descripcion, logo_url, color_primario, tema, qr_frase, qr_frase_activa, qr_wifi_nombre, qr_wifi_clave, qr_wifi_activo, pedidos_activos, pedidos_envio_activo, pedidos_envio_costo, pedidos_envio_gratis_desde, pedidos_whatsapp, pedidos_trans_clabe, pedidos_trans_cuenta, pedidos_trans_titular, pedidos_trans_banco, pedidos_trans_activo, pedidos_terminal_activo, compartir_mensaje, tienda_cerrada_manual, tienda_horarios, stock_minimo_aviso, codigos_promo_habilitado, pedidos_programar_activo, trial_expires_at FROM restaurantes WHERE activo = 1' . $whereExtra . ' ORDER BY nombre');
+            $ridFilter ? $stmt->execute([':rid' => $ridFilter]) : $stmt->execute();
             $rows = $stmt->fetchAll();
             foreach ($rows as &$r) {
                 $r['logo_url'] = $r['logo_url'] ? UPLOADS_URL . $r['logo_url'] : null;
@@ -534,7 +548,7 @@ switch ($route) {
         if (!isset($_FILES['fotos'])) {
             json_response(['error'=>'No se enviaron fotos'],400);
         }
-        $dir = __DIR__ . '/../uploads/fotos/' . intval($producto_id);
+        $dir = __DIR__ . '/../' . config('paths.uploads_rel', 'uploads') . '/fotos/' . intval($producto_id);
         if (!is_dir($dir)) mkdir($dir, 0755, true);
 
         $allowed_mime = ['image/jpeg', 'image/png', 'image/webp'];
@@ -582,7 +596,7 @@ switch ($route) {
                 save_thumb_webp($dest, "$dir/$thumb_name", 220);
 
                 $foto_rel = "fotos/$producto_id/$safe_name";
-                $ruta_rel = "uploads/fotos/$producto_id/$safe_name";
+                $ruta_rel = config('paths.uploads_rel', 'uploads') . "/fotos/$producto_id/$safe_name";
                 $url = UPLOADS_URL . "fotos/$producto_id/$safe_name";
                 $pdo->prepare('INSERT INTO fotos_producto (producto_id, ruta, url_publica, orden) VALUES (:pid,:ruta,:url,0)')
                     ->execute([':pid'=>$producto_id,':ruta'=>$ruta_rel,':url'=>$url]);
@@ -620,7 +634,7 @@ switch ($route) {
         if ($_FILES['logo']['size'] > 2 * 1024 * 1024) {
             json_response(['error' => 'El logo supera los 2 MB.'], 400);
         }
-        $dir = __DIR__ . '/../uploads/logos/';
+        $dir = __DIR__ . '/../' . config('paths.uploads_rel', 'uploads') . '/logos/';
         if (!is_dir($dir)) mkdir($dir, 0755, true);
 
         // Borrar logo anterior del disco
@@ -628,7 +642,7 @@ switch ($route) {
         $stmtLogoViejo->execute([':id' => intval($restaurante_id)]);
         $logoViejo = $stmtLogoViejo->fetchColumn();
         if ($logoViejo) {
-            $rutaFisica = __DIR__ . '/../uploads/' . $logoViejo;
+            $rutaFisica = __DIR__ . '/../' . config('paths.uploads_rel', 'uploads') . '/' . $logoViejo;
             if (file_exists($rutaFisica)) @unlink($rutaFisica);
         }
 

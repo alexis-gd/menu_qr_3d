@@ -227,11 +227,6 @@ watch(() => props.restaurante, (rest) => {
   }
 }, { immediate: true })
 
-// Generar QR cuando el tab se activa
-watch(() => props.active, (isActive) => {
-  if (isActive) setTimeout(generarQR, 100)
-}, { immediate: true })
-
 const temaActualData = computed(() => {
   const t = temas.find(t => t.id === formRest.value.tema) || temas[0]
   return { ...t, ...(TEMAS_EXTRA[t.id] || TEMAS_EXTRA.calido) }
@@ -251,6 +246,11 @@ const generarQR = async () => {
     })
   } catch {}
 }
+
+// Generar QR cuando el tab se activa
+watch(() => props.active, (isActive) => {
+  if (isActive) setTimeout(generarQR, 100)
+}, { immediate: true })
 
 const descargarCard = async () => {
   if (!qrCardDmEl.value || !qrDataUrl.value) return
