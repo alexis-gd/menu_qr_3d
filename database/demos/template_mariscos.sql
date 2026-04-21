@@ -24,7 +24,7 @@ INSERT IGNORE INTO restaurantes (
   compartir_mensaje, trial_expires_at
 ) VALUES (
   @uid_mar, 'template-mariscos', 'El Barco Mariscos',
-  'Los mejores mariscos frescos del golfo. Cocteles, cebiches y platillos de autor.',
+  'Los mejores mariscos frescos del golfo. Cocteles, ceviches y platillos de autor.',
   'calido', 1,
   'demos/logo_mariscos.jpg',
   1, 1, 45.00,
@@ -44,12 +44,12 @@ VALUES (@rid_mar, 1, 8, 'descuento_fijo', 80.00);
 -- ── Categorías ────────────────────────────────────────────────
 INSERT INTO categorias (restaurante_id, nombre, icono, orden) VALUES
   (@rid_mar, 'Cocteles',  'mdiGlassCocktail', 1),
-  (@rid_mar, 'Cebiches',  'mdiFish',          2),
+  (@rid_mar, 'ceviches',  'mdiFish',          2),
   (@rid_mar, 'Platillos', 'mdiFoodForkDrink', 3),
   (@rid_mar, 'Bebidas',   'mdiCupWater',      4);
 
 SET @cat_cocts   = (SELECT id FROM categorias WHERE restaurante_id = @rid_mar AND nombre = 'Cocteles');
-SET @cat_cebs    = (SELECT id FROM categorias WHERE restaurante_id = @rid_mar AND nombre = 'Cebiches');
+SET @cat_cebs    = (SELECT id FROM categorias WHERE restaurante_id = @rid_mar AND nombre = 'ceviches');
 SET @cat_plats   = (SELECT id FROM categorias WHERE restaurante_id = @rid_mar AND nombre = 'Platillos');
 SET @cat_bebsmar = (SELECT id FROM categorias WHERE restaurante_id = @rid_mar AND nombre = 'Bebidas');
 
@@ -68,17 +68,17 @@ INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal
    'Atún fresco con aguacate, chipotle y mayonesa sobre tostada crujiente.',
    85.00, 'demos/coctel_camaron.jpeg', 0, 0, 4);
 
--- ── Productos — Cebiches ──────────────────────────────────────
+-- ── Productos — ceviches ──────────────────────────────────────
 INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal, es_destacado, tiene_personalizacion, orden) VALUES
-  (@cat_cebs, 'Cebiche de Pescado',
+  (@cat_cebs, 'ceviche de Pescado',
    'Pescado sierra marinado en limón con pepino, jitomate, cebolla morada y chile serrano.',
-   150.00, 'demos/cebiche_camaron.jpeg', 0, 0, 1),
-  (@cat_cebs, 'Cebiche de Camarón',
+   150.00, 'demos/ceviche_camaron.jpeg', 0, 0, 1),
+  (@cat_cebs, 'ceviche de Camarón',
    'Camarón crudo marinado en limón con jitomate, pepino y aguacate. Bien frío.',
-   175.00, 'demos/cebiche_camaron.jpeg', 1, 0, 2),
-  (@cat_cebs, 'Cebiche Mixto',
+   175.00, 'demos/ceviche_camaron.jpeg', 1, 0, 2),
+  (@cat_cebs, 'ceviche Mixto',
    'Combinación de pescado y camarón marinados con vegetales frescos y aderezo especial.',
-   195.00, 'demos/cebiche_camaron.jpeg', 0, 0, 3);
+   195.00, 'demos/ceviche_camaron.jpeg', 0, 0, 3);
 
 -- ── Productos — Platillos ─────────────────────────────────────
 INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal, es_destacado, tiene_personalizacion, orden) VALUES
@@ -126,8 +126,8 @@ INSERT INTO producto_opciones (grupo_id, nombre, precio_extra, orden) VALUES
   (@grp_mar1, 'Picante',       0.00, 3),
   (@grp_mar1, 'Extra picante', 0.00, 4);
 
--- Cebiches → Cebiche de Camarón: Marinado
-SET @prod_cebcam = (SELECT id FROM productos WHERE categoria_id = @cat_cebs AND nombre = 'Cebiche de Camarón');
+-- ceviches → ceviche de Camarón: Marinado
+SET @prod_cebcam = (SELECT id FROM productos WHERE categoria_id = @cat_cebs AND nombre = 'ceviche de Camarón');
 UPDATE productos SET tiene_personalizacion = 1 WHERE id = @prod_cebcam;
 
 INSERT INTO producto_grupos (producto_id, nombre, tipo, obligatorio, min_selecciones, max_selecciones, orden) VALUES
