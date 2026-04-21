@@ -379,7 +379,7 @@
 
         <!-- VAPID no configurado -->
         <div v-else-if="!vapidPublicKey" class="push-estado push-no-soportado">
-          <span>⚙️ Las claves VAPID no están configuradas en el servidor. Sigue los pasos de la fase 21 en DEPLOY.md.</span>
+          <span>⚙️ Las claves VAPID no están configuradas en el servidor. Revisa `api/config.php` del entorno activo (`demo` o `demo_local`) y completa `vapid_public_key`, `vapid_private_key` y `vapid_subject` como se indica en `docs/deploy.md`.</span>
         </div>
 
         <!-- iOS: recordar instalar en pantalla inicio -->
