@@ -148,6 +148,7 @@ CREATE TABLE IF NOT EXISTS pedidos (
   telefono          VARCHAR(20),                         -- requerido si tipo_entrega='envio'
   tipo_entrega      ENUM('recoger','envio') NOT NULL DEFAULT 'recoger',
   direccion         TEXT,
+  referencia        VARCHAR(150),
   metodo_pago       ENUM('efectivo','transferencia') NOT NULL DEFAULT 'efectivo',
   denominacion      DECIMAL(10,2),                       -- con cuánto paga (efectivo + envio)
   mesa              VARCHAR(20),                         -- de la URL ?mesa=N si aplica

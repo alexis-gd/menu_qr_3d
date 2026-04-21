@@ -154,6 +154,7 @@ CREATE TABLE IF NOT EXISTS pedidos (
   telefono             VARCHAR(20),
   tipo_entrega         ENUM('recoger','envio') NOT NULL DEFAULT 'recoger',
   direccion            VARCHAR(200),
+  referencia           VARCHAR(150) NULL DEFAULT NULL,   -- Fase 25: referencia de entrega
   metodo_pago          ENUM('efectivo','transferencia','terminal') NOT NULL DEFAULT 'efectivo',
   denominacion         DECIMAL(10,2),
   mesa                 VARCHAR(20),

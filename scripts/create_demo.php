@@ -32,6 +32,7 @@ $DEMO_DB = [
 
 $BASE_URL_DEMO = 'https://nodosmx.com'; // URL base del servidor de demos
 
+
 // ── Parsear argumentos ────────────────────────────────────────────────────────
 $opts = getopt('', [
     'template:', 'slug:', 'nombre:', 'whatsapp:', 'email:', 'pass:', 'days::'
@@ -150,9 +151,13 @@ try {
 
     // 2. Crear restaurante copiando de la plantilla
     $trialExpires = date('Y-m-d H:i:s', strtotime("+$days days"));
+
+    // Logo: heredar path del template (apunta a demos/logo_*.jpg compartido)
+    // El usuario puede reemplazarlo desde el admin después
     $insRest = $pdo->prepare('
         INSERT INTO restaurantes (
             usuario_id, slug, nombre, descripcion, tema, activo,
+            logo_url,
             pedidos_activos, pedidos_envio_activo, pedidos_envio_costo,
             pedidos_envio_gratis_desde, pedidos_whatsapp,
             pedidos_trans_activo, pedidos_terminal_activo,
@@ -160,6 +165,7 @@ try {
             compartir_mensaje, trial_expires_at
         ) VALUES (
             :uid, :slug, :nombre, :desc, :tema, 1,
+            :logo_url,
             :ped_activos, :ped_env_activo, :ped_env_costo,
             :ped_env_gratis, :whatsapp,
             :trans_activo, :terminal_activo,
@@ -173,6 +179,7 @@ try {
         ':nombre'        => $nombre,
         ':desc'          => $restauranteTmpl['descripcion'],
         ':tema'          => $restauranteTmpl['tema'],
+        ':logo_url'      => $restauranteTmpl['logo_url'],
         ':ped_activos'   => $restauranteTmpl['pedidos_activos'],
         ':ped_env_activo'=> $restauranteTmpl['pedidos_envio_activo'],
         ':ped_env_costo' => $restauranteTmpl['pedidos_envio_costo'],
@@ -233,14 +240,14 @@ try {
     ');
     foreach ($productos as $prod) {
         $nuevaCatId = $catMap[$prod['categoria_id']] ?? null;
-        if (!$nuevaCatId) continue; // producto de categoría no copiada, saltar
+        if (!$nuevaCatId) continue;
 
         $insProd->execute([
             ':cat_id'   => $nuevaCatId,
             ':nombre'   => $prod['nombre'],
             ':desc'     => $prod['descripcion'],
             ':precio'   => $prod['precio'],
-            ':foto'     => $prod['foto_principal'],
+            ':foto'     => $prod['foto_principal'], // path compartido demos/xxx.jpg
             ':tiene_ar' => $prod['tiene_ar'],
             ':destacado'=> $prod['es_destacado'],
             ':pers'     => $prod['tiene_personalizacion'],
@@ -330,6 +337,28 @@ try {
         }
     }
 
+    // 7. Registrar la demo creada para seguimiento comercial/operativo
+    $insRegistro = $pdo->prepare('
+        INSERT INTO demo_registros (
+            restaurante_id, usuario_id, template, slug, nombre, whatsapp, email,
+            trial_dias, trial_expires_at, estado, origen
+        ) VALUES (
+            :restaurante_id, :usuario_id, :template, :slug, :nombre, :whatsapp, :email,
+            :trial_dias, :trial_expires_at, "activa", "create_demo.php"
+        )
+    ');
+    $insRegistro->execute([
+        ':restaurante_id'   => $nuevoRestId,
+        ':usuario_id'       => $nuevoUserId,
+        ':template'         => $template,
+        ':slug'             => $slug,
+        ':nombre'           => $nombre,
+        ':whatsapp'         => $whatsapp ?: null,
+        ':email'            => $email,
+        ':trial_dias'       => $days,
+        ':trial_expires_at' => $trialExpires,
+    ]);
+
     $pdo->commit();
 
     // ── Output final ──────────────────────────────────────────────────────────
@@ -353,6 +382,7 @@ try {
     echo "   Pass:         $pass\n";
     echo "   Expira:       " . date('d/m/Y', strtotime($trialExpires)) . " ($days días)\n";
     echo "   restaurante_id: $nuevoRestId\n";
+    echo "   Registro:      demo_registros\n";
     echo "   ────────────────────────────────────────\n";
     echo "   Categorías copiadas: " . count($catMap) . "\n";
     echo "   Productos copiados:  " . count($prodMap) . "\n";

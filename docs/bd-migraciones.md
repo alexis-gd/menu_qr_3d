@@ -44,6 +44,8 @@ Orden obligatorio de aplicación: **local → QA → prod**. Ver [deploy.md](dep
 | `fase21_push_subscriptions.sql` | `push_subscriptions` |
 | `fase22_trial_system.sql` | `restaurantes.trial_expires_at TIMESTAMP NULL` |
 | `fase23_qr_frase_wifi.sql` | `restaurantes.qr_frase`, `qr_frase_activa`, `qr_wifi_nombre`, `qr_wifi_clave`, `qr_wifi_activo` |
+| `fase24_demo_registros.sql` | `demo_registros` para historial operativo de demos |
+| `fase25_pedidos_referencia.sql` | `pedidos.referencia VARCHAR(150)` — campo de referencia de entrega |
 
 ### Migraciones pendientes de aplicar en demo/QA
 
@@ -51,6 +53,8 @@ Orden obligatorio de aplicación: **local → QA → prod**. Ver [deploy.md](dep
 |---|---|---|
 | `fase22_trial_system.sql` | Aplicar en `nodosmxc_menu_demos` | ✅ |
 | `fase23_qr_frase_wifi.sql` | Aplicar en `nodosmxc_menu_demos` | Pendiente |
+| `fase24_demo_registros.sql` | Aplicar en `nodosmxc_menu_demos` | Pendiente |
+| `fase25_pedidos_referencia.sql` | Incluida en `init_demo_db.sql` | Pendiente |
 
 ### BD demo — archivos especiales
 

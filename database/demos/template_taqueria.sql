@@ -3,6 +3,9 @@
 -- Ejecutar DESPUÉS de init_demo_db.sql
 -- trial_expires_at = NULL → esta es una plantilla, no un demo activo
 -- El script create_demo.php la copia para cada prospecto
+--
+-- Imágenes: paths relativos a uploads_demos/ (o uploads/ en prod)
+-- Al forkear, create_demo.php copia los archivos a fotos/{new_id}/
 -- ============================================================
 
 SET NAMES utf8mb4;
@@ -10,15 +13,15 @@ SET NAMES utf8mb4;
 -- ── Usuario plantilla ─────────────────────────────────────────
 INSERT IGNORE INTO usuarios (nombre, email, password_hash, rol)
 VALUES ('Plantilla Taquería', 'template-taqueria@demo.local',
-        '$2y$10$demoPlaceholderHashNoUsable00000000000000000000000000000u', 'admin');
+        '$2y$10$WVB2c93.E1xjxstJNDxsMemN2LRsvhBC9ptUAiawLeUkUE/AOmoWK', 'admin'); -- pass: demo1234
 
 SET @uid_taq = LAST_INSERT_ID();
--- Si ya existía (IGNORE), recuperar el ID
 SELECT @uid_taq := id FROM usuarios WHERE email = 'template-taqueria@demo.local';
 
 -- ── Restaurante plantilla ─────────────────────────────────────
 INSERT IGNORE INTO restaurantes (
   usuario_id, slug, nombre, descripcion, tema, activo,
+  logo_url,
   pedidos_activos, pedidos_envio_activo, pedidos_envio_costo,
   pedidos_envio_gratis_desde, pedidos_whatsapp,
   pedidos_trans_activo, pedidos_terminal_activo,
@@ -27,7 +30,8 @@ INSERT IGNORE INTO restaurantes (
 ) VALUES (
   @uid_taq, 'template-taqueria', 'La Taquería',
   'Auténticos tacos y antojitos mexicanos. ¡El sabor de siempre!',
-  'calido', 1,
+  'rapida', 1,
+  'demos/logo_taqueria.jpg',
   1, 1, 30.00,
   200.00, '9611000000',
   1, 0,
@@ -55,6 +59,7 @@ SET @cat_bebs   = (SELECT id FROM categorias WHERE restaurante_id = @rid_taq AND
 SET @cat_extras = (SELECT id FROM categorias WHERE restaurante_id = @rid_taq AND nombre = 'Extras');
 
 -- ── Productos — Tacos ─────────────────────────────────────────
+-- foto_principal: path relativo a uploads_demos/ (se copia al forkear)
 INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal, es_destacado, orden) VALUES
   (@cat_tacos, 'Taco de Bistec',
    'Bistec de res asado a las brasas, cebolla y cilantro. Con tortilla de maíz.',
@@ -94,13 +99,13 @@ INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal
 INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal, orden) VALUES
   (@cat_bebs, 'Agua Fresca',
    'Agua fresca del día: Jamaica, Horchata o Limón. Vaso grande.',
-   25.00, 'demos/agua_fresca.jpg', 1),
+   25.00, 'demos/refresco.webp', 1),
   (@cat_bebs, 'Refresco 600ml',
    'Coca-Cola, Sprite o Mundet en botella.',
-   25.00, 'demos/refresco.jpg', 2),
+   25.00, 'demos/refresco.webp', 2),
   (@cat_bebs, 'Pozol Choco',
    'Tradicional bebida chiapaneca de cacao y maíz. Frío o natural.',
-   30.00, 'demos/pozol.jpg', 3);
+   30.00, 'demos/refresco.webp', 3);
 
 -- ── Productos — Extras ────────────────────────────────────────
 INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal, orden) VALUES
@@ -111,7 +116,7 @@ INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal
    'Salsas caseras de molcajete. Especifica el picor: suave, medio o picante.',
    10.00, 'demos/guacamole.jpg', 2);
 
--- ── Personalización: 1 producto por categoría ─────────────────
+-- ── Personalización: grupos de opciones ──────────────────────
 
 -- Tacos → Taco al Pastor: ¿Cuántos tacos?
 SET @prod_pastor = (SELECT id FROM productos WHERE categoria_id = @cat_tacos AND nombre = 'Taco al Pastor');

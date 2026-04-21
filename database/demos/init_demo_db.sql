@@ -174,6 +174,7 @@ CREATE TABLE IF NOT EXISTS pedidos (
   telefono              VARCHAR(20),
   tipo_entrega          ENUM('recoger','envio') NOT NULL DEFAULT 'recoger',
   direccion             TEXT,
+  referencia            VARCHAR(150),
   metodo_pago           ENUM('efectivo','transferencia','terminal') NOT NULL DEFAULT 'efectivo',
   denominacion          DECIMAL(10,2),
   mesa                  VARCHAR(20),
@@ -335,5 +336,29 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 CREATE INDEX IF NOT EXISTS idx_grupos_producto ON producto_grupos(producto_id, activo, orden);
 CREATE INDEX IF NOT EXISTS idx_opciones_grupo  ON producto_opciones(grupo_id, activo, orden);
 CREATE INDEX IF NOT EXISTS idx_item_opciones   ON pedido_item_opciones(pedido_item_id);
+
+CREATE TABLE IF NOT EXISTS demo_registros (
+  id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  restaurante_id    INT UNSIGNED NULL DEFAULT NULL,
+  usuario_id        INT UNSIGNED NULL DEFAULT NULL,
+  template          VARCHAR(30)  NOT NULL,
+  slug              VARCHAR(100) NOT NULL,
+  nombre            VARCHAR(200) NOT NULL,
+  whatsapp          VARCHAR(20)  NULL DEFAULT NULL,
+  email             VARCHAR(200) NOT NULL,
+  trial_dias        SMALLINT     NOT NULL DEFAULT 7,
+  trial_expires_at  TIMESTAMP    NULL DEFAULT NULL,
+  estado            ENUM('activa','expirada','convertida','eliminada') NOT NULL DEFAULT 'activa',
+  origen            VARCHAR(30)  NOT NULL DEFAULT 'create_demo.php',
+  notas             TEXT         NULL DEFAULT NULL,
+  created_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_demo_estado (estado),
+  INDEX idx_demo_slug (slug),
+  INDEX idx_demo_email (email),
+  INDEX idx_demo_trial (trial_expires_at),
+  FOREIGN KEY (restaurante_id) REFERENCES restaurantes(id) ON DELETE SET NULL,
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET foreign_key_checks = 1;

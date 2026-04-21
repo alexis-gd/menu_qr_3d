@@ -94,6 +94,33 @@ Output:
 
 **Tiempo por nueva demo: ~2 minutos.**
 
+## Registro de demos creadas
+
+Para no depender de `restaurantes` ni perder historial si luego conviertes o borras una demo, el sistema guarda cada alta en `demo_registros`.
+
+Campos clave:
+- `template`: rubro base usado (`taqueria`, `burgers`, etc.)
+- `slug`, `nombre`, `email`, `whatsapp`
+- `trial_dias`, `trial_expires_at`
+- `estado`: `activa`, `expirada`, `convertida`, `eliminada`
+
+Cada ejecución de `scripts/create_demo.php` inserta un registro automáticamente.
+
+### Listar demos registradas
+
+```bash
+php scripts/list_demos.php
+php scripts/list_demos.php --estado=activa
+```
+
+### Query rápida en MySQL
+
+```sql
+SELECT id, estado, template, slug, nombre, email, trial_expires_at, created_at
+FROM demo_registros
+ORDER BY created_at DESC;
+```
+
 ---
 
 ## Sistema de trial
@@ -146,11 +173,16 @@ En recargas posteriores (visibilitychange, F5), el slug se recupera de `sessionS
 
 ---
 
-## Imágenes de productos
+## Imágenes de productos y logos
 
-Los templates SQL referencian rutas como `demos/taco_pastor.jpg`. Estas imágenes deben existir en:
+Los templates SQL referencian rutas relativas como `demos/taco_pastor.jpg`. Las imágenes están en una carpeta plana compartida:
+
+- **Local (demo_local)**: `c:/xampp/htdocs/menu_qr_3d/uploads_demos/demos/`
 - **Servidor**: `public_html/demos/menu/uploads/demos/`
-- **Local (demo_local)**: `c:/xampp/htdocs/menu_qr_3d/uploads/demos/`
+
+Una sola imagen por tipo de producto (ej: todos los tacos comparten `demos/taco_pastor.jpg`). Cuando el cliente reemplaza una foto desde el admin, va a `fotos/{pid}/foto_{pid}_0_{ts}.jpg` — no toca las imágenes base.
+
+**CORS requerido para html2canvas (QR card):** `uploads_demos/` tiene `.htaccess` con `Access-Control-Allow-Origin: *`. Sin este header el PNG del QR descargado no muestra el logo.
 
 Para pruebas locales sin imágenes:
 ```sql

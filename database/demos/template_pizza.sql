@@ -8,7 +8,7 @@ SET NAMES utf8mb4;
 -- ── Usuario plantilla ─────────────────────────────────────────
 INSERT IGNORE INTO usuarios (nombre, email, password_hash, rol)
 VALUES ('Plantilla Pizza', 'template-pizza@demo.local',
-        '$2y$10$demoPlaceholderHashNoUsable00000000000000000000000000000u', 'admin');
+        '$2y$10$WVB2c93.E1xjxstJNDxsMemN2LRsvhBC9ptUAiawLeUkUE/AOmoWK', 'admin'); -- pass: demo1234
 
 SET @uid_piz = LAST_INSERT_ID();
 SELECT @uid_piz := id FROM usuarios WHERE email = 'template-pizza@demo.local';
@@ -16,6 +16,7 @@ SELECT @uid_piz := id FROM usuarios WHERE email = 'template-pizza@demo.local';
 -- ── Restaurante plantilla ─────────────────────────────────────
 INSERT IGNORE INTO restaurantes (
   usuario_id, slug, nombre, descripcion, tema, activo,
+  logo_url,
   pedidos_activos, pedidos_envio_activo, pedidos_envio_costo,
   pedidos_envio_gratis_desde, pedidos_whatsapp,
   pedidos_trans_activo, pedidos_terminal_activo,
@@ -25,6 +26,7 @@ INSERT IGNORE INTO restaurantes (
   @uid_piz, 'template-pizza', 'Pizzería Da Romano',
   'Pizzas artesanales al horno de leña. Masa madre, ingredientes frescos y el sabor de Italia.',
   'moderno', 1,
+  'demos/logo_pizza.jpg',
   1, 1, 40.00,
   350.00, '9611000000',
   1, 0,
@@ -61,19 +63,19 @@ INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal
    190.00, 'demos/pizza_margarita.jpg', 0, 0, 2),
   (@cat_pizzas, 'Pizza BBQ Pollo Chica (25cm)',
    'Pollo ahumado, tocino, cebolla morada, salsa BBQ y queso mozzarella.',
-   150.00, 'demos/pizza_bbq.jpg', 1, 0, 3),
+   150.00, 'demos/pizza_margarita.jpg', 1, 0, 3),
   (@cat_pizzas, 'Pizza BBQ Pollo Grande (35cm)',
    'Pollo ahumado, tocino, cebolla morada, salsa BBQ y queso mozzarella. Tamaño familiar.',
-   230.00, 'demos/pizza_bbq.jpg', 0, 0, 4),
+   230.00, 'demos/pizza_margarita.jpg', 0, 0, 4),
   (@cat_pizzas, 'Cuatro Quesos Chica (25cm)',
    'Mozzarella, gouda, parmesano y queso azul. Para los amantes del queso.',
-   145.00, 'demos/pizza_4quesos.jpg', 0, 0, 5),
+   145.00, 'demos/pizza_margarita.jpg', 0, 0, 5),
   (@cat_pizzas, 'Cuatro Quesos Grande (35cm)',
    'Mozzarella, gouda, parmesano y queso azul. Tamaño familiar.',
-   215.00, 'demos/pizza_4quesos.jpg', 0, 0, 6),
+   215.00, 'demos/pizza_margarita.jpg', 0, 0, 6),
   (@cat_pizzas, 'Pepperoni Grande (35cm)',
    'Salsa de tomate, mozzarella y pepperoni importado. El favorito de todos.',
-   210.00, 'demos/pizza_pepperoni.jpg', 1, 0, 7);
+   210.00, 'demos/pizza_margarita.jpg', 1, 0, 7);
 
 -- ── Productos — Calzones ──────────────────────────────────────
 INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal, es_destacado, orden) VALUES
@@ -82,31 +84,31 @@ INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal
    165.00, 'demos/calzone_jamon.jpg', 0, 1),
   (@cat_calz, 'Calzone Supremo',
    'Pepperoni, champiñones, pimiento, aceitunas y doble queso. El más completo.',
-   190.00, 'demos/calzone_supremo.jpg', 1, 2);
+   190.00, 'demos/calzone_jamon.jpg', 1, 2);
 
 -- ── Productos — Entradas ──────────────────────────────────────
 INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal, orden) VALUES
   (@cat_entrad, 'Pan de Ajo',
    'Pan artesanal tostado con mantequilla de ajo y hierbas finas. 6 piezas.',
-   60.00, 'demos/pan_ajo.jpg', 1),
+   60.00, 'demos/alitas.jpg', 1),
   (@cat_entrad, 'Alitas BBQ (8 piezas)',
    'Alitas de pollo horneadas y glaseadas con salsa BBQ ahumada.',
    95.00, 'demos/alitas.jpg', 2),
   (@cat_entrad, 'Ensalada César',
    'Lechuga romana, crutones de ajo, parmesano y aderezo césar casero.',
-   75.00, 'demos/ensalada_cesar.jpg', 3);
+   75.00, 'demos/alitas.jpg', 3);
 
 -- ── Productos — Bebidas ───────────────────────────────────────
 INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal, orden) VALUES
   (@cat_bebspiz, 'Coca-Cola 2L',
    'Para compartir en familia. Bien fría.',
-   55.00, 'demos/coca2l.jpg', 1),
+   55.00, 'demos/refresco.webp', 1),
   (@cat_bebspiz, 'Jugo Natural 500ml',
    'Naranja, zanahoria o mixto. Recién exprimido.',
-   45.00, 'demos/jugo.jpg', 2),
+   45.00, 'demos/refresco.webp', 2),
   (@cat_bebspiz, 'Agua Mineral 600ml',
    'Peñafiel sin gas o con gas.',
-   25.00, 'demos/agua_mineral.jpg', 3);
+   25.00, 'demos/refresco.webp', 3);
 
 -- ── Personalización: 1 producto por categoría ─────────────────
 

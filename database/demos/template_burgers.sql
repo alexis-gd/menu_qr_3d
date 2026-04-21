@@ -8,7 +8,7 @@ SET NAMES utf8mb4;
 -- ── Usuario plantilla ─────────────────────────────────────────
 INSERT IGNORE INTO usuarios (nombre, email, password_hash, rol)
 VALUES ('Plantilla Burgers', 'template-burgers@demo.local',
-        '$2y$10$demoPlaceholderHashNoUsable00000000000000000000000000000u', 'admin');
+        '$2y$10$WVB2c93.E1xjxstJNDxsMemN2LRsvhBC9ptUAiawLeUkUE/AOmoWK', 'admin'); -- pass: demo1234
 
 SET @uid_burg = LAST_INSERT_ID();
 SELECT @uid_burg := id FROM usuarios WHERE email = 'template-burgers@demo.local';
@@ -16,6 +16,7 @@ SELECT @uid_burg := id FROM usuarios WHERE email = 'template-burgers@demo.local'
 -- ── Restaurante plantilla ─────────────────────────────────────
 INSERT IGNORE INTO restaurantes (
   usuario_id, slug, nombre, descripcion, tema, activo,
+  logo_url,
   pedidos_activos, pedidos_envio_activo, pedidos_envio_costo,
   pedidos_envio_gratis_desde, pedidos_whatsapp,
   pedidos_trans_activo, pedidos_terminal_activo,
@@ -25,6 +26,7 @@ INSERT IGNORE INTO restaurantes (
   @uid_burg, 'template-burgers', 'El Corte',
   'Las mejores hamburguesas artesanales y cortes de res. Carne al punto que tú quieras.',
   'oscuro', 1,
+  'demos/logo_burgers.jpg',
   1, 1, 50.00,
   400.00, '9611000000',
   1, 1,
@@ -58,55 +60,55 @@ INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal
    130.00, 'demos/burger_clasica.jpg', 0, 0, 1),
   (@cat_burgs, 'Hamburguesa BBQ',
    'Carne 200g con salsa BBQ ahumada, queso cheddar, tocino crujiente y aros de cebolla. Con papas.',
-   155.00, 'demos/burger_bbq.jpg', 1, 0, 2),
+   155.00, 'demos/burger_clasica.jpg', 1, 0, 2),
   (@cat_burgs, 'Hamburguesa Doble',
    'Doble carne 2x180g, doble queso, doble tocino. Para los que no se conforman con poco.',
-   180.00, 'demos/burger_doble.jpg', 0, 0, 3),
+   180.00, 'demos/burger_clasica.jpg', 0, 0, 3),
   (@cat_burgs, 'Hamburguesa Hawaiana',
    'Carne 180g con piña asada, queso suizo, jamón y salsa teriyaki. Un clásico tropical.',
-   150.00, 'demos/burger_hawaiana.jpg', 0, 0, 4);
+   150.00, 'demos/burger_clasica.jpg', 0, 0, 4);
 
 -- ── Productos — Cortes ────────────────────────────────────────
 INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal, es_destacado, tiene_personalizacion, orden) VALUES
   (@cat_corts, 'Arrachera 250g',
    'Arrachera marinada en chimichurri a las brasas. Con guarnición de papas y ensalada.',
-   280.00, 'demos/corte_arrachera.jpg', 1, 0, 1),
+   280.00, 'demos/corte_sirloin.webp', 1, 0, 1),
   (@cat_corts, 'Sirloin 250g',
    'Corte de lomo fino, jugoso y tierno. Con papas fritas y chimichurri.',
-   270.00, 'demos/corte_sirloin.jpg', 0, 0, 2),
+   270.00, 'demos/corte_sirloin.webp', 0, 0, 2),
   (@cat_corts, 'Ribeye 300g',
    'El rey de los cortes. Veteado natural, máximo sabor. Con papas y ensalada cesar.',
-   390.00, 'demos/corte_ribeye.jpg', 1, 0, 3),
+   390.00, 'demos/corte_sirloin.webp', 1, 0, 3),
   (@cat_corts, 'T-Bone 400g',
    'Lo mejor de dos mundos: lomo y filete en un solo corte. Para los amantes de la carne.',
-   430.00, 'demos/corte_tbone.jpg', 0, 0, 4);
+   430.00, 'demos/corte_sirloin.webp', 0, 0, 4);
 
 -- ── Productos — Acompañamientos ───────────────────────────────
 INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal, orden) VALUES
   (@cat_acomp, 'Papas a la Francesa',
    'Papas fritas crujientes con sal de mar. Porción grande.',
-   55.00, 'demos/papas.jpg', 1),
+   55.00, 'demos/aros_cebolla.jpg', 1),
   (@cat_acomp, 'Aros de Cebolla',
    'Cebolla empanizada en tempura ligero. Crujientes por fuera, suaves por dentro.',
    65.00, 'demos/aros_cebolla.jpg', 2),
   (@cat_acomp, 'Ensalada César',
    'Lechuga romana, crutones, queso parmesano y aderezo césar casero.',
-   75.00, 'demos/ensalada_cesar.jpg', 3);
+   75.00, 'demos/aros_cebolla.jpg', 3);
 
 -- ── Productos — Bebidas ───────────────────────────────────────
 INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal, orden) VALUES
   (@cat_bbs, 'Refresco 355ml',
    'Coca-Cola, Sprite o Fanta en lata.',
-   30.00, 'demos/refresco.jpg', 1),
+   30.00, 'demos/refresco.webp', 1),
   (@cat_bbs, 'Agua Mineral',
    'Agua mineral Peñafiel 600ml.',
-   25.00, 'demos/agua_mineral.jpg', 2),
+   25.00, 'demos/refresco.webp', 2),
   (@cat_bbs, 'Cerveza Nacional',
    'Tecate, Corona o Modelo. Fría y bien servida.',
-   50.00, 'demos/cerveza.jpg', 3),
+   50.00, 'demos/refresco.webp', 3),
   (@cat_bbs, 'Limonada Natural',
    'Limonada fresca exprimida al momento, con o sin gas.',
-   40.00, 'demos/limonada.jpg', 4);
+   40.00, 'demos/refresco.webp', 4);
 
 -- ── Personalización: 1 producto por categoría ─────────────────
 

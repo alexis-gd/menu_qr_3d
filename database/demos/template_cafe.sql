@@ -8,7 +8,7 @@ SET NAMES utf8mb4;
 -- ── Usuario plantilla ─────────────────────────────────────────
 INSERT IGNORE INTO usuarios (nombre, email, password_hash, rol)
 VALUES ('Plantilla Café', 'template-cafe@demo.local',
-        '$2y$10$demoPlaceholderHashNoUsable00000000000000000000000000000u', 'admin');
+        '$2y$10$WVB2c93.E1xjxstJNDxsMemN2LRsvhBC9ptUAiawLeUkUE/AOmoWK', 'admin'); -- pass: demo1234
 
 SET @uid_cafe = LAST_INSERT_ID();
 SELECT @uid_cafe := id FROM usuarios WHERE email = 'template-cafe@demo.local';
@@ -16,15 +16,17 @@ SELECT @uid_cafe := id FROM usuarios WHERE email = 'template-cafe@demo.local';
 -- ── Restaurante plantilla ─────────────────────────────────────
 INSERT IGNORE INTO restaurantes (
   usuario_id, slug, nombre, descripcion, tema, activo,
+  logo_url,
   pedidos_activos, pedidos_envio_activo, pedidos_envio_costo,
   pedidos_envio_gratis_desde, pedidos_whatsapp,
   pedidos_trans_activo, pedidos_terminal_activo,
   codigos_promo_habilitado, stock_minimo_aviso,
   compartir_mensaje, trial_expires_at
 ) VALUES (
-  @uid_cafe, 'template-cafe', 'Café Origen',
+  @uid_cafe, 'template-cafe', 'La Croissanterie',
   'Cafés de especialidad, frappés artesanales y deliciosos alimentos. Tu momento favorito del día.',
   'rosa', 1,
+  'demos/logo_cafe.jpg',
   1, 0, 0,
   NULL, '9611000000',
   1, 1,
@@ -106,16 +108,16 @@ INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal
 INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal, es_destacado, orden) VALUES
   (@cat_posts, 'Cheesecake de Fresa',
    'Base de galleta, crema de queso suave y coulis de fresa fresca. Rebanada.',
-   70.00, 'demos/cheesecake.jpg', 1, 1),
+   70.00, 'demos/tiramisu.jpg', 1, 1),
   (@cat_posts, 'Brownie de Chocolate',
    'Brownie húmedo con chips de chocolate semiamargo y nuez. Tibio con nieve de vainilla.',
-   60.00, 'demos/brownie.jpg', 0, 2),
+   60.00, 'demos/tiramisu.jpg', 0, 2),
   (@cat_posts, 'Tiramisú',
    'El clásico italiano con mascarpone, espresso y cacao en polvo. Porción individual.',
    75.00, 'demos/tiramisu.jpg', 0, 3),
   (@cat_posts, 'Cinnamon Roll',
    'Rollo de canela recién horneado con glaseado de queso crema. Tibio y esponjoso.',
-   55.00, 'demos/cinnamon_roll.jpg', 0, 4);
+   55.00, 'demos/tiramisu.jpg', 0, 4);
 
 -- ── Personalización: 1 producto por categoría ─────────────────
 

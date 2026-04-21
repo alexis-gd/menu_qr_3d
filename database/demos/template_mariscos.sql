@@ -8,7 +8,7 @@ SET NAMES utf8mb4;
 -- ── Usuario plantilla ─────────────────────────────────────────
 INSERT IGNORE INTO usuarios (nombre, email, password_hash, rol)
 VALUES ('Plantilla Mariscos', 'template-mariscos@demo.local',
-        '$2y$10$demoPlaceholderHashNoUsable00000000000000000000000000000u', 'admin');
+        '$2y$10$WVB2c93.E1xjxstJNDxsMemN2LRsvhBC9ptUAiawLeUkUE/AOmoWK', 'admin'); -- pass: demo1234
 
 SET @uid_mar = LAST_INSERT_ID();
 SELECT @uid_mar := id FROM usuarios WHERE email = 'template-mariscos@demo.local';
@@ -16,6 +16,7 @@ SELECT @uid_mar := id FROM usuarios WHERE email = 'template-mariscos@demo.local'
 -- ── Restaurante plantilla ─────────────────────────────────────
 INSERT IGNORE INTO restaurantes (
   usuario_id, slug, nombre, descripcion, tema, activo,
+  logo_url,
   pedidos_activos, pedidos_envio_activo, pedidos_envio_costo,
   pedidos_envio_gratis_desde, pedidos_whatsapp,
   pedidos_trans_activo, pedidos_terminal_activo,
@@ -25,6 +26,7 @@ INSERT IGNORE INTO restaurantes (
   @uid_mar, 'template-mariscos', 'El Barco Mariscos',
   'Los mejores mariscos frescos del golfo. Cocteles, cebiches y platillos de autor.',
   'calido', 1,
+  'demos/logo_mariscos.jpg',
   1, 1, 45.00,
   350.00, '9611000000',
   0, 0,
@@ -55,58 +57,58 @@ SET @cat_bebsmar = (SELECT id FROM categorias WHERE restaurante_id = @rid_mar AN
 INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal, es_destacado, tiene_personalizacion, orden) VALUES
   (@cat_cocts, 'Coctel de Camarón Chico',
    'Camarón cocido en salsa valentina, jitomate, pepino, cebolla y aguacate. Vaso 350ml.',
-   120.00, 'demos/coctel_camaron.jpg', 0, 0, 1),
+   120.00, 'demos/coctel_camaron.jpeg', 0, 0, 1),
   (@cat_cocts, 'Coctel de Camarón Grande',
    'Camarón cocido en salsa valentina, jitomate, pepino, cebolla y aguacate. Tarro 600ml.',
-   185.00, 'demos/coctel_camaron.jpg', 1, 0, 2),
+   185.00, 'demos/coctel_camaron.jpeg', 1, 0, 2),
   (@cat_cocts, 'Coctel Mixto Grande',
    'Mezcla de camarón, pulpo, ostión y jaiba. El más completo. Tarro 600ml.',
-   220.00, 'demos/coctel_mixto.jpg', 1, 0, 3),
+   220.00, 'demos/coctel_camaron.jpeg', 1, 0, 3),
   (@cat_cocts, 'Tostadas de Atún (3 pzas)',
    'Atún fresco con aguacate, chipotle y mayonesa sobre tostada crujiente.',
-   85.00, 'demos/tostada_atun.jpg', 0, 0, 4);
+   85.00, 'demos/coctel_camaron.jpeg', 0, 0, 4);
 
 -- ── Productos — Cebiches ──────────────────────────────────────
 INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal, es_destacado, tiene_personalizacion, orden) VALUES
   (@cat_cebs, 'Cebiche de Pescado',
    'Pescado sierra marinado en limón con pepino, jitomate, cebolla morada y chile serrano.',
-   150.00, 'demos/cebiche_pescado.jpg', 0, 0, 1),
+   150.00, 'demos/cebiche_camaron.jpeg', 0, 0, 1),
   (@cat_cebs, 'Cebiche de Camarón',
    'Camarón crudo marinado en limón con jitomate, pepino y aguacate. Bien frío.',
-   175.00, 'demos/cebiche_camaron.jpg', 1, 0, 2),
+   175.00, 'demos/cebiche_camaron.jpeg', 1, 0, 2),
   (@cat_cebs, 'Cebiche Mixto',
    'Combinación de pescado y camarón marinados con vegetales frescos y aderezo especial.',
-   195.00, 'demos/cebiche_mixto.jpg', 0, 0, 3);
+   195.00, 'demos/cebiche_camaron.jpeg', 0, 0, 3);
 
 -- ── Productos — Platillos ─────────────────────────────────────
 INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal, es_destacado, tiene_personalizacion, orden) VALUES
   (@cat_plats, 'Camarones a la Diabla',
    'Camarones jumbo en salsa de chile de árbol ahumado. Acompañados de arroz y ensalada.',
-   230.00, 'demos/camarones_diabla.jpg', 1, 0, 1),
+   230.00, 'demos/pulpo_brasas.webp', 1, 0, 1),
   (@cat_plats, 'Filete de Huachinango',
    'Filete a la plancha o al mojo de ajo, con arroz, ensalada y tortillas.',
-   200.00, 'demos/filete_huachinango.jpg', 0, 0, 2),
+   200.00, 'demos/pulpo_brasas.webp', 0, 0, 2),
   (@cat_plats, 'Mojarra Frita',
    'Mojarra entera frita crujiente. Con arroz, ensalada, aguacate y tortillas.',
-   210.00, 'demos/mojarra_frita.jpg', 0, 0, 3),
+   210.00, 'demos/pulpo_brasas.webp', 0, 0, 3),
   (@cat_plats, 'Pulpo a las Brasas',
    'Pulpo entero asado con aceite de oliva, ajo y limón. Tierno y ahumado.',
-   280.00, 'demos/pulpo_brasas.jpg', 1, 0, 4);
+   280.00, 'demos/pulpo_brasas.webp', 1, 0, 4);
 
 -- ── Productos — Bebidas ───────────────────────────────────────
 INSERT INTO productos (categoria_id, nombre, descripcion, precio, foto_principal, orden) VALUES
   (@cat_bebsmar, 'Agua de Limón con Hierbabuena',
    'Limonada fresca con hojas de hierbabuena. Sin igual en el calor.',
-   30.00, 'demos/agua_limon.jpg', 1),
+   30.00, 'demos/michelada.webp', 1),
   (@cat_bebsmar, 'Tepache Artesanal',
    'Bebida fermentada de piña con piloncillo y canela. Natural y refrescante.',
-   35.00, 'demos/tepache.jpg', 2),
+   35.00, 'demos/michelada.webp', 2),
   (@cat_bebsmar, 'Michelada',
    'Cerveza con clamato, limón, sal y especias. La compañera perfecta del marisco.',
-   75.00, 'demos/michelada.jpg', 3),
+   75.00, 'demos/michelada.webp', 3),
   (@cat_bebsmar, 'Cerveza Fría',
    'Corona, Modelo o Tecate bien fría.',
-   50.00, 'demos/cerveza.jpg', 4);
+   50.00, 'demos/michelada.webp', 4);
 
 -- ── Personalización: 1 producto por categoría ─────────────────
 
