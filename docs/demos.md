@@ -2,7 +2,7 @@
 
 ## Qué es
 
-Sistema para generar demos rápidas por rubro. Cada prospecto tiene su propio restaurante aislado (slug único, usuario propio, trial de 7 días). Los 5 rubros son plantillas SQL — no restaurantes activos.
+Sistema para generar demos rápidas por rubro. Cada prospecto tiene su propio restaurante aislado (slug único, usuario propio, trial de 30 días). Los 5 rubros son plantillas SQL — no restaurantes activos.
 
 ---
 
@@ -15,7 +15,8 @@ taqueria.nodosmx.com/  ─┐
 burgers.nodosmx.com/   ─┤─→ public_html/demos/        ← Document Root de cada subdominio
 pizza.nodosmx.com/     ─┤       .htaccess              ← redirect / → /menu/
 mariscos.nodosmx.com/  ─┤       menu/                  ← mismo dist (base: /menu/)
-cafe.nodosmx.com/      ─┘         api/env.php          ← APP_ENV=demo
+cafe.nodosmx.com/      ─┘         .htaccess            ← Vue Router history mode (public/.htaccess → dist)
+                                   api/env.php          ← APP_ENV=demo
 
                             BD: nodosmxc_menu_demos
                               restaurantes: template-taqueria (plantilla, trial_expires_at=NULL)
@@ -76,7 +77,7 @@ php scripts/create_demo.php \
   --whatsapp=9611234567 \
   --email=garcia@demo.com \
   --pass=demo1234 \
-  --days=7
+  --days=30
 ```
 
 El script conecta directamente a `nodosmxc_menu_demos` (hardcodeado en el script).
@@ -89,7 +90,7 @@ Output:
    Admin:        https://taqueria.nodosmx.com/menu/admin
    Usuario:      garcia@demo.com
    Pass:         demo1234
-   Expira:       27/04/2026 (7 días)
+   Expira:       21/05/2026 (30 días)
 ```
 
 **Tiempo por nueva demo: ~2 minutos.**

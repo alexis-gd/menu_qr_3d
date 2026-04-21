@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kit Revendedor — Menú QR 3D</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f5f5;
+      color: #1a1a1a;
+      line-height: 1.6;
+      padding: 24px 16px 60px;
+    }
+
+    .container { max-width: 780px; margin: 0 auto; }
+
+    /* Header */
+    .header {
+      background: #1a1a1a;
+      color: #fff;
+      border-radius: 12px;
+      padding: 32px 28px;
+      margin-bottom: 24px;
+    }
+    .header h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 6px; }
+    .header p { color: #aaa; font-size: 0.95rem; }
+    .badge {
+      display: inline-block;
+      background: #f59e0b;
+      color: #000;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      margin-top: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Cards */
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px 24px 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.07);
+    }
+    .card h2 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #f0f0f0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card h2 .icon { font-size: 1.15rem; }
+
+    /* Precio */
+    .precio-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .precio-item {
+      background: #f8f8f8;
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+    .precio-item .label { font-size: 0.78rem; color: #777; margin-bottom: 4px; }
+    .precio-item .valor { font-size: 1.4rem; font-weight: 800; color: #1a1a1a; }
+    .precio-item .sub { font-size: 0.78rem; color: #555; margin-top: 2px; }
+    .precio-item.highlight { background: #fff7ed; border: 2px solid #f59e0b; }
+    .precio-item.highlight .valor { color: #d97706; }
+
+    .quote {
+      background: #f0fdf4;
+      border-left: 4px solid #22c55e;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px;
+      font-style: italic;
+      color: #166534;
+      font-size: 0.92rem;
+      margin-top: 16px;
+    }
+
+    /* Comisión */
+    .comision-box {
+      background: #f0fdf4;
+      border: 2px solid #22c55e;
+      border-radius: 10px;
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .comision-monto { font-size: 2rem; font-weight: 900; color: #16a34a; white-space: nowrap; }
+    .comision-desc { font-size: 0.88rem; color: #555; line-height: 1.5; }
+    .steps { margin-top: 14px; padding-left: 0; list-style: none; counter-reset: steps; }
+    .steps li {
+      counter-increment: steps;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.88rem;
+      color: #444;
+      margin-bottom: 7px;
+    }
+    .steps li::before {
+      content: counter(steps);
+      background: #1a1a1a;
+      color: #fff;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.72rem;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* Features grid */
+    .features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .feature-group h3 {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #888;
+      margin-bottom: 8px;
+    }
+    .feature-group ul { list-style: none; padding: 0; }
+    .feature-group ul li {
+      font-size: 0.87rem;
+      color: #333;
+      padding: 4px 0;
+      padding-left: 18px;
+      position: relative;
+    }
+    .feature-group ul li::before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      color: #22c55e;
+      font-weight: 700;
+    }
+
+    /* Demos table */
+    .demo-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+    .demo-table th {
+      text-align: left;
+      padding: 8px 10px;
+      background: #f5f5f5;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #777;
+    }
+    .demo-table td {
+      padding: 10px 10px;
+      border-bottom: 1px solid #f0f0f0;
+      vertical-align: top;
+    }
+    .demo-table tr:last-child td { border-bottom: none; }
+    .demo-url {
+      color: #2563eb;
+      text-decoration: none;
+      font-family: monospace;
+      font-size: 0.82rem;
+      word-break: break-all;
+    }
+    .demo-url:hover { text-decoration: underline; }
+    code {
+      background: #f3f4f6;
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-family: monospace;
+      font-size: 0.82rem;
+      color: #374151;
+    }
+    .demo-note {
+      font-size: 0.83rem;
+      color: #666;
+      background: #fafafa;
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-top: 12px;
+      border: 1px solid #eee;
+    }
+
+    /* FAQ */
+    .faq-item { margin-bottom: 14px; }
+    .faq-item dt { font-weight: 700; font-size: 0.9rem; margin-bottom: 3px; }
+    .faq-item dd { font-size: 0.88rem; color: #555; margin-left: 0; }
+
+    /* Contacto */
+    .contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .contact-item {
+      background: #f8f8f8;
+      border-radius: 8px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .contact-icon { font-size: 1.4rem; }
+    .contact-label { font-size: 0.75rem; color: #888; margin-bottom: 2px; }
+    .contact-val { font-size: 0.95rem; font-weight: 700; }
+
+    .footer-note {
+      text-align: center;
+      font-size: 0.78rem;
+      color: #bbb;
+      margin-top: 32px;
+    }
+
+    @media (max-width: 540px) {
+      .precio-grid, .features-grid, .contact-grid { grid-template-columns: 1fr; }
+      .comision-box { flex-direction: column; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>Kit del Revendedor</h1>
+    <p>Menú QR 3D — Todo lo que necesitas para cerrar ventas</p>
+    <span class="badge">Uso interno</span>
+  </div>
+
+  <!-- Qué vendes -->
+  <div class="card">
+    <h2><span class="icon">📱</span> ¿Qué vendes?</h2>
+    <p style="font-size:.93rem;color:#333;">
+      <strong>Menú digital inteligente con código QR</strong> para restaurantes, cafeterías, taquerías y cualquier negocio de alimentos.<br><br>
+      El cliente escanea el QR → ve el menú con fotos, personaliza su orden → llega directo al negocio.
+      <strong>Sin comisión por pedido. Sin apps que instalar.</strong>
+    </p>
+    <div class="quote">"Presencia digital y pedidos online — sé el primero en tu sector."</div>
+  </div>
+
+  <!-- Precio -->
+  <div class="card">
+    <h2><span class="icon">💰</span> Precio y trial</h2>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+
+      <!-- Plan Pequeño -->
+      <div style="border:2px solid #e5e7eb;border-radius:10px;padding:16px;">
+        <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:10px;">Negocio pequeño</div>
+        <div style="font-size:2rem;font-weight:900;color:#1a1a1a;">$299</div>
+        <div style="font-size:.78rem;color:#777;margin-bottom:10px;">MXN / mes · + IVA si requiere factura</div>
+        <div style="font-size:.82rem;color:#555;">Negocio de arranque o con poco volumen de pedidos.</div>
+      </div>
+
+      <!-- Plan Consolidado -->
+      <div style="border:2px solid #f59e0b;border-radius:10px;padding:16px;background:#fff7ed;">
+        <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#d97706;margin-bottom:10px;">Negocio consolidado</div>
+        <div style="font-size:2rem;font-weight:900;color:#d97706;">$399</div>
+        <div style="font-size:.78rem;color:#92400e;margin-bottom:10px;">MXN / mes · + IVA si requiere factura</div>
+        <div style="font-size:.82rem;color:#78350f;">Restaurante establecido, múltiples categorías o mayor volumen.</div>
+      </div>
+
+    </div>
+
+    <div class="precio-grid">
+      <div class="precio-item">
+        <div class="label" >Con dominio propio (<b>minegocio.com</b>)</div>
+        <div class="valor" >+$100</div>
+        <div class="sub">MXN / mes sobre cualquier plan</div>
+      </div>
+      <div class="precio-item">
+        <div class="label">Trial gratuito</div>
+        <div class="valor" style="font-size:1.1rem;padding-top:4px;">30 días</div>
+        <div class="sub">Sin costo · Sin tarjeta</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comisión -->
+  <div class="card">
+    <h2><span class="icon">🤝</span> Tu comisión</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+      <div class="comision-box" style="flex-direction:column;align-items:flex-start;gap:4px;">
+        <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#888;">Negocio pequeño</div>
+        <div class="comision-monto">$100</div>
+        <div class="comision-desc">MXN por cliente cerrado</div>
+      </div>
+      <div class="comision-box" style="flex-direction:column;align-items:flex-start;gap:4px;">
+        <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#888;">Negocio consolidado</div>
+        <div class="comision-monto">$150</div>
+        <div class="comision-desc">MXN por cliente cerrado</div>
+      </div>
+    </div>
+    <ol class="steps">
+      <li>Contactas al encargado, le presentas la demo, cierras el trato</li>
+      <li>Nos avisas con nombre, rubro y email del dueño</li>
+      <li>Nosotros creamos la cuenta en ~5 minutos</li>
+      <li>El cliente tiene 30 días para probar y configurar su menú</li>
+      <li>Al confirmar y pagar → tú cobras tu comisión</li>
+    </ol>
+  </div>
+
+  <!-- Features -->
+  <div class="card">
+    <h2><span class="icon">⚡</span> ¿Qué incluye el sistema?</h2>
+    <div class="features-grid">
+      <div class="feature-group">
+        <h3>Menú digital</h3>
+        <ul>
+          <li>Logo, colores y tema visual (5 temas)</li>
+          <li>Categorías e ítems ilimitados</li>
+          <li>Vista 3D / Realidad Aumentada</li>
+          <li>Galería de fotos por producto</li>
+        </ul>
+      </div>
+      <div class="feature-group">
+        <h3>Pedidos y pagos</h3>
+        <ul>
+          <li>Pedidos directo al WhatsApp</li>
+          <li>Efectivo, transferencia y terminal</li>
+          <li>Personalizaciones por platillo</li>
+          <li>Envío a domicilio configurable</li>
+        </ul>
+      </div>
+      <div class="feature-group">
+        <h3>Fidelización</h3>
+        <ul>
+          <li>Programa de recompensas con sellos</li>
+          <li>Códigos de descuento y promociones</li>
+          <li>Carrito con resumen antes de pagar</li>
+          <li>Historial con folio único</li>
+        </ul>
+      </div>
+      <div class="feature-group">
+        <h3>Administración</h3>
+        <ul>
+          <li>Panel desde celular o computadora</li>
+          <li>Generador de QR descargable en PNG</li>
+          <li>Corte de caja y reportes de ventas</li>
+          <li>Notificaciones push por pedido nuevo</li>
+        </ul>
+      </div>
+      <div class="feature-group">
+        <h3>Personalización</h3>
+        <ul>
+          <li>Cambio de tema visual con un clic</li>
+          <li>Logo, nombre y datos de contacto configurables</li>
+          <li>Adaptaciones por rubro (se cotiza)</li>
+          <li>Dominio propio disponible (+$100/mes)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Demos -->
+  <div class="card">
+    <h2><span class="icon">🎯</span> Demos en vivo</h2>
+    <p style="font-size:.85rem;color:#666;margin-bottom:14px;">Contraseña de todas las demos: <code>demo1234</code></p>
+    <table class="demo-table">
+      <thead>
+        <tr>
+          <th>Rubro</th>
+          <th>URLs</th>
+          <th>Email admin</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>🌮 Taquería</td>
+          <td>
+            <a class="demo-url" href="https://taqueria.nodosmx.com/menu/?r=template-taqueria" target="_blank">taqueria.nodosmx.com/menu/</a><br>
+            <a class="demo-url" style="color:#6b7280;" href="https://taqueria.nodosmx.com/menu/admin" target="_blank">taqueria.nodosmx.com/menu/admin</a>
+          </td>
+          <td><code>template-taqueria@demo.local</code></td>
+        </tr>
+        <tr>
+          <td>🍔 Burgers</td>
+          <td>
+            <a class="demo-url" href="https://burgers.nodosmx.com/menu/?r=template-burgers" target="_blank">burgers.nodosmx.com/menu/</a><br>
+            <a class="demo-url" style="color:#6b7280;" href="https://burgers.nodosmx.com/menu/admin" target="_blank">burgers.nodosmx.com/menu/admin</a>
+          </td>
+          <td><code>template-burgers@demo.local</code></td>
+        </tr>
+        <tr>
+          <td>☕ Cafetería</td>
+          <td>
+            <a class="demo-url" href="https://cafe.nodosmx.com/menu/?r=template-cafe" target="_blank">cafe.nodosmx.com/menu/</a><br>
+            <a class="demo-url" style="color:#6b7280;" href="https://cafe.nodosmx.com/menu/admin" target="_blank">cafe.nodosmx.com/menu/admin</a>
+          </td>
+          <td><code>template-cafe@demo.local</code></td>
+        </tr>
+        <tr>
+          <td>🦐 Mariscos</td>
+          <td>
+            <a class="demo-url" href="https://mariscos.nodosmx.com/menu/?r=template-mariscos" target="_blank">mariscos.nodosmx.com/menu/</a><br>
+            <a class="demo-url" style="color:#6b7280;" href="https://mariscos.nodosmx.com/menu/admin" target="_blank">mariscos.nodosmx.com/menu/admin</a>
+          </td>
+          <td><code>template-mariscos@demo.local</code></td>
+        </tr>
+        <tr>
+          <td>🍕 Pizzería</td>
+          <td>
+            <a class="demo-url" href="https://pizza.nodosmx.com/menu/?r=template-pizza" target="_blank">pizza.nodosmx.com/menu/</a><br>
+            <a class="demo-url" style="color:#6b7280;" href="https://pizza.nodosmx.com/menu/admin" target="_blank">pizza.nodosmx.com/menu/admin</a>
+          </td>
+          <td><code>template-pizza@demo.local</code></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="demo-note">
+      Las demos son datos de ejemplo. Si el prospecto quiere ver <em>su propio</em> menú — lo damos de alta en el momento con 30 días de prueba.
+    </div>
+  </div>
+
+  <!-- Proceso de alta -->
+  <div class="card">
+    <h2><span class="icon">🚀</span> Proceso de alta de un cliente nuevo</h2>
+    <ol class="steps">
+      <li><strong>Tú cierras</strong> — cliente confirma que quiere los 30 días de prueba</li>
+      <li><strong>Nos dices:</strong> nombre del restaurante, rubro y email del dueño</li>
+      <li><strong>Nosotros creamos la cuenta en ~5 min</strong> — el cliente recibe su acceso</li>
+      <li>El cliente tiene 30 días para configurar su menú y probarlo</li>
+      <li>Al confirmar → pago mensual → <strong>tú cobras tu comisión</strong></li>
+    </ol>
+  </div>
+
+  <!-- FAQ -->
+  <div class="card">
+    <h2><span class="icon">❓</span> Preguntas frecuentes del prospecto</h2>
+    <dl>
+      <div class="faq-item">
+        <dt>¿Necesita internet en el negocio?</dt>
+        <dd>Solo el dueño para administrar. Los clientes usan su propio internet al escanear el QR.</dd>
+      </div>
+      <div class="faq-item">
+        <dt>¿Tiene costo instalar algo?</dt>
+        <dd>No. El cliente escanea desde cualquier celular. Nada que descargar.</dd>
+      </div>
+      <div class="faq-item">
+        <dt>¿Qué pasa si quieren cambiar el menú?</dt>
+        <dd>Ellos mismos lo hacen desde el panel, en el momento. Sin depender de nadie.</dd>
+      </div>
+      <div class="faq-item">
+        <dt>¿Funciona con Rappi o iFood?</dt>
+        <dd>Es independiente. Los pedidos van directo al WhatsApp del negocio, sin pagar comisión a plataformas.</dd>
+      </div>
+      <div class="faq-item">
+        <dt>¿Por qué este y no Fudo o Bistrosoft?</dt>
+        <dd>Fudo y Bistrosoft son sistemas POS de gestión interna (caja, nómina, inventario). Este sistema hace una sola cosa: que el cliente escanee, elija y pida. Sin capacitación, sin comisión, el dueño lo maneja desde el celular el mismo día.</dd>
+      </div>
+      <div class="faq-item">
+        <dt>¿Se puede personalizar más allá del panel?</dt>
+        <dd>Sí. Para adaptaciones especiales se cotiza por separado.</dd>
+      </div>
+    </dl>
+  </div>
+
+  <!-- Contacto -->
+  <div class="card">
+    <h2><span class="icon">📞</span> Contacto para altas y soporte</h2>
+    <div class="contact-grid">
+      <div class="contact-item">
+        <div class="contact-icon">💬</div>
+        <div>
+          <div class="contact-label">WhatsApp</div>
+          <div class="contact-val">9231311146</div>
+        </div>
+      </div>
+      <div class="contact-item">
+        <div class="contact-icon">✉️</div>
+        <div>
+          <div class="contact-label">Email</div>
+          <div class="contact-val">katche4@gmail.com</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="footer-note">Documento interno — no compartir con clientes.</p>
+
+</div>
+</body>
+</html>
