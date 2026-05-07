@@ -110,7 +110,7 @@ switch ($route) {
                 p.aviso_complemento,
                 p.aviso_categoria_id
              FROM restaurantes r
-             LEFT JOIN categorias c ON c.restaurante_id = r.id AND c.activo = 1
+             LEFT JOIN categorias c ON c.restaurante_id = r.id AND c.activo = 1 AND c.visible_menu = 1
              LEFT JOIN productos p ON p.categoria_id = c.id AND p.activo = 1';
 
         if ($slug) {
@@ -326,7 +326,7 @@ switch ($route) {
         // GET: lista restaurantes (auth requerida)
         if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             $session = require_auth();
-            $ridFilter = $session['rid'];
+            $ridFilter = is_array($session) ? ($session['rid'] ?? null) : null;
             $whereExtra = $ridFilter ? ' AND id = :rid' : '';
             $stmt = $pdo->prepare('SELECT id, slug, nombre, descripcion, logo_url, color_primario, tema, qr_frase, qr_frase_activa, qr_wifi_nombre, qr_wifi_clave, qr_wifi_activo, pedidos_activos, pedidos_envio_activo, pedidos_envio_costo, pedidos_envio_gratis_desde, pedidos_whatsapp, pedidos_trans_clabe, pedidos_trans_cuenta, pedidos_trans_titular, pedidos_trans_banco, pedidos_trans_activo, pedidos_terminal_activo, compartir_mensaje, tienda_cerrada_manual, tienda_horarios, stock_minimo_aviso, codigos_promo_habilitado, pedidos_programar_activo, trial_expires_at FROM restaurantes WHERE activo = 1' . $whereExtra . ' ORDER BY nombre');
             $ridFilter ? $stmt->execute([':rid' => $ridFilter]) : $stmt->execute();
@@ -430,7 +430,7 @@ switch ($route) {
             $body = json_decode(file_get_contents('php://input'), true) ?: [];
             $fields = [];
             $params = [':id' => (int)$id];
-            foreach (['nombre', 'icono', 'orden'] as $f) {
+            foreach (['nombre', 'icono', 'orden', 'visible_menu'] as $f) {
                 if (isset($body[$f])) {
                     $fields[] = "$f = :$f";
                     $params[":$f"] = $body[$f];

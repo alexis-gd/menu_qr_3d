@@ -95,6 +95,13 @@
                 <SvgIcon v-else :path="mdiFormatListBulleted" :size="20" />
               </span>
               <span class="cat-nombre">{{ cat.nombre }}</span>
+              <label class="cat-visible-toggle" :title="categoriaVisible(cat) ? 'Visible en el menu publico' : 'Oculta en el menu publico'">
+                <span>{{ categoriaVisible(cat) ? 'Visible' : 'Oculta' }}</span>
+                <span class="sw">
+                  <input type="checkbox" :checked="categoriaVisible(cat)" @change="toggleCategoriaVisible(cat)" />
+                  <span class="sw-track" :style="categoriaVisible(cat) ? { background: accent } : {}"></span>
+                </span>
+              </label>
               <div class="cat-ord-btns">
                 <button @click="moverCategoria(idx, -1)" class="btn-ord" :disabled="idx === 0" title="Subir">▲</button>
                 <button @click="moverCategoria(idx, 1)" class="btn-ord" :disabled="idx === categorias.length - 1" title="Bajar">▼</button>
@@ -604,6 +611,20 @@ async function eliminarCategoria(id) {
   } catch (err) { emit('notif', { texto: err.message, tipo: 'error' }) }
 }
 
+const categoriaVisible = (cat) => Number(cat.visible_menu ?? 1) === 1
+
+async function toggleCategoriaVisible(cat) {
+  const nuevoValor = categoriaVisible(cat) ? 0 : 1
+  try {
+    await put('categorias', { visible_menu: nuevoValor }, { id: cat.id })
+    cat.visible_menu = nuevoValor
+    emit('notif', { texto: nuevoValor ? 'Categoria visible en el menu' : 'Categoria oculta del menu', tipo: 'ok' })
+  } catch (err) {
+    emit('notif', { texto: err.message, tipo: 'error' })
+    emit('categorias-changed')
+  }
+}
+
 async function moverCategoria(idx, dir) {
   const arr = [...props.categorias]
   const newIdx = idx + dir
@@ -944,7 +965,11 @@ onUnmounted(() => {
 }
 .cat-item:last-child { border-bottom: none; }
 .cat-icono  { width: 28px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--accent, #FF6B35); }
-.cat-nombre { flex: 1; font-weight: 600; font-size: 0.9rem; color: #333; }
+.cat-nombre { flex: 1; min-width: 0; font-weight: 600; font-size: 0.9rem; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cat-visible-toggle {
+  display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0;
+  color: #777; font-size: 0.75rem; font-weight: 700; cursor: pointer;
+}
 .cat-ord-btns { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
 .btn-ord { width: 22px; height: 18px; border: 1px solid #e0e0e0; border-radius: 4px; background: #fafafa; font-size: 0.6rem; cursor: pointer; line-height: 1; padding: 0; }
 .btn-ord:hover:not(:disabled) { background: #eee; }

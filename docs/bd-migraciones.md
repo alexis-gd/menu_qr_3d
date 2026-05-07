@@ -46,6 +46,7 @@ Orden obligatorio de aplicación: **local → QA → prod**. Ver [deploy.md](dep
 | `fase23_qr_frase_wifi.sql` | `restaurantes.qr_frase`, `qr_frase_activa`, `qr_wifi_nombre`, `qr_wifi_clave`, `qr_wifi_activo` |
 | `fase24_demo_registros.sql` | `demo_registros` para historial operativo de demos |
 | `fase25_pedidos_referencia.sql` | `pedidos.referencia VARCHAR(150)` — campo de referencia de entrega |
+| `fase26_categorias_visible_menu.sql` | `categorias.visible_menu` para ocultar categorias del menu publico sin eliminarlas |
 
 ### Migraciones pendientes de aplicar en demo/QA
 
@@ -55,6 +56,7 @@ Orden obligatorio de aplicación: **local → QA → prod**. Ver [deploy.md](dep
 | `fase23_qr_frase_wifi.sql` | Aplicar en `nodosmxc_menu_demos` | Pendiente |
 | `fase24_demo_registros.sql` | Aplicar en `nodosmxc_menu_demos` | Pendiente |
 | `fase25_pedidos_referencia.sql` | Incluida en `init_demo_db.sql` | Pendiente |
+| `fase26_categorias_visible_menu.sql` | Incluida en `init_demo_db.sql` | Pendiente |
 
 ### BD demo — archivos especiales
 
