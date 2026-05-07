@@ -21,7 +21,8 @@
             v-model="pickerDesde"
             :enable-time-picker="false"
             :max-date="hoyDate"
-            :format="fmtDia"
+            :formats="{ input: fmtDia }"
+            :locale="dpEs"
             :teleport="true"
             auto-apply
             placeholder="Desde"
@@ -33,7 +34,8 @@
             :enable-time-picker="false"
             :min-date="pickerDesde || undefined"
             :max-date="hoyDate"
-            :format="fmtDia"
+            :formats="{ input: fmtDia }"
+            :locale="dpEs"
             :teleport="true"
             auto-apply
             placeholder="Hasta (opcional)"
@@ -119,6 +121,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { VueDatePicker } from '@vuepic/vue-datepicker'
+import { es as dpEs } from 'date-fns/locale'
 import { useApi } from '../../../composables/useApi.js'
 
 const props = defineProps({

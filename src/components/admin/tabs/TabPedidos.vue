@@ -22,7 +22,8 @@
             v-model="pickerDesde"
             :enable-time-picker="false"
             :max-date="hoyDate"
-            :format="fmtDia"
+            :formats="{ input: fmtDia }"
+            :locale="dpEs"
             :teleport="true"
             auto-apply
             placeholder="Desde"
@@ -35,7 +36,8 @@
             :enable-time-picker="false"
             :min-date="pickerDesde || undefined"
             :max-date="hoyDate"
-            :format="fmtDia"
+            :formats="{ input: fmtDia }"
+            :locale="dpEs"
             :teleport="true"
             auto-apply
             placeholder="Hasta (opcional)"
@@ -286,6 +288,7 @@ import {
   mdiChartBar, mdiPlaylistEdit, mdiDeleteOutline, mdiPlus, mdiMinus, mdiClose,
 } from '@mdi/js'
 import { VueDatePicker } from '@vuepic/vue-datepicker'
+import { es as dpEs } from 'date-fns/locale'
 import { useApi } from '../../../composables/useApi.js'
 import SvgIcon from '../../SvgIcon.vue'
 import PersonalizacionModal from '../../menu/PersonalizacionModal.vue'

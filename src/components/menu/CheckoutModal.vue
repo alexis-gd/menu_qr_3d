@@ -90,11 +90,13 @@
             <div class="campo">
               <label>Fecha *</label>
               <VueDatePicker
+                ref="dpFechaRef"
                 v-model="fechaProgramada"
                 :min-date="minFecha"
                 :time-config="{ enableTimePicker: false }"
-                :format="fmtFechaDisplay"
+                :formats="{ input: fmtFechaDisplay }"
                 :disabled-dates="disabledDates"
+                :locale="dpEs"
                 auto-apply
                 placeholder="Selecciona una fecha"
               />
@@ -327,8 +329,9 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { VueDatePicker } from '@vuepic/vue-datepicker'
+import { es as dpEs } from 'date-fns/locale'
 import { useApi } from '../../composables/useApi.js'
 import { ucfirst } from '../../utils/ucfirst.js'
 import { useCarritoStore } from '../../stores/carrito.js'
@@ -360,6 +363,12 @@ const enviando          = ref(false)
 const errorMsg          = ref('')
 const fechaProgramada   = ref(null)   // Date object (VueDatePicker)
 const horaProgramada    = ref(null)   // { hours, minutes } (VueDatePicker time-picker)
+const dpFechaRef        = ref(null)
+
+onMounted(async () => {
+  await nextTick()
+  dpFechaRef.value?.$el?.querySelector('input')?.setAttribute('autocomplete', 'new-password')
+})
 
 // ── Horarios para pedido programado ──
 const _DIAS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
@@ -372,16 +381,31 @@ const _horarioDelDia = (date) => {
   return horarios[_DIAS[d.getDay()]] || null
 }
 
-// Mínimo: mañana como Date object
+// Mínimo: hoy si el horario de hoy aún no cerró, mañana si ya cerró o no hay horario hoy
 const minFecha = computed(() => {
+  const horarios = props.pedidosConfig?.tienda_horarios
+  const ahora = new Date()
+  const diaKey = _DIAS[ahora.getDay()]
+  const horarioHoy = horarios?.[diaKey]
+  if (horarioHoy?.activo && horarioHoy?.cierre) {
+    const [h, m] = horarioHoy.cierre.split(':').map(Number)
+    const cierreHoy = new Date()
+    cierreHoy.setHours(h, m, 0, 0)
+    if (cierreHoy > ahora) {
+      const d = new Date()
+      d.setHours(0, 0, 0, 0)
+      return d
+    }
+  }
   const d = new Date()
   d.setDate(d.getDate() + 1)
   d.setHours(0, 0, 0, 0)
   return d
 })
 
+const _MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
 const fmtFechaDisplay = (d) =>
-  d ? d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }) : ''
+  d ? `${String(d.getDate()).padStart(2,'0')} de ${_MESES[d.getMonth()]} del ${d.getFullYear()}` : ''
 
 // Deshabilita días cerrados en el calendario
 const disabledDates = (date) => {
