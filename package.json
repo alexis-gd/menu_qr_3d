@@ -1,6 +1,6 @@
 {
   "name": "menu-qr-3d",
-  "version": "20.5.3",
+  "version": "20.5.4",
   "type": "module",
   "scripts": {
     "dev": "vite",
