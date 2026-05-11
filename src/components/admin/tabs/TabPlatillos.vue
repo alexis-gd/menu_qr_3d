@@ -205,10 +205,10 @@
             <div class="prod-badges">
               <span v-if="prod.tiene_ar" class="badge badge-3d">3D ✓</span>
               <span v-else class="badge badge-no3d">Sin 3D</span>
-              <label class="badge-disp" :title="prod.disponible ? 'Disponible — click para desactivar' : 'No disponible — click para activar'">
+              <label class="badge-disp" :title="prod.disponible ? 'Visible en menú — click para ocultar' : 'Oculto del menú — click para mostrar'">
                 <input type="checkbox" :checked="prod.disponible" @change="toggleDisponible(prod)" hidden />
                 <span :class="['disp-pill', prod.disponible ? 'disp-on' : 'disp-off']">
-                  {{ prod.disponible ? 'Activo' : 'Próximamente' }}
+                  {{ prod.disponible ? 'Activo' : 'Oculto' }}
                 </span>
               </label>
             </div>

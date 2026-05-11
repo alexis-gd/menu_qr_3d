@@ -71,10 +71,11 @@ Todos bajo `api/index.php` con `?route=`:
 |---|---|---|---|
 | Normal | `disponible=1`, `stock IS NULL` o `>0` | ✓ | ✓ |
 | Agotado | `disponible=1`, `stock=0` | ✓ | ✗ |
-| Próximamente | `disponible=0` | ✓ | ✗ |
-| Oculto | `activo=0` (borrado lógico) | ✗ | ✗ |
+| Oculto (toggle admin) | `disponible=0` | ✗ | ✗ |
+| Borrado lógico | `activo=0` | ✗ | ✗ |
 
-Control es 100% frontend. API devuelve todos los productos con `activo=1`.
+`GET /menu` filtra `AND p.disponible = 1` — productos ocultos no llegan al frontend.
+El badge "Próximamente" en `ProductoCard` existe pero queda inerte (base para reactivar en futuro).
 
 ---
 

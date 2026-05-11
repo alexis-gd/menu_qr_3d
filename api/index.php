@@ -111,7 +111,7 @@ switch ($route) {
                 p.aviso_categoria_id
              FROM restaurantes r
              LEFT JOIN categorias c ON c.restaurante_id = r.id AND c.activo = 1 AND c.visible_menu = 1
-             LEFT JOIN productos p ON p.categoria_id = c.id AND p.activo = 1';
+             LEFT JOIN productos p ON p.categoria_id = c.id AND p.activo = 1 AND p.disponible = 1';
 
         if ($slug) {
             $stmt = $pdo->prepare($baseQuery . ' WHERE r.slug = :slug AND r.activo = 1 ORDER BY c.orden ASC, p.orden ASC, p.nombre ASC');

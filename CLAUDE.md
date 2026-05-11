@@ -184,6 +184,8 @@ Al completar una tarea relevante:
 
 ## LOG DE CAMBIOS ARQUITECTÓNICOS
 
+- [2026-05-11] **Toggle disponible: "Próximamente" → "Oculto del menú"** — `disponible=0` ya no muestra el producto con badge "Próximamente" sino que lo excluye del `GET /menu` (`AND p.disponible = 1` en el JOIN). Toggle en admin cambia de "Próximamente" a "Oculto". Badge `esProximamente` en `ProductoCard` y lógica `esBloqueado` en `MenuPublico` quedan inertes (no se eliminaron — base para reactivar). Archivos: `api/index.php`, `src/components/admin/tabs/TabPlatillos.vue`, `docs/bd-reglas-negocio.md`, `docs/estado-producto.md`.
+
 - [2026-05-06] **Categorías ocultables en menú público** — Nueva columna `categorias.visible_menu` para apagar una categoría desde admin sin borrarla ni bloquear sus platillos/pedidos existentes. `GET menu` solo lista categorías `activo=1 AND visible_menu=1`; el admin conserva las categorías activas para edición. Archivos: `api/index.php`, `src/components/admin/tabs/TabPlatillos.vue`, `database/migrations/fase26_categorias_visible_menu.sql`, `db/init.sql`, `database/demos/init_demo_db.sql`, `docs/bd-schema.md`, `docs/bd-migraciones.md`.
 
 - [2026-04-21] **Deploy demos en subdominios + fix Vue Router + VITE_PUBLIC_ORIGIN** — Deploy a 5 subdominios (`*.nodosmx.com`) todos apuntando a `public_html/demos/`. Fix 404 en rutas admin: `public/.htaccess` con rewrite a `index.html` (base `/menu/`). Fix URL compartir menú: `VITE_PUBLIC_ORIGIN` removido de `.env.production` y `.env.local` — ahora usa `window.location.origin` que devuelve el subdominio correcto en runtime. `docs/kit.html` creado como landing del kit revendedor (accesible en `nodosmx.com/kit.html`). Archivos: `public/.htaccess`, `.env.production`, `.env.local`, `docs/kit.html`.

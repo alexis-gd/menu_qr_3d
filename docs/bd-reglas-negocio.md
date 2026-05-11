@@ -6,7 +6,7 @@
 - `modelo_glb_path` → solo nombre del archivo, ej: `modelo_1_1234.glb`. URL completa: `UPLOADS_URL . 'modelos/' . $modelo_glb_path`.
 - `tiene_ar = 1` se setea al subir un `.glb` válido (endpoint `upload-glb`) o cuando el cron descarga exitosamente de Meshy.
 - `stock`: NULL = sin control; 0 = agotado (overlay "No disponible"); > 0 = unidades. API descuenta con `GREATEST(0, stock - cantidad)`.
-- `disponible`: 0 = "Próximamente" (visible sin botón de compra); 1 = normal. Distinto de `activo=0` (borrado lógico).
+- `disponible`: 0 = producto excluido del `GET /menu` (no aparece al cliente); 1 = visible y comprable. El endpoint `GET /menu` filtra `AND p.disponible = 1`. Toggle en admin muestra "Activo"/"Oculto". Distinto de `activo=0` (borrado lógico). El badge "Próximamente" en `ProductoCard` queda inerte pero no se eliminó — base para retomar esa funcionalidad en el futuro.
 - Borrado siempre lógico (`activo = 0`). Nunca DELETE.
 
 ## restaurantes
